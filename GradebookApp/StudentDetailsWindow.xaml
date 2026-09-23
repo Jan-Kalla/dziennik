@@ -1,0 +1,11 @@
+<Window x:Class="GradebookApp.StudentDetailsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:GradebookApp"
+        Title="Szczegóły ucznia" Height="900" Width="1200" WindowStartupLocation="CenterScreen"
+        Background="#1E1E1E" Foreground="#E0E0E0">
+    <!-- ... Reszta kodu okna bez zmian ... -->
+    <Grid Margin="10">
+        <local:StudentDetailsControl x:Name="WindowStudentControl" />
+    </Grid>
+</Window>
