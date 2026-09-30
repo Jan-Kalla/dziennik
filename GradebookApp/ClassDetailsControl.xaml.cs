@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -18,7 +19,7 @@ namespace GradebookApp
         public event System.EventHandler<Student>? StudentDetailsRequested;
 
         public ObservableCollection<Student> DisplayedStudents { get; set; } = new ObservableCollection<Student>();
-        public ObservableCollection<WrittenWork> DisplayedWorks { get; set; } = new ObservableCollection<WrittenWork>();
+        public ObservableCollection<ClassWorkViewModel> DisplayedWorks { get; set; } = new ObservableCollection<ClassWorkViewModel>();
 
         public ClassDetailsControl()
         {
@@ -33,7 +34,7 @@ namespace GradebookApp
             _currentClass = schoolClass;
             ClassNameText.Text = $"Klasa: {schoolClass.Name}";
             
-            // Czyszczenie cache EF Core by mieć 100% pewność na świeże dane ze średniej przy Load
+            // Czyszczenie cache EF Core by mieć 100% pewność na świeże dane
             _dbContext.ChangeTracker.Clear();
             
             _allStudents = _dbContext.Students
@@ -46,17 +47,121 @@ namespace GradebookApp
                 .Include(w => w.Tasks)
                 .ToList();
 
+            // ====================================================================
+            // AUTOMATYCZNE PRZELICZANIE ŚREDNICH DLA WSZYSTKICH UCZNIÓW KLASY
+            // ====================================================================
+            RecalculateAllStudentsAverages();
+
             SearchTextBox.Text = string.Empty;
             RefreshDisplayedStudents(_allStudents);
             RefreshDisplayedWorks();
         }
 
+        // Pomocnicza metoda przeliczająca średnie w locie przy odświeżaniu widoku klasy
+        private void RecalculateAllStudentsAverages()
+        {
+            var classWorks = _allWorks;
+            
+            foreach (var student in _allStudents)
+            {
+                var studentScores = _dbContext.StudentTaskScores.Where(s => s.StudentId == student.Id).ToList();
+                var studentWorkRecords = _dbContext.StudentWorkRecords.Where(r => r.StudentId == student.Id).ToList();
+
+                double totalEarnedP = 0;
+                double totalPossibleM = 0;
+
+                foreach (var work in classWorks)
+                {
+                    var workScores = studentScores.Where(s => work.Tasks.Any(t => t.Id == s.WrittenWorkTaskId)).ToList();
+                    var workRecord = studentWorkRecords.FirstOrDefault(r => r.WrittenWorkId == work.Id);
+                    
+                    bool hasBaseScores = workScores.Any(s => s.PointsLevel1.HasValue || s.PointsLevel2.HasValue || s.PointsLevel3.HasValue);
+                    bool hasRetakeScores = workScores.Any(s => s.RetakePointsLevel1.HasValue || s.RetakePointsLevel2.HasValue || s.RetakePointsLevel3.HasValue);
+
+                    if (workRecord != null && workRecord.IsAbsent)
+                    {
+                        // NB nie wpływa na dzielnik średniej
+                    }
+                    else 
+                    {
+                        double baseSum = 0;
+                        double retakeSum = 0;
+                        
+                        if (hasBaseScores || hasRetakeScores)
+                        {
+                            baseSum = GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, work.Tasks, workScores, false);
+                            retakeSum = GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, work.Tasks, workScores, true);
+                        }
+
+                        bool useRetake = workRecord != null && workRecord.IsRetakeActive && hasRetakeScores && retakeSum > baseSum;
+
+                        if (useRetake)
+                        {
+                            totalEarnedP += retakeSum;
+                            totalPossibleM += work.MaxFinalPoints;
+                        }
+                        else if (hasBaseScores)
+                        {
+                            totalEarnedP += baseSum;
+                            totalPossibleM += work.MaxFinalPoints;
+                        }
+                    }
+                }
+
+                double average = 0;
+                if (totalPossibleM > 0)
+                {
+                    average = Math.Round((totalEarnedP / totalPossibleM) * 100, 0, MidpointRounding.AwayFromZero);
+                }
+                
+                if (student.AveragePercentage != average)
+                {
+                    student.AveragePercentage = average;
+                    _dbContext.Students.Update(student);
+                }
+            }
+
+            _dbContext.SaveChanges();
+        }
+
         private void RefreshDisplayedWorks()
         {
             DisplayedWorks.Clear();
+            int totalStudents = _allStudents.Count;
+
+            var allClassRecords = _dbContext.StudentWorkRecords
+                                            .Where(r => r.Student.SchoolClassId == _currentClass.Id)
+                                            .ToList();
+
             foreach (var work in _allWorks)
             {
-                DisplayedWorks.Add(work);
+                var taskIds = work.Tasks.Select(t => t.Id).ToList();
+                
+                var absentStudentIds = allClassRecords
+                                                 .Where(r => r.WrittenWorkId == work.Id && r.IsAbsent)
+                                                 .Select(r => r.StudentId)
+                                                 .ToList();
+
+                int gradedCount = _dbContext.StudentTaskScores
+                                            .Where(s => taskIds.Contains(s.WrittenWorkTaskId) 
+                                                     && !absentStudentIds.Contains(s.StudentId)
+                                                     && (s.PointsLevel1 != null || s.PointsLevel2 != null || s.PointsLevel3 != null || 
+                                                         s.RetakePointsLevel1 != null || s.RetakePointsLevel2 != null || s.RetakePointsLevel3 != null))
+                                            .Select(s => s.StudentId)
+                                            .Distinct()
+                                            .Count();
+
+                DisplayedWorks.Add(new ClassWorkViewModel
+                {
+                    WorkId = work.Id,
+                    WorkType = work.WorkType,
+                    Title = work.Title,
+                    MaxFinalPoints = work.MaxFinalPoints,
+                    DateWrittenDisplay = work.DateWritten?.ToString("dd.MM.yyyy") ?? "Brak",
+                    DateEnteredDisplay = work.DateEntered?.ToString("dd.MM.yyyy") ?? "Brak",
+                    AttendanceRatio = $"{gradedCount} / {totalStudents}",
+                    OriginalWork = work
+                });
             }
         }
 
@@ -86,6 +191,7 @@ namespace GradebookApp
 
                 _allStudents.Add(newStudent);
                 RefreshDisplayedStudents(_allStudents);
+                RefreshDisplayedWorks();
             }
         }
 
@@ -215,6 +321,7 @@ namespace GradebookApp
                         
                         _dbContext.SaveChanges();
                         StudentsDataGrid.Items.Refresh(); 
+                        RefreshDisplayedWorks();
                     }
                     catch (System.Exception ex)
                     {
@@ -229,8 +336,6 @@ namespace GradebookApp
         {
             if (sender is Button button && button.DataContext is Student student && student.Id != 0)
             {
-                // Zamiast otwierać nowe okno, wysyłamy sygnał do okna głównego (rodzica), 
-                // aby ukryło listę klasy i pokazało panel szczegółów ucznia.
                 StudentDetailsRequested?.Invoke(this, student);
             }
         }
@@ -262,25 +367,26 @@ namespace GradebookApp
                     _dbContext.SaveChanges();
                     _allStudents.Remove(student);
                     RefreshDisplayedStudents(_allStudents);
+                    RefreshDisplayedWorks();
                 }
             }
         }
 
         private void WorkDetailsButton_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button button && button.DataContext is WrittenWork work)
+            if (sender is Button button && button.DataContext is ClassWorkViewModel vm)
             {
-                var dialog = new WorkDetailsWindow(work.Id)
+                var dialog = new WorkDetailsWindow(vm.WorkId)
                 {
                     Owner = Window.GetWindow(this)
                 };
 
                 if (dialog.ShowDialog() == true)
                 {
-                    _dbContext.Entry(work).State = EntityState.Detached;
-                    if (work.Tasks != null)
+                    _dbContext.Entry(vm.OriginalWork).State = EntityState.Detached;
+                    if (vm.OriginalWork.Tasks != null)
                     {
-                        foreach (var task in work.Tasks.ToList())
+                        foreach (var task in vm.OriginalWork.Tasks.ToList())
                         {
                             _dbContext.Entry(task).State = EntityState.Detached;
                         }
@@ -296,12 +402,11 @@ namespace GradebookApp
             }
         }
 
-        // LPM - Otwarcie zbiorczej tabeli wyników dla danej pracy pisemnej
         private void WorkResultsButton_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button button && button.DataContext is WrittenWork work)
+            if (sender is Button button && button.DataContext is ClassWorkViewModel vm)
             {
-                var resultsWindow = new WorkResultsWindow(work.Id, _currentClass.Id)
+                var resultsWindow = new WorkResultsWindow(vm.WorkId, _currentClass.Id)
                 {
                     Owner = Window.GetWindow(this)
                 };
@@ -312,22 +417,21 @@ namespace GradebookApp
 
         private void DeleteWork_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is MenuItem menuItem && menuItem.DataContext is WrittenWork work)
+            if (sender is MenuItem menuItem && menuItem.DataContext is ClassWorkViewModel vm)
             {
-                var result = MessageBox.Show($"Czy na pewno chcesz usunąć pracę '{work.Title}' i wszystkie powiązane z nią dane punktowe?", 
+                var result = MessageBox.Show($"Czy na pewno chcesz usunąć pracę '{vm.Title}' i wszystkie powiązane z nią dane punktowe?", 
                                              "Potwierdzenie usunięcia", MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (result == MessageBoxResult.Yes)
                 {
-                    _dbContext.WrittenWorks.Remove(work);
+                    _dbContext.WrittenWorks.Remove(vm.OriginalWork);
                     _dbContext.SaveChanges();
                     
-                    _allWorks.Remove(work);
+                    _allWorks.Remove(vm.OriginalWork);
                     RefreshDisplayedWorks();
                 }
             }
         }
 
-        // NOWE: Metoda do odświeżania tabeli ręcznie
         private void RefreshTable_Click(object sender, RoutedEventArgs e)
         {
             if (_currentClass != null)
@@ -335,5 +439,17 @@ namespace GradebookApp
                 LoadClassData(_currentClass);
             }
         }
+    }
+
+    public class ClassWorkViewModel
+    {
+        public int WorkId { get; set; }
+        public string WorkType { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public double MaxFinalPoints { get; set; }
+        public string DateWrittenDisplay { get; set; } = string.Empty;
+        public string DateEnteredDisplay { get; set; } = string.Empty;
+        public string AttendanceRatio { get; set; } = string.Empty; 
+        public WrittenWork OriginalWork { get; set; } = null!;
     }
 }

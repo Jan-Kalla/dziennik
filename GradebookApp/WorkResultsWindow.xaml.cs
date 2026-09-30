@@ -45,54 +45,74 @@ namespace GradebookApp
                 var record = workRecords.FirstOrDefault(r => r.StudentId == student.Id);
                 var studentScores = allScores.Where(s => s.StudentId == student.Id).ToList();
 
-                string dateWritten = "Brak";
-                string dateEntered = "Brak";
-                string retakeDateWritten = "-";
-                string retakeDateEntered = "-";
-                string scoreText = "Brak ocen";
+                DateTime? baseWritten = record?.CustomDateWritten ?? work.DateWritten;
+                DateTime? baseEntered = record?.CustomDateEntered ?? work.DateEntered;
+                DateTime? retakeWritten = record?.RetakeDateWritten;
+                DateTime? retakeEntered = record?.RetakeDateEntered;
 
-                if (record != null && record.IsAbsent)
+                bool hasBaseScores = studentScores.Any(s => s.PointsLevel1.HasValue || s.PointsLevel2.HasValue || s.PointsLevel3.HasValue);
+                bool hasRetakeScores = studentScores.Any(s => s.RetakePointsLevel1.HasValue || s.RetakePointsLevel2.HasValue || s.RetakePointsLevel3.HasValue);
+
+                double baseSum = 0;
+                double retakeSum = 0;
+
+                if (studentScores.Any())
                 {
-                    dateWritten = "NB";
-                    dateEntered = "NB";
-                    scoreText = "NB";
+                    baseSum = GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, work.Tasks, studentScores, false);
+                    retakeSum = GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, work.Tasks, studentScores, true);
+                }
+
+                // isRetakeDone to nasze zabezpieczenie przed przedłużaniem czasu w nieskończoność
+                bool isRetakeDone = record != null && record.IsRetakeActive && hasRetakeScores;
+                bool useRetakeDates = isRetakeDone && retakeSum > baseSum;
+
+                string dateWritten = "";
+                string dateEntered = "";
+                string scoreText = "";
+
+                if (useRetakeDates)
+                {
+                    dateWritten = retakeWritten?.ToString("dd.MM.yyyy") ?? baseWritten?.ToString("dd.MM.yyyy") ?? "Brak";
+                    dateEntered = retakeEntered?.ToString("dd.MM.yyyy") ?? baseEntered?.ToString("dd.MM.yyyy") ?? "Brak";
+                    scoreText = $"{retakeSum:0} / {work.MaxFinalPoints:0} pkt (popr.)";
                 }
                 else
                 {
-                    DateTime? written = record?.CustomDateWritten ?? work.DateWritten;
-                    DateTime? entered = record?.CustomDateEntered ?? work.DateEntered;
-
-                    dateWritten = written?.ToString("dd.MM.yyyy") ?? "Brak";
-                    dateEntered = entered?.ToString("dd.MM.yyyy") ?? "Brak";
-
-                    // Wyciąganie dat z poprawy
-                    if (record != null && record.IsRetakeActive)
+                    // Uczeń jest nieobecny (NB) - priorytet absolutny, bezwzględnie ignorujemy wszelkie zera wpisane w bazie
+                    if (record != null && record.IsAbsent)
                     {
-                        retakeDateWritten = record.RetakeDateWritten?.ToString("dd.MM.yyyy") ?? "-";
-                        retakeDateEntered = record.RetakeDateEntered?.ToString("dd.MM.yyyy") ?? "-";
+                        dateWritten = "-"; 
+                        dateEntered = baseEntered?.ToString("dd.MM.yyyy") ?? "Brak"; 
+                        scoreText = "NB";
                     }
-
-                    if (studentScores.Any())
+                    else if (hasBaseScores)
                     {
-                        double baseSum = GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, work.Tasks, studentScores, false);
-                        
-                        if (record != null && record.IsRetakeActive)
-                        {
-                            double retakeSum = GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, work.Tasks, studentScores, true);
-                            if (retakeSum > baseSum)
-                            {
-                                scoreText = $"{retakeSum} / {work.MaxFinalPoints} pkt (popr.)";
-                            }
-                            else
-                            {
-                                scoreText = $"{baseSum} / {work.MaxFinalPoints} pkt";
-                            }
-                        }
-                        else
-                        {
-                            scoreText = $"{baseSum} / {work.MaxFinalPoints} pkt";
-                        }
+                        dateWritten = baseWritten?.ToString("dd.MM.yyyy") ?? "Brak";
+                        dateEntered = baseEntered?.ToString("dd.MM.yyyy") ?? "Brak";
+                        scoreText = $"{baseSum:0} / {work.MaxFinalPoints:0} pkt";
                     }
+                    else
+                    {
+                        dateWritten = baseWritten?.ToString("dd.MM.yyyy") ?? "Brak";
+                        dateEntered = baseEntered?.ToString("dd.MM.yyyy") ?? "Brak";
+                        scoreText = "Brak ocen";
+                    }
+                }
+
+                string deadlineStr = "";
+
+                // Jeśli poprawa została już wpisana, blokujemy termin zgodnie z życzeniem
+                if (isRetakeDone)
+                {
+                    deadlineStr = "Już poprawiono";
+                }
+                else
+                {
+                    // Ufamy w 100% temu, co zapisano w bazie danych. 
+                    // Nieważne czy data została cofnięta, czy przesunięta do przodu.
+                    // Jeżeli z jakiegoś powodu w bazie nic nie ma, automat awaryjnie wstawia bazową + 14 dni.
+                    DateTime? deadlineDate = record?.RetakeDeadline ?? baseEntered?.AddDays(14);
+                    deadlineStr = deadlineDate?.ToString("dd.MM.yyyy") ?? "-";
                 }
 
                 resultsList.Add(new StudentWorkResultViewModel
@@ -102,8 +122,7 @@ namespace GradebookApp
                     FullName = student.FullName,
                     DateWrittenDisplay = dateWritten,
                     DateEnteredDisplay = dateEntered,
-                    RetakeDateWrittenDisplay = retakeDateWritten,
-                    RetakeDateEnteredDisplay = retakeDateEntered,
+                    DeadlineDisplay = deadlineStr,
                     ScoreDisplay = scoreText
                 });
             }
@@ -137,11 +156,7 @@ namespace GradebookApp
         public string FullName { get; set; } = string.Empty;
         public string DateWrittenDisplay { get; set; } = string.Empty;
         public string DateEnteredDisplay { get; set; } = string.Empty;
-        
-        // NOWE WŁAŚCIWOŚCI WIDOKU
-        public string RetakeDateWrittenDisplay { get; set; } = string.Empty;
-        public string RetakeDateEnteredDisplay { get; set; } = string.Empty;
-        
+        public string DeadlineDisplay { get; set; } = string.Empty;
         public string ScoreDisplay { get; set; } = string.Empty;
     }
 }

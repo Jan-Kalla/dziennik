@@ -39,7 +39,7 @@ namespace GradebookApp
                 }
                 else
                 {
-                    MessageBox.Show("Numerek musi być liczbą całkowitą.", "Błąd", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show("Numerek musi być liczbą całkowitą.", "AJajajaj! Błąd...", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
             }

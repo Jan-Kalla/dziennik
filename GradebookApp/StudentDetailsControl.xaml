@@ -8,7 +8,6 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         
-        <!-- Nagłówek z poprawionym kontrastem -->
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,20">
             <TextBlock x:Name="StudentNameText" FontSize="26" FontWeight="Bold" />
             <TextBlock x:Name="StudentAverageText" FontSize="26" Foreground="#AAAAAA" Margin="10,0,0,0" />
@@ -18,7 +17,8 @@
                   AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" IsReadOnly="True"
                   SelectionMode="Single" SelectionUnit="FullRow">
             <DataGrid.Columns>
-                <DataGridTextColumn Header="Praca pisemna" Binding="{Binding WorkTitle}" Width="*" />
+                <DataGridTextColumn Header="Rodzaj" Binding="{Binding WorkType}" Width="120" />
+                <DataGridTextColumn Header="Tytuł" Binding="{Binding WorkTitle}" Width="*" />
                 
                 <DataGridTextColumn Header="Wynik" Binding="{Binding ScoreDisplay}" Width="150">
                     <DataGridTextColumn.ElementStyle>

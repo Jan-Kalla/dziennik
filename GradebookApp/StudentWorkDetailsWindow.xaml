@@ -81,17 +81,21 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Zmieniony termin (do):" VerticalAlignment="Center" Margin="0,0,10,10"/>
-                        <DatePicker x:Name="RetakeDeadlinePicker" Grid.Row="0" Grid.Column="1" Width="110" Height="24" HorizontalAlignment="Left" Margin="0,0,0,10"/>
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Grupa:" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                        <TextBox x:Name="RetakeGroupTextBox" Grid.Row="0" Grid.Column="1" Width="50" Height="24" HorizontalAlignment="Left" Margin="0,0,0,10"/>
 
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Daty (Napis. / Wpis.):" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                        <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal">
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Zmieniony termin (do):" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                        <DatePicker x:Name="RetakeDeadlinePicker" Grid.Row="1" Grid.Column="1" Width="110" Height="24" HorizontalAlignment="Left" Margin="0,0,0,10"/>
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Daty (Napis. / Wpis.):" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal">
                             <DatePicker x:Name="RetakeDateWrittenPicker" Width="105" Height="24" Margin="0,0,5,0"/>
                             <DatePicker x:Name="RetakeDateEnteredPicker" Width="105" Height="24"/>
                         </StackPanel>
@@ -105,6 +109,28 @@
         <Grid x:Name="DetailsGrid" Grid.Row="3" Visibility="Collapsed" Margin="0,0,0,15">
             <DataGrid x:Name="ScoresDataGrid" FontSize="14" MaxHeight="350"
                       AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" SelectionUnit="Cell">
+                
+                <DataGrid.Resources>
+                    <!-- Zmuszamy wewnętrzne pola tekstowe do zgłaszania wciśniętych strzałek -->
+                    <Style TargetType="TextBox">
+                        <EventSetter Event="PreviewKeyDown" Handler="ScoreTextBox_PreviewKeyDown"/>
+                        <!-- Te atrybuty pozwalają zachować dotychczasowy wygląd trybu ciemnego -->
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="Foreground" Value="#E0E0E0"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                    </Style>
+                </DataGrid.Resources>
+
+                <DataGrid.InputBindings>
+                    <KeyBinding Key="Return" Command="ApplicationCommands.NotACommand" />
+                </DataGrid.InputBindings>
+
+                <DataGrid.CellStyle>
+                    <Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
+                        <EventSetter Event="GotFocus" Handler="DataGridCell_GotFocus"/>
+                    </Style>
+                </DataGrid.CellStyle>
+
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Zad." Binding="{Binding TaskNumber}" IsReadOnly="True" Width="40"/>
                     

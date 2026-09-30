@@ -136,7 +136,6 @@
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow">
                                 <Style.Triggers>
-                                    <!-- Nowy wiersz dodawania danych nie rzuca już jasnym AliceBlue po oczach -->
                                     <Trigger Property="IsNewItem" Value="True">
                                         <Setter Property="Background" Value="#252526" />
                                         <Setter Property="ToolTip" Value="Kliknij w komórkę, aby dodać nowego ucznia w tym wierszu" />
@@ -153,7 +152,7 @@
                             <DataGridTextColumn Header="Nazwisko" Binding="{Binding LastName}" Width="*" 
                                                 ElementStyle="{StaticResource LastNameElementStyle}" 
                                                 EditingElementStyle="{StaticResource LastNameEditingStyle}" />
-                            <DataGridTextColumn Header="Średnia %" Binding="{Binding AveragePercentage, StringFormat={}{0:0.##}\%}" Width="100" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Średnia %" Binding="{Binding AveragePercentage, StringFormat={}{0:0}\%}" Width="100" IsReadOnly="True" />
                             
                             <DataGridTemplateColumn Width="100">
                                 <DataGridTemplateColumn.CellTemplate>
@@ -196,13 +195,27 @@
                     <DataGrid x:Name="WorksDataGrid" Grid.Row="0" Margin="0,0,0,10" FontSize="16" 
                               AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" IsReadOnly="True">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="40" />
+                            <!-- Usunięto ID i Liczbę zadań. Dodano Frekwencję i podpięto właściwe zmienne z ViewModelu -->
                             <DataGridTextColumn Header="Rodzaj" Binding="{Binding WorkType}" Width="120" />
                             <DataGridTextColumn Header="Tytuł" Binding="{Binding Title}" Width="*" />
-                            <DataGridTextColumn Header="M (Max pkt)" Binding="{Binding MaxFinalPoints}" Width="90" />
-                            <DataGridTextColumn Header="Napisano" Binding="{Binding DateWritten, StringFormat={}{0:dd.MM.yyyy}}" Width="110" />
-                            <DataGridTextColumn Header="Wpisano" Binding="{Binding DateEntered, StringFormat={}{0:dd.MM.yyyy}}" Width="110" />
-                            <DataGridTextColumn Header="Liczba zadań" Binding="{Binding Tasks.Count}" Width="110" />
+                            
+                            <DataGridTextColumn Header="M (Max pkt)" Binding="{Binding MaxFinalPoints}" Width="Auto">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Center"/></Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            
+                            <DataGridTextColumn Header="Napisano" Binding="{Binding DateWrittenDisplay}" Width="110" />
+                            <DataGridTextColumn Header="Wpisano" Binding="{Binding DateEnteredDisplay}" Width="110" />
+                            
+                            <DataGridTextColumn Header="Napisane przez" Binding="{Binding AttendanceRatio}" Width="Auto">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="HorizontalAlignment" Value="Center"/>
+                                        <Setter Property="Foreground" Value="#4DB6AC"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
 
                             <DataGridTemplateColumn Width="160">
                                 <DataGridTemplateColumn.CellTemplate>

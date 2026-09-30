@@ -1,7 +1,7 @@
 <Window x:Class="GradebookApp.WorkResultsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Zestawienie wyników pracy" Height="600" Width="1100" WindowStartupLocation="CenterOwner"
+        Title="Zestawienie wyników pracy" Height="600" Width="1000" WindowStartupLocation="CenterOwner"
         Background="#1E1E1E" Foreground="#E0E0E0">
     <Grid Margin="15">
         <Grid.RowDefinitions>
@@ -22,27 +22,36 @@
                 </DataGridTextColumn>
                 
                 <DataGridTextColumn Header="Imię i nazwisko" Binding="{Binding FullName}" Width="*" />
-                <DataGridTextColumn Header="Napisano" Binding="{Binding DateWrittenDisplay}" Width="105" />
-                <DataGridTextColumn Header="Wpisano" Binding="{Binding DateEnteredDisplay}" Width="105" />
                 
-                <DataGridTextColumn Header="Napisano (popr.)" Binding="{Binding RetakeDateWrittenDisplay}" Width="135">
+                <DataGridTextColumn Header="Napisano" Binding="{Binding DateWrittenDisplay}" Width="110">
                     <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Foreground" Value="#81C784"/>
-                            <Setter Property="HorizontalAlignment" Value="Center"/>
-                        </Style>
-                    </DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
-                <DataGridTextColumn Header="Wpisano (popr.)" Binding="{Binding RetakeDateEnteredDisplay}" Width="135">
-                    <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Foreground" Value="#81C784"/>
-                            <Setter Property="HorizontalAlignment" Value="Center"/>
-                        </Style>
+                        <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Center"/></Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
                 
-                <DataGridTextColumn Header="Wynik końcowy" Binding="{Binding ScoreDisplay}" Width="150">
+                <DataGridTextColumn Header="Wpisano" Binding="{Binding DateEnteredDisplay}" Width="110">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Center"/></Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                
+                <!-- KOLUMNA Z WYZWALACZEM KOLORU DLA "Już poprawiono" -->
+                <DataGridTextColumn Header="Termin do" Binding="{Binding DeadlineDisplay}" Width="130">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="HorizontalAlignment" Value="Center"/>
+                            <Setter Property="Foreground" Value="#FFB74D"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding DeadlineDisplay}" Value="Już poprawiono">
+                                    <Setter Property="Foreground" Value="#E57373"/>
+                                    <Setter Property="FontWeight" Value="Bold"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                
+                <DataGridTextColumn Header="Wynik końcowy" Binding="{Binding ScoreDisplay}" Width="160">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Center"/></Style>
                     </DataGridTextColumn.ElementStyle>

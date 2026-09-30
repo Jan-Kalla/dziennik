@@ -45,64 +45,65 @@ namespace GradebookApp
                 var workScores = studentScores.Where(s => work.Tasks.Any(t => t.Id == s.WrittenWorkTaskId)).ToList();
                 var workRecord = studentWorkRecords.FirstOrDefault(r => r.WrittenWorkId == work.Id);
                 
+                bool hasBaseScores = workScores.Any(s => s.PointsLevel1.HasValue || s.PointsLevel2.HasValue || s.PointsLevel3.HasValue);
+                bool hasRetakeScores = workScores.Any(s => s.RetakePointsLevel1.HasValue || s.RetakePointsLevel2.HasValue || s.RetakePointsLevel3.HasValue);
+
                 string scoreText = "Brak ocen";
                 
                 if (workRecord != null && workRecord.IsAbsent)
                 {
                     scoreText = "NB"; 
-                    // NB nie wpływa na dzielnik średniej
                 }
-                else if (workScores.Any())
+                else 
                 {
-                    double baseSum = GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, work.Tasks, workScores, false);
-                    double finalScore = baseSum;
-
-                    if (workRecord != null && workRecord.IsRetakeActive)
-                    {
-                        double retakeSum = GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, work.Tasks, workScores, true);
-                        if (retakeSum > baseSum)
-                        {
-                            finalScore = retakeSum;
-                            scoreText = $"{finalScore} / {work.MaxFinalPoints} pkt (popr.)";
-                        }
-                        else
-                        {
-                            scoreText = $"{finalScore} / {work.MaxFinalPoints} pkt";
-                        }
-                    }
-                    else
-                    {
-                        scoreText = $"{finalScore} / {work.MaxFinalPoints} pkt";
-                    }
+                    double baseSum = 0;
+                    double retakeSum = 0;
                     
-                    totalEarnedP += finalScore;
-                    totalPossibleM += work.MaxFinalPoints;
+                    if (hasBaseScores || hasRetakeScores)
+                    {
+                        baseSum = GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, work.Tasks, workScores, false);
+                        retakeSum = GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, work.Tasks, workScores, true);
+                    }
+
+                    bool useRetake = workRecord != null && workRecord.IsRetakeActive && hasRetakeScores && retakeSum > baseSum;
+
+                    if (useRetake)
+                    {
+                        scoreText = $"{retakeSum:0} / {work.MaxFinalPoints:0} pkt (popr.)";
+                        totalEarnedP += retakeSum;
+                        totalPossibleM += work.MaxFinalPoints;
+                    }
+                    else if (hasBaseScores)
+                    {
+                        scoreText = $"{baseSum:0} / {work.MaxFinalPoints:0} pkt";
+                        totalEarnedP += baseSum;
+                        totalPossibleM += work.MaxFinalPoints;
+                    }
                 }
 
                 worksList.Add(new StudentWorkViewModel
                 {
                     WorkId = work.Id,
+                    WorkType = work.WorkType, // NOWE
                     WorkTitle = work.Title,
                     ScoreDisplay = scoreText
                 });
             }
 
-            // OBLICZANIE ŚREDNIEJ
             double average = 0;
             if (totalPossibleM > 0)
             {
-                average = Math.Round((totalEarnedP / totalPossibleM) * 100, 2);
+                average = Math.Round((totalEarnedP / totalPossibleM) * 100, 0, MidpointRounding.AwayFromZero);
             }
             
             if (dbStudent.AveragePercentage != average)
             {
                 dbStudent.AveragePercentage = average;
                 _dbContext.SaveChanges();
-                // Wysłanie sygnału o aktualizacji
                 StudentUpdated?.Invoke(this, EventArgs.Empty);
             }
 
-            StudentAverageText.Text = $"- Średnia: {average:0.##}%";
+            StudentAverageText.Text = $"- Średnia: {average:0}%";
             StudentWorksDataGrid.ItemsSource = worksList;
         }
 
@@ -128,6 +129,7 @@ namespace GradebookApp
     public class StudentWorkViewModel
     {
         public int WorkId { get; set; }
+        public string WorkType { get; set; } = string.Empty; // NOWE
         public string WorkTitle { get; set; } = string.Empty;
         public string ScoreDisplay { get; set; } = string.Empty;
     }

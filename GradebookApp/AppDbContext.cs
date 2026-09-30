@@ -93,21 +93,29 @@ namespace GradebookApp
     public class StudentWorkRecord
     {
         public int Id { get; set; }
+        
+        // Relacja z uczniem
         public int StudentId { get; set; }
         public Student Student { get; set; } = null!;
+        
+        // Relacja z konkretną pracą
         public int WrittenWorkId { get; set; }
         public WrittenWork WrittenWork { get; set; } = null!;
         
-        public string Group { get; set; } = string.Empty; // Grupa A/B
-        public DateTime? CustomDateWritten { get; set; } // Nadpisuje domyślną datę z WrittenWork
-        public DateTime? CustomDateEntered { get; set; }
-        public bool IsAbsent { get; set; } // Zaznaczone = chłopa nie było (NB)
+        // Flaga czy uczeń był nieobecny (dostaje 'NB')
+        public bool IsAbsent { get; set; }
         
-        // Sekcja na poprawę
-        public DateTime? RetakeDeadline { get; set; } // Do kiedy uczeń może poprawiać
+        // Indywidualne daty dla ucznia (np. pisał sprawdzian 3 dni później bo chorował)
+        public string? Group { get; set; } // Grupa, np. A, B
+        public DateTime? CustomDateWritten { get; set; }
+        public DateTime? CustomDateEntered { get; set; }
+        
+        // DANE DOTYCZĄCE POPRAWY
+        public bool IsRetakeActive { get; set; }
+        public string? RetakeGroup { get; set; } // NOWOŚĆ: Grupa dla poprawy
+        public DateTime? RetakeDeadline { get; set; }
         public DateTime? RetakeDateWritten { get; set; }
         public DateTime? RetakeDateEntered { get; set; }
-        public bool IsRetakeActive { get; set; } // Flaga czy w ogóle odpalamy mu drugi termin
     }
 
     // TABELA: Konkretne punkty zdobyte przez ucznia w danym zadaniu
@@ -160,7 +168,7 @@ namespace GradebookApp
             // Ochrona przed patologiami - jak brak zadań to zwracamy 0 pkt, żeby nie wywaliło DivideByZero
             if (tasks == null || !tasks.Any() || M <= 0) return 0;
 
-            // Kary za niższe poziomy (współczynniki z pdf'a)
+            // Kary za niższe poziomy 
             double alpha1 = 0.54;
             double alpha2 = 0.9;
             
@@ -194,8 +202,9 @@ namespace GradebookApp
             double r2 = sumQ2 / n;
             double r3 = sumQ3 / n;
 
-            // Finał: P = M * sumy. I obcinamy do 2 miejsc po przecinku. Tyle.
-            return Math.Round(M * (alpha1 * r1 + alpha2 * r2 + r3), 2);
+            // Finał: P = M * sumy. I Marcinie wedle prośby: zaokrąglamy do pełnej liczby punktów. 
+            // MidpointRounding.AwayFromZero to taki trick, żeby 0.5 szło w górę, a nie w dół.
+            return Math.Round(M * (alpha1 * r1 + alpha2 * r2 + r3), 0, MidpointRounding.AwayFromZero);
         }
     }
 }

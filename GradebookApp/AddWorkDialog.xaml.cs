@@ -78,7 +78,7 @@ namespace GradebookApp
             bool hasEmptyFields = TasksCollection.Any(t => t.MaxPointsLevel1 == null || t.MaxPointsLevel2 == null || t.MaxPointsLevel3 == null);
             if (hasEmptyFields)
             {
-                MessageBox.Show("Musisz wypełnić wszystkie pola punktacji. Wpisz 0, jeśli poziom nie jest punktowany.", "Brakujące dane", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Musisz wypełnić wszystkie pola punktacji. Wpisz 0, jeśli poziom nie jest punktowany.", "Ajajajaj! Brakujące dane...", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
