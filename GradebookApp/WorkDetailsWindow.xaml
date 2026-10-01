@@ -1,7 +1,7 @@
 <Window x:Class="GradebookApp.WorkDetailsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Szczegóły pracy pisemnej" Width="450" Height="720" WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Title="Oceny" Width="450" Height="720" WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         Background="#1E1E1E" Foreground="#E0E0E0">
     <Grid Margin="15">
         <Grid.RowDefinitions>
@@ -29,7 +29,7 @@
         <TextBox x:Name="TitleTextBox" Grid.Row="3" Height="28" Margin="0,0,0,10" FontSize="14" VerticalContentAlignment="Center"/>
 
         <!-- NOWE POLE DLA M -->
-        <TextBlock Text="Max punktów końcowych (M):" Grid.Row="4" Margin="0,0,0,5" FontSize="14" FontWeight="Bold" Foreground="#4DB6AC"/>
+        <TextBlock Text="Max:" Grid.Row="4" Margin="0,0,0,5" FontSize="14" FontWeight="Bold" Foreground="#4DB6AC"/>
         <TextBox x:Name="MaxPointsTextBox" Grid.Row="5" Height="28" Margin="0,0,0,10" FontSize="14" VerticalContentAlignment="Center"/>
 
         <Grid Grid.Row="6" Margin="0,0,0,10">

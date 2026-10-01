@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -12,6 +13,12 @@ namespace GradebookApp
         private AppDbContext _dbContext;
         private int _workId;
         private int _classId;
+        
+        // Trzymamy w pamięci stałą listę wszystkich pobranych wyników, by mieć po czym wyszukiwać
+        private List<WorkResultViewModel> _allResults = new List<WorkResultViewModel>();
+        
+        // Zmienna widokowa podpięta pod tabelę - zmienia się na żywo w trakcie wpisywania liter
+        public ObservableCollection<WorkResultViewModel> DisplayedResults { get; set; } = new ObservableCollection<WorkResultViewModel>();
 
         public WorkResultsWindow(int workId, int classId)
         {
@@ -19,126 +26,141 @@ namespace GradebookApp
             _dbContext = new AppDbContext();
             _workId = workId;
             _classId = classId;
-
+            
+            ResultsDataGrid.ItemsSource = DisplayedResults;
             LoadData();
         }
 
         private void LoadData()
         {
-            _dbContext.ChangeTracker.Clear(); 
+            _dbContext.ChangeTracker.Clear();
+            _allResults.Clear();
 
             var work = _dbContext.WrittenWorks.Include(w => w.Tasks).FirstOrDefault(w => w.Id == _workId);
             var students = _dbContext.Students.Where(s => s.SchoolClassId == _classId).OrderBy(s => s.JournalNumber).ToList();
             
-            if (work == null || students.Count == 0) return;
+            if (work == null) return;
 
-            WorkTitleText.Text = $"Wyniki: {work.WorkType.ToUpper()} - {work.Title}";
+            TitleText.Text = $"Wyniki: {work.WorkType.ToUpper()} - {work.Title}";
 
-            var workRecords = _dbContext.StudentWorkRecords.Where(r => r.WrittenWorkId == _workId).ToList();
-            var taskIds = work.Tasks.Select(t => t.Id).ToList();
-            var allScores = _dbContext.StudentTaskScores.Where(s => taskIds.Contains(s.WrittenWorkTaskId)).ToList();
-
-            var resultsList = new List<StudentWorkResultViewModel>();
+            var scores = _dbContext.StudentTaskScores.Where(s => s.WrittenWorkTask.WrittenWorkId == _workId).ToList();
+            var records = _dbContext.StudentWorkRecords.Where(r => r.WrittenWorkId == _workId).ToList();
 
             foreach (var student in students)
             {
-                var record = workRecords.FirstOrDefault(r => r.StudentId == student.Id);
-                var studentScores = allScores.Where(s => s.StudentId == student.Id).ToList();
-
-                DateTime? baseWritten = record?.CustomDateWritten ?? work.DateWritten;
-                DateTime? baseEntered = record?.CustomDateEntered ?? work.DateEntered;
-                DateTime? retakeWritten = record?.RetakeDateWritten;
-                DateTime? retakeEntered = record?.RetakeDateEntered;
+                var studentScores = scores.Where(s => s.StudentId == student.Id).ToList();
+                var record = records.FirstOrDefault(r => r.StudentId == student.Id);
 
                 bool hasBaseScores = studentScores.Any(s => s.PointsLevel1.HasValue || s.PointsLevel2.HasValue || s.PointsLevel3.HasValue);
                 bool hasRetakeScores = studentScores.Any(s => s.RetakePointsLevel1.HasValue || s.RetakePointsLevel2.HasValue || s.RetakePointsLevel3.HasValue);
 
-                double baseSum = 0;
-                double retakeSum = 0;
+                string scoreText = "Brak ocen";
+                string groupText = "-";
+                bool useRetake = false;
 
-                if (studentScores.Any())
+                if (record != null && record.IsAbsent)
                 {
-                    baseSum = GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, work.Tasks, studentScores, false);
-                    retakeSum = GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, work.Tasks, studentScores, true);
-                }
-
-                // isRetakeDone to nasze zabezpieczenie przed przedłużaniem czasu w nieskończoność
-                bool isRetakeDone = record != null && record.IsRetakeActive && hasRetakeScores;
-                bool useRetakeDates = isRetakeDone && retakeSum > baseSum;
-
-                string dateWritten = "";
-                string dateEntered = "";
-                string scoreText = "";
-
-                if (useRetakeDates)
-                {
-                    dateWritten = retakeWritten?.ToString("dd.MM.yyyy") ?? baseWritten?.ToString("dd.MM.yyyy") ?? "Brak";
-                    dateEntered = retakeEntered?.ToString("dd.MM.yyyy") ?? baseEntered?.ToString("dd.MM.yyyy") ?? "Brak";
-                    scoreText = $"{retakeSum:0} / {work.MaxFinalPoints:0} pkt (popr.)";
+                    scoreText = "NB";
                 }
                 else
                 {
-                    // Uczeń jest nieobecny (NB) - priorytet absolutny, bezwzględnie ignorujemy wszelkie zera wpisane w bazie
-                    if (record != null && record.IsAbsent)
+                    double baseSum = 0;
+                    double retakeSum = 0;
+
+                    if (hasBaseScores || hasRetakeScores)
                     {
-                        dateWritten = "-"; 
-                        dateEntered = baseEntered?.ToString("dd.MM.yyyy") ?? "Brak"; 
-                        scoreText = "NB";
+                        baseSum = GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, work.Tasks, studentScores, false);
+                        retakeSum = GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, work.Tasks, studentScores, true);
+                    }
+
+                    useRetake = record != null && record.IsRetakeActive && hasRetakeScores && retakeSum > baseSum;
+
+                    if (useRetake)
+                    {
+                        scoreText = $"{retakeSum:0} / {work.MaxFinalPoints:0} pkt (popr.)";
                     }
                     else if (hasBaseScores)
                     {
-                        dateWritten = baseWritten?.ToString("dd.MM.yyyy") ?? "Brak";
-                        dateEntered = baseEntered?.ToString("dd.MM.yyyy") ?? "Brak";
                         scoreText = $"{baseSum:0} / {work.MaxFinalPoints:0} pkt";
                     }
-                    else
-                    {
-                        dateWritten = baseWritten?.ToString("dd.MM.yyyy") ?? "Brak";
-                        dateEntered = baseEntered?.ToString("dd.MM.yyyy") ?? "Brak";
-                        scoreText = "Brak ocen";
-                    }
                 }
 
-                string deadlineStr = "";
+                if (record != null)
+                {
+                    if (useRetake && !string.IsNullOrWhiteSpace(record.RetakeGroup))
+                        groupText = record.RetakeGroup;
+                    else if (!string.IsNullOrWhiteSpace(record.Group))
+                        groupText = record.Group;
+                }
 
-                // Jeśli poprawa została już wpisana, blokujemy termin zgodnie z życzeniem
+                DateTime? baseEntered = record?.CustomDateEntered ?? work.DateEntered;
+                bool isRetakeDone = record != null && record.IsRetakeActive && hasRetakeScores;
+                string deadlineStr = "-";
+
                 if (isRetakeDone)
                 {
-                    deadlineStr = "Już poprawiono";
+                    deadlineStr = "Poprawiono";
                 }
-                else
+                else if (baseEntered.HasValue)
                 {
-                    // Ufamy w 100% temu, co zapisano w bazie danych. 
-                    // Nieważne czy data została cofnięta, czy przesunięta do przodu.
-                    // Jeżeli z jakiegoś powodu w bazie nic nie ma, automat awaryjnie wstawia bazową + 14 dni.
-                    DateTime? deadlineDate = record?.RetakeDeadline ?? baseEntered?.AddDays(14);
-                    deadlineStr = deadlineDate?.ToString("dd.MM.yyyy") ?? "-";
+                    DateTime deadlineDate = record?.RetakeDeadline ?? baseEntered.Value.AddDays(14);
+                    deadlineStr = deadlineDate.ToString("dd.MM.yyyy");
                 }
 
-                resultsList.Add(new StudentWorkResultViewModel
+                string enteredStr = baseEntered?.ToString("dd.MM.yyyy") ?? "Brak";
+
+                _allResults.Add(new WorkResultViewModel
                 {
                     StudentId = student.Id,
                     JournalNumber = student.JournalNumber,
-                    FullName = student.FullName,
-                    DateWrittenDisplay = dateWritten,
-                    DateEnteredDisplay = dateEntered,
+                    StudentName = student.FullName,
+                    DateEnteredDisplay = enteredStr,
                     DeadlineDisplay = deadlineStr,
-                    ScoreDisplay = scoreText
+                    ScoreDisplay = scoreText,
+                    GroupDisplay = groupText
                 });
             }
 
-            ResultsDataGrid.ItemsSource = resultsList;
+            // Odtwarzamy filtr wyszukiwarki (gdy wracamy z oceniania, wyszukiwarka zostaje zachowana!)
+            SearchTextBox_TextChanged(this, null!);
+        }
+
+        private void RefreshDisplayedResults(List<WorkResultViewModel> resultsToShow)
+        {
+            DisplayedResults.Clear();
+            foreach (var res in resultsToShow)
+            {
+                DisplayedResults.Add(res);
+            }
+        }
+
+        private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (SearchTextBox == null) return;
+            
+            string query = SearchTextBox.Text.Trim().ToLower();
+
+            if (string.IsNullOrEmpty(query))
+            {
+                RefreshDisplayedResults(_allResults);
+            }
+            else
+            {
+                var filtered = _allResults.Where(r => r.StudentName.ToLower().Contains(query)).ToList();
+                RefreshDisplayedResults(filtered);
+            }
         }
 
         private void GradeStudent_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button button && button.DataContext is StudentWorkResultViewModel vm)
+            if (sender is Button button && button.DataContext is WorkResultViewModel vm)
             {
                 var window = new StudentWorkDetailsWindow(vm.StudentId, _workId)
                 {
-                    Owner = Window.GetWindow(this)
+                    Owner = this
                 };
 
+                // Kiedy nauczyciel zapisze oceny i zamknie tamto okno, ładujemy od nowa dane w tym oknie
                 window.DataSavedEvent += (s, ev) => 
                 {
                     LoadData();
@@ -149,14 +171,14 @@ namespace GradebookApp
         }
     }
 
-    public class StudentWorkResultViewModel
+    public class WorkResultViewModel
     {
         public int StudentId { get; set; }
         public int JournalNumber { get; set; }
-        public string FullName { get; set; } = string.Empty;
-        public string DateWrittenDisplay { get; set; } = string.Empty;
+        public string StudentName { get; set; } = string.Empty;
         public string DateEnteredDisplay { get; set; } = string.Empty;
         public string DeadlineDisplay { get; set; } = string.Empty;
         public string ScoreDisplay { get; set; } = string.Empty;
+        public string GroupDisplay { get; set; } = string.Empty;
     }
 }

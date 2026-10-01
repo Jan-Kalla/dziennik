@@ -8,7 +8,6 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         
-        <!-- NAGŁÓWEK Z PRZYCISKIEM ODŚWIEŻ -->
         <Grid Margin="0,0,0,15">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
@@ -30,126 +29,71 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     
-                    <TextBox x:Name="SearchTextBox" Grid.Row="0" Margin="0,0,0,10" Height="30" VerticalContentAlignment="Center" 
-                             ToolTip="Wpisz imię, nazwisko lub nazwę pracy..." TextChanged="SearchTextBox_TextChanged">
-                        <TextBox.Style>
-                            <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
-                                <Style.Triggers>
-                                    <Trigger Property="Text" Value="">
-                                        <Setter Property="Background">
-                                            <Setter.Value>
-                                                <VisualBrush Stretch="None" AlignmentX="Left" AlignmentY="Center">
-                                                    <VisualBrush.Visual>
-                                                        <TextBlock Text="Szukaj ucznia..." Foreground="#888888" Margin="5,0,0,0" FontStyle="Italic"/>
-                                                    </VisualBrush.Visual>
-                                                </VisualBrush>
-                                            </Setter.Value>
-                                        </Setter>
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBox.Style>
-                    </TextBox>
+                    <Grid Grid.Row="0" Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        
+                        <TextBox x:Name="SearchTextBox" Grid.Column="0" Margin="0,0,10,0" Height="30" VerticalContentAlignment="Center" 
+                                 ToolTip="Wpisz imię, nazwisko lub nazwę pracy..." TextChanged="SearchTextBox_TextChanged">
+                            <TextBox.Style>
+                                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                    <Style.Triggers>
+                                        <Trigger Property="Text" Value="">
+                                            <Setter Property="Background">
+                                                <Setter.Value>
+                                                    <VisualBrush Stretch="None" AlignmentX="Left" AlignmentY="Center">
+                                                        <VisualBrush.Visual>
+                                                            <TextBlock Text="Szukaj ucznia..." Foreground="#888888" Margin="5,0,0,0" FontStyle="Italic"/>
+                                                        </VisualBrush.Visual>
+                                                    </VisualBrush>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBox.Style>
+                        </TextBox>
+                        
+                        <Button Grid.Column="1" Content="⇄ Zamień Imię z Nazwiskiem" Width="200" Height="30" Click="SwapColumns_Click" Cursor="Hand" Background="#333333" Foreground="#E0E0E0" BorderBrush="#555555" />
+                    </Grid>
                              
                     <DataGrid x:Name="StudentsDataGrid" Grid.Row="1" Margin="0,0,0,10" FontSize="16" 
-                              AutoGenerateColumns="False" CanUserAddRows="True" CanUserDeleteRows="False"
+                              AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
                               SelectionUnit="Cell" 
-                              InitializingNewItem="StudentsDataGrid_InitializingNewItem"
                               RowEditEnding="StudentsDataGrid_RowEditEnding">
+                        <!-- Wyłączyliśmy wbudowane, problematyczne dodawanie wierszy w siatce -->
                         
                         <DataGrid.Resources>
-                            <!-- Podmiana systemowych kolorów zaznaczenia komórek na tryb ciemny -->
                             <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#007ACC"/>
                             <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="White"/>
 
                             <Style x:Key="FirstNameElementStyle" TargetType="TextBlock">
                                 <Setter Property="Padding" Value="5,2,5,2"/>
-                                <Style.Triggers>
-                                    <Trigger Property="Text" Value="">
-                                        <Setter Property="Background">
-                                            <Setter.Value>
-                                                <VisualBrush Stretch="None" AlignmentX="Left" AlignmentY="Center">
-                                                    <VisualBrush.Visual>
-                                                        <TextBlock Text="wpisz imię..." Foreground="#888888" FontStyle="Italic"/>
-                                                    </VisualBrush.Visual>
-                                                </VisualBrush>
-                                            </Setter.Value>
-                                        </Setter>
-                                    </Trigger>
-                                </Style.Triggers>
                             </Style>
                             
                             <Style x:Key="FirstNameEditingStyle" TargetType="TextBox">
                                 <Setter Property="Padding" Value="2,0,0,0"/>
                                 <Setter Property="BorderThickness" Value="0"/>
-                                <Style.Triggers>
-                                    <Trigger Property="Text" Value="">
-                                        <Setter Property="Background">
-                                            <Setter.Value>
-                                                <VisualBrush Stretch="None" AlignmentX="Left" AlignmentY="Center">
-                                                    <VisualBrush.Visual>
-                                                        <TextBlock Text="wpisz imię..." Foreground="#888888" FontStyle="Italic"/>
-                                                    </VisualBrush.Visual>
-                                                </VisualBrush>
-                                            </Setter.Value>
-                                        </Setter>
-                                    </Trigger>
-                                </Style.Triggers>
                             </Style>
 
                             <Style x:Key="LastNameElementStyle" TargetType="TextBlock">
                                 <Setter Property="Padding" Value="5,2,5,2"/>
-                                <Style.Triggers>
-                                    <Trigger Property="Text" Value="">
-                                        <Setter Property="Background">
-                                            <Setter.Value>
-                                                <VisualBrush Stretch="None" AlignmentX="Left" AlignmentY="Center">
-                                                    <VisualBrush.Visual>
-                                                        <TextBlock Text="wpisz nazwisko..." Foreground="#888888" FontStyle="Italic"/>
-                                                    </VisualBrush.Visual>
-                                                </VisualBrush>
-                                            </Setter.Value>
-                                        </Setter>
-                                    </Trigger>
-                                </Style.Triggers>
                             </Style>
                             
                             <Style x:Key="LastNameEditingStyle" TargetType="TextBox">
                                 <Setter Property="Padding" Value="2,0,0,0"/>
                                 <Setter Property="BorderThickness" Value="0"/>
-                                <Style.Triggers>
-                                    <Trigger Property="Text" Value="">
-                                        <Setter Property="Background">
-                                            <Setter.Value>
-                                                <VisualBrush Stretch="None" AlignmentX="Left" AlignmentY="Center">
-                                                    <VisualBrush.Visual>
-                                                        <TextBlock Text="wpisz nazwisko..." Foreground="#888888" FontStyle="Italic"/>
-                                                    </VisualBrush.Visual>
-                                                </VisualBrush>
-                                            </Setter.Value>
-                                        </Setter>
-                                    </Trigger>
-                                </Style.Triggers>
                             </Style>
                         </DataGrid.Resources>
 
-                        <DataGrid.RowStyle>
-                            <Style TargetType="DataGridRow">
-                                <Style.Triggers>
-                                    <Trigger Property="IsNewItem" Value="True">
-                                        <Setter Property="Background" Value="#252526" />
-                                        <Setter Property="ToolTip" Value="Kliknij w komórkę, aby dodać nowego ucznia w tym wierszu" />
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </DataGrid.RowStyle>
-
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Nr" Binding="{Binding JournalNumber}" Width="50" />
-                            <DataGridTextColumn Header="Imię" Binding="{Binding FirstName}" Width="*" 
+                            <DataGridTextColumn x:Name="FirstNameCol" Header="Imię" Binding="{Binding FirstName}" Width="*" 
                                                 ElementStyle="{StaticResource FirstNameElementStyle}" 
                                                 EditingElementStyle="{StaticResource FirstNameEditingStyle}" />
-                            <DataGridTextColumn Header="Nazwisko" Binding="{Binding LastName}" Width="*" 
+                            <DataGridTextColumn x:Name="LastNameCol" Header="Nazwisko" Binding="{Binding LastName}" Width="*" 
                                                 ElementStyle="{StaticResource LastNameElementStyle}" 
                                                 EditingElementStyle="{StaticResource LastNameEditingStyle}" />
                             <DataGridTextColumn Header="Średnia %" Binding="{Binding AveragePercentage, StringFormat={}{0:0}\%}" Width="100" IsReadOnly="True" />
@@ -165,15 +109,6 @@
                                                     <MenuItem Header="Usuń ucznia" Click="DeleteStudent_Click"/>
                                                 </ContextMenu>
                                             </Button.ContextMenu>
-                                            <Button.Style>
-                                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding Id}" Value="0">
-                                                            <Setter Property="Visibility" Value="Hidden" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Button.Style>
                                         </Button>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -181,11 +116,35 @@
                         </DataGrid.Columns>
                     </DataGrid>
 
-                    <Button Grid.Row="2" Content="Dodaj ucznia" Width="120" Height="35" HorizontalAlignment="Center" Click="AddStudent_Click"/>
+                    <!-- NOWY SYSTEM SZYBKIEGO DODAWANIA -->
+                    <Border Grid.Row="2" Background="#252526" BorderBrush="#434346" BorderThickness="1" CornerRadius="5" Padding="15,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="Szybkie dodawanie:" Foreground="#4DB6AC" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,20,0"/>
+
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,10,0">
+                                <TextBlock Text="Imię:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                <TextBox x:Name="QuickAddFirstNameTextBox" Width="150" Height="28" VerticalContentAlignment="Center" PreviewKeyDown="QuickAdd_PreviewKeyDown"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Left" Margin="10,0,0,0">
+                                <TextBlock Text="Nazwisko:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                <TextBox x:Name="QuickAddLastNameTextBox" Width="150" Height="28" VerticalContentAlignment="Center" PreviewKeyDown="QuickAdd_PreviewKeyDown"/>
+                            </StackPanel>
+
+                            <Button Grid.Column="3" Content="Dodaj (Enter)" Width="120" Height="28" Click="QuickAddStudent_Click" Background="#2E4A2E" BorderBrush="#4CAF50" Foreground="White" Cursor="Hand" Margin="20,0,0,0"/>
+                        </Grid>
+                    </Border>
                 </Grid>
             </TabItem>
             
-            <TabItem Header="Prace pisemne">
+            <TabItem Header="Oceny">
                 <Grid Margin="10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*" />
@@ -195,11 +154,10 @@
                     <DataGrid x:Name="WorksDataGrid" Grid.Row="0" Margin="0,0,0,10" FontSize="16" 
                               AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" IsReadOnly="True">
                         <DataGrid.Columns>
-                            <!-- Usunięto ID i Liczbę zadań. Dodano Frekwencję i podpięto właściwe zmienne z ViewModelu -->
-                            <DataGridTextColumn Header="Rodzaj" Binding="{Binding WorkType}" Width="120" />
-                            <DataGridTextColumn Header="Tytuł" Binding="{Binding Title}" Width="*" />
+                            <DataGridTextColumn Header="Kategoria" Binding="{Binding WorkType}" Width="120" />
+                            <DataGridTextColumn Header="Tytuł oceny" Binding="{Binding Title}" Width="*" />
                             
-                            <DataGridTextColumn Header="M (Max pkt)" Binding="{Binding MaxFinalPoints}" Width="Auto">
+                            <DataGridTextColumn Header="Max pkt" Binding="{Binding MaxFinalPoints}" Width="Auto">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Center"/></Style>
                                 </DataGridTextColumn.ElementStyle>
@@ -208,7 +166,7 @@
                             <DataGridTextColumn Header="Napisano" Binding="{Binding DateWrittenDisplay}" Width="110" />
                             <DataGridTextColumn Header="Wpisano" Binding="{Binding DateEnteredDisplay}" Width="110" />
                             
-                            <DataGridTextColumn Header="Napisane przez" Binding="{Binding AttendanceRatio}" Width="Auto">
+                            <DataGridTextColumn Header="Oceniono" Binding="{Binding AttendanceRatio}" Width="Auto">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="HorizontalAlignment" Value="Center"/>
@@ -221,12 +179,11 @@
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                            <!-- Przyciski z automatyczną szerokością -->
                                             <Button Content="Wyniki" Margin="2,2,5,2" Width="Auto" Padding="5,2" Click="WorkResultsButton_Click" Cursor="Hand" Background="#1E2E1E" BorderBrush="#4CAF50"/>
                                             <Button Content="Szczegóły" Margin="2,2,2,2" Width="Auto" Padding="5,2" Click="WorkDetailsButton_Click" Cursor="Hand">
                                                 <Button.ContextMenu>
                                                     <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                                                        <MenuItem Header="Usuń pracę" Click="DeleteWork_Click"/>
+                                                        <MenuItem Header="Usuń ocenę" Click="DeleteWork_Click"/>
                                                     </ContextMenu>
                                                 </Button.ContextMenu>
                                             </Button>
@@ -237,7 +194,63 @@
                         </DataGrid.Columns>
                     </DataGrid>
 
-                    <Button Grid.Row="1" Content="Dodaj nową pracę" Width="150" Height="35" HorizontalAlignment="Center" Click="AddWork_Click"/>
+                    <Button Grid.Row="1" Content="Dodaj nową ocenę" Width="150" Height="35" HorizontalAlignment="Center" Click="AddWork_Click"/>
+                </Grid>
+            </TabItem>
+            
+            <TabItem Header="Kalendarz">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    
+                    <CheckBox x:Name="ShowAllWorksCheckBox" Grid.Row="0" Content="Pokaż wszystkie prace (również pierwsze terminy)" Margin="0,0,0,15" FontSize="14" Checked="RefreshCalendar_Click" Unchecked="RefreshCalendar_Click" />
+                    
+                    <DataGrid x:Name="CalendarDataGrid" Grid.Row="1" Margin="0,0,0,10" FontSize="16" 
+                              AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" IsReadOnly="True"
+                              SelectionMode="Single" SelectionUnit="FullRow">
+                        
+                        <DataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Edytuj poprawę" Click="EditRetake_Click"/>
+                                <MenuItem Header="Usuń poprawę" Click="DeleteRetake_Click"/>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
+
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Data" Binding="{Binding DateDisplay}" Width="110">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="HorizontalAlignment" Value="Center"/>
+                                        <Setter Property="Foreground" Value="#FFB74D"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            
+                            <DataGridTextColumn Header="Godzina" Binding="{Binding TimeDisplay}" Width="80">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Center"/></Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            
+                            <DataGridTextColumn Header="Rodzaj zdarzenia" Binding="{Binding EventType}" Width="150" />
+                            <DataGridTextColumn Header="Rodzaj pracy" Binding="{Binding WorkType}" Width="120" />
+                            <DataGridTextColumn Header="Tytuł pracy" Binding="{Binding Title}" Width="*" />
+                            
+                            <DataGridTextColumn Header="Uczniowie" Binding="{Binding StudentsDisplay}" Width="*">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="TextWrapping" Value="Wrap"/>
+                                        <Setter Property="Padding" Value="0,5,0,5"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <Button Grid.Row="2" Content="Zaplanuj poprawę" Width="150" Height="35" HorizontalAlignment="Center" Click="PlanRetake_Click"/>
                 </Grid>
             </TabItem>
             

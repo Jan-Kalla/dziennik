@@ -117,14 +117,14 @@ namespace GradebookApp
             string newTitle = TitleTextBox.Text.Trim();
             if (string.IsNullOrEmpty(newTitle))
             {
-                MessageBox.Show("Podaj tytuł pracy pisemnej.", "Ajajajaj! Błąd...", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Podaj tytuł oceny.", "Ajajajaj! Błąd...", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return; // Wywalamy się z funkcji, nie ma po co iść dalej, jeśli są błędy[cite: 51].
             }
 
             // NOWE SPRAWDZANIE M: Sprawdzamy czy M to faktycznie poprawny ułamek dziesiętny (double) i czy jest większe od zera.
             if (!double.TryParse(MaxPointsTextBox.Text.Trim(), out double newMaxPoints) || newMaxPoints <= 0)
             {
-                MessageBox.Show("Wartość Max punktów końcowych (M) musi być prawidłową liczbą większą od zera.", "Ajajajaj! Błąd...", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Wartość Max musi być prawidłową liczbą większą od zera.", "Ajajajaj! Błąd...", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 

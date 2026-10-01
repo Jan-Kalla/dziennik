@@ -60,6 +60,22 @@ namespace GradebookApp
             }
         }
 
+        // ====================================================================
+        // OPTYMALIZACJA KLAWIATURY (Przeskakiwanie strzałkami i TABem)
+        // ====================================================================
+        private void TasksDataGrid_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key == System.Windows.Input.Key.Left || e.Key == System.Windows.Input.Key.Right)
+            {
+                var dir = e.Key == System.Windows.Input.Key.Left ? System.Windows.Input.FocusNavigationDirection.Previous : System.Windows.Input.FocusNavigationDirection.Next;
+                if (System.Windows.Input.Keyboard.FocusedElement is UIElement element)
+                {
+                    element.MoveFocus(new System.Windows.Input.TraversalRequest(dir));
+                    e.Handled = true;
+                }
+            }
+        }
+
         private void Save_Click(object sender, RoutedEventArgs e)
         {
             TasksDataGrid.CommitEdit(DataGridEditingUnit.Row, true);

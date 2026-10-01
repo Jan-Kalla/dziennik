@@ -1,7 +1,7 @@
 <Window x:Class="GradebookApp.AddGlobalWorkDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Dodaj pracę pisemną dla wielu klas" Width="500" Height="850" WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Title="Dodaj ocenę dla wielu klas" Width="500" Height="850" WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         Background="#1E1E1E" Foreground="#E0E0E0">
     <Grid Margin="15">
         <Grid.RowDefinitions>
@@ -42,7 +42,7 @@
         <TextBlock Text="Tytuł pracy:" Grid.Row="4" Margin="0,0,0,5" FontSize="14"/>
         <TextBox x:Name="TitleTextBox" Grid.Row="5" Height="28" Margin="0,0,0,10" FontSize="14" VerticalContentAlignment="Center"/>
 
-        <TextBlock Text="Max punktów końcowych (M):" Grid.Row="6" Margin="0,0,0,5" FontSize="14" FontWeight="Bold" Foreground="#4DB6AC"/>
+        <TextBlock Text="Max:" Grid.Row="6" Margin="0,0,0,5" FontSize="14" FontWeight="Bold" Foreground="#4DB6AC"/>
         <TextBox x:Name="MaxPointsTextBox" Grid.Row="7" Height="28" Margin="0,0,0,15" FontSize="14" VerticalContentAlignment="Center"/>
 
         <Grid Grid.Row="8" Margin="0,0,0,10">
@@ -67,9 +67,17 @@
         <TextBox x:Name="TaskCountTextBox" Grid.Row="10" Height="28" Margin="0,0,0,10" FontSize="14" VerticalContentAlignment="Center" TextChanged="TaskCountTextBox_TextChanged"/>
 
         <DataGrid x:Name="TasksDataGrid" Grid.Row="11" Margin="0,0,0,15" FontSize="14" 
-                  AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" SelectionUnit="Cell">
+                  AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" SelectionUnit="Cell"
+                  PreviewKeyDown="TasksDataGrid_PreviewKeyDown">
             <DataGrid.Columns>
-                <DataGridTextColumn Header="Zadanie" Binding="{Binding TaskNumber}" IsReadOnly="True" Width="70"/>
+                <DataGridTextColumn Header="Zadanie" Binding="{Binding TaskNumber}" IsReadOnly="True" Width="70">
+                    <DataGridTextColumn.CellStyle>
+                        <Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
+                            <Setter Property="Focusable" Value="False"/>
+                            <Setter Property="IsTabStop" Value="False"/>
+                        </Style>
+                    </DataGridTextColumn.CellStyle>
+                </DataGridTextColumn>
                 <DataGridTextColumn Header="Poziom I" Binding="{Binding MaxPointsLevel1}" Width="*" />
                 <DataGridTextColumn Header="Poziom II" Binding="{Binding MaxPointsLevel2}" Width="*" />
                 <DataGridTextColumn Header="Poziom III" Binding="{Binding MaxPointsLevel3}" Width="*" />

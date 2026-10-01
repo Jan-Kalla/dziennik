@@ -14,7 +14,6 @@ namespace GradebookApp
             InitializeComponent();
 
             _dbContext = new AppDbContext();
-            _dbContext.Database.EnsureCreated();
 
             var classesFromDb = _dbContext.Classes.ToList();
             
@@ -102,7 +101,7 @@ namespace GradebookApp
                 }
 
                 _dbContext.SaveChanges();
-                MessageBox.Show($"Praca pisemna '{dialog.WorkTitle}' została pomyślnie dodana do {selectedClasses.Count} klas.", 
+                MessageBox.Show($"Ocena '{dialog.WorkTitle}' została pomyślnie dodana do {selectedClasses.Count} klas.", 
                                 "Sukces", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }

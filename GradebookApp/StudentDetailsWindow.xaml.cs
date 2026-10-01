@@ -10,7 +10,7 @@ namespace GradebookApp
         public StudentDetailsWindow(Student student)
         {
             InitializeComponent();
-            Title = $"System Oceniania - {student.FullName}";
+            Title = $"Dziennik - {student.FullName}";
             
             // Nasłuchiwanie na kontrolkę i przekazanie sygnału dalej do okna głównego
             WindowStudentControl.StudentUpdated += (s, e) => StudentUpdated?.Invoke(this, EventArgs.Empty);

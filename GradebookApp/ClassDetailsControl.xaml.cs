@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.EntityFrameworkCore;
 
@@ -34,7 +35,6 @@ namespace GradebookApp
             _currentClass = schoolClass;
             ClassNameText.Text = $"Klasa: {schoolClass.Name}";
             
-            // Czyszczenie cache EF Core by mieć 100% pewność na świeże dane
             _dbContext.ChangeTracker.Clear();
             
             _allStudents = _dbContext.Students
@@ -47,17 +47,15 @@ namespace GradebookApp
                 .Include(w => w.Tasks)
                 .ToList();
 
-            // ====================================================================
-            // AUTOMATYCZNE PRZELICZANIE ŚREDNICH DLA WSZYSTKICH UCZNIÓW KLASY
-            // ====================================================================
             RecalculateAllStudentsAverages();
 
             SearchTextBox.Text = string.Empty;
             RefreshDisplayedStudents(_allStudents);
             RefreshDisplayedWorks();
+            
+            RefreshCalendar();
         }
 
-        // Pomocnicza metoda przeliczająca średnie w locie przy odświeżaniu widoku klasy
         private void RecalculateAllStudentsAverages()
         {
             var classWorks = _allWorks;
@@ -78,10 +76,7 @@ namespace GradebookApp
                     bool hasBaseScores = workScores.Any(s => s.PointsLevel1.HasValue || s.PointsLevel2.HasValue || s.PointsLevel3.HasValue);
                     bool hasRetakeScores = workScores.Any(s => s.RetakePointsLevel1.HasValue || s.RetakePointsLevel2.HasValue || s.RetakePointsLevel3.HasValue);
 
-                    if (workRecord != null && workRecord.IsAbsent)
-                    {
-                        // NB nie wpływa na dzielnik średniej
-                    }
+                    if (workRecord != null && workRecord.IsAbsent) { }
                     else 
                     {
                         double baseSum = 0;
@@ -133,7 +128,9 @@ namespace GradebookApp
                                             .Where(r => r.Student.SchoolClassId == _currentClass.Id)
                                             .ToList();
 
-            foreach (var work in _allWorks)
+            var globalWorks = _allWorks.Where(w => !w.IsIndividual).ToList();
+
+            foreach (var work in globalWorks)
             {
                 var taskIds = work.Tasks.Select(t => t.Id).ToList();
                 
@@ -165,33 +162,254 @@ namespace GradebookApp
             }
         }
 
-        private void AddStudent_Click(object sender, RoutedEventArgs e)
+        // ====================================================================
+        // LOGIKA DLA ZAKŁADKI KALENDARZA
+        // ====================================================================
+        private void RefreshCalendar()
         {
-            var existingNumbers = _allStudents.Select(s => s.JournalNumber).ToList();
+            if (_currentClass == null) return;
             
-            var dialog = new AddStudentDialog(existingNumbers) 
-            { 
-                Owner = Window.GetWindow(this) 
+            var events = new List<CalendarEventViewModel>();
+            var today = DateTime.Today;
+
+            var retakes = _dbContext.PlannedRetakes
+                .Include(r => r.WrittenWork)
+                .Include(r => r.Attendees).ThenInclude(a => a.Student)
+                .Where(r => r.WrittenWork.SchoolClassId == _currentClass.Id && r.Date >= today)
+                .ToList();
+
+            foreach (var r in retakes)
+            {
+                events.Add(new CalendarEventViewModel
+                {
+                    EventId = r.Id,
+                    IsRetake = true,
+                    SortDate = r.Date,
+                    DateDisplay = r.Date.ToString("dd.MM.yyyy"),
+                    TimeDisplay = string.IsNullOrEmpty(r.Time) ? "-" : r.Time,
+                    EventType = "Poprawa",
+                    WorkType = r.WrittenWork.WorkType, 
+                    Title = r.WrittenWork.Title,
+                    StudentsDisplay = string.Join(", ", r.Attendees.Select(a => a.Student.FullName))
+                });
+            }
+
+            if (ShowAllWorksCheckBox.IsChecked == true)
+            {
+                var upcomingWorks = _allWorks.Where(w => w.DateWritten.HasValue && w.DateWritten.Value >= today && !w.IsIndividual).ToList();
+                foreach (var w in upcomingWorks)
+                {
+                    events.Add(new CalendarEventViewModel
+                    {
+                        EventId = w.Id,
+                        IsRetake = false,
+                        SortDate = w.DateWritten!.Value,
+                        DateDisplay = w.DateWritten.Value.ToString("dd.MM.yyyy"),
+                        TimeDisplay = "-", 
+                        EventType = "Pierwszy termin",
+                        WorkType = w.WorkType, 
+                        Title = w.Title,
+                        StudentsDisplay = "Cała klasa"
+                    });
+                }
+            }
+
+            CalendarDataGrid.ItemsSource = events.OrderBy(e => e.SortDate).ToList();
+        }
+
+        private void RefreshCalendar_Click(object sender, RoutedEventArgs e)
+        {
+            RefreshCalendar();
+        }
+
+        private void PlanRetake_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new PlanRetakeDialog(_currentClass.Id)
+            {
+                Owner = Window.GetWindow(this)
             };
 
-            if (dialog.ShowDialog() == true && (!string.IsNullOrEmpty(dialog.FirstName) || !string.IsNullOrEmpty(dialog.LastName)))
+            if (dialog.ShowDialog() == true)
             {
-                int nextNumber = dialog.JournalNumber ?? (_allStudents.Any() ? _allStudents.Max(s => s.JournalNumber) + 1 : 1);
+                RefreshCalendar();
+            }
+        }
+
+        private void EditRetake_Click(object sender, RoutedEventArgs e)
+        {
+            if (CalendarDataGrid.SelectedItem is CalendarEventViewModel vm)
+            {
+                if (!vm.IsRetake)
+                {
+                    MessageBox.Show("Możesz edytować tylko zaplanowane poprawy. Główny termin modyfikuje się w szczegółach pracy pisemnej.", 
+                                    "Zablokowane", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                var dialog = new PlanRetakeDialog(_currentClass.Id, vm.EventId)
+                {
+                    Owner = Window.GetWindow(this)
+                };
+
+                if (dialog.ShowDialog() == true)
+                {
+                    RefreshCalendar();
+                }
+            }
+        }
+
+        private void DeleteRetake_Click(object sender, RoutedEventArgs e)
+        {
+            if (CalendarDataGrid.SelectedItem is CalendarEventViewModel vm)
+            {
+                if (!vm.IsRetake)
+                {
+                    MessageBox.Show("Z tego poziomu można usunąć tylko zaplanowane poprawy.", 
+                                    "Zablokowane", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                var result = MessageBox.Show($"Czy na pewno chcesz anulować i usunąć zaplanowaną poprawę dla pracy '{vm.Title}'?", 
+                                             "Potwierdzenie usunięcia", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (result == MessageBoxResult.Yes)
+                {
+                    var retake = _dbContext.PlannedRetakes.Find(vm.EventId);
+                    if (retake != null)
+                    {
+                        _dbContext.PlannedRetakes.Remove(retake);
+                        _dbContext.SaveChanges();
+                        RefreshCalendar();
+                    }
+                }
+            }
+        }
+
+        // ====================================================================
+        // ZAMIANA KOLEJNOŚCI IMIENIA I NAZWISKA
+        // ====================================================================
+        private void SwapColumns_Click(object sender, RoutedEventArgs e)
+        {
+            if (FirstNameCol != null && LastNameCol != null)
+            {
+                int tempIndex = FirstNameCol.DisplayIndex;
+                FirstNameCol.DisplayIndex = LastNameCol.DisplayIndex;
+                LastNameCol.DisplayIndex = tempIndex;
+            }
+        }
+
+        // ====================================================================
+        // NOWY, PŁYNNY SYSTEM DODAWANIA UCZNIÓW (SZYBKIE DODAWANIE)
+        // ====================================================================
+
+        private void QuickAdd_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            // Łapiemy wciśnięcie klawisza Enter w jednym z dwóch dolnych pól tekstowych
+            if (e.Key == Key.Enter)
+            {
+                e.Handled = true; // Zatrzymujemy systemowe "piknięcie"
+                QuickAddStudent_Click(null!, null!); // Wywołujemy przycisk zapisu
+            }
+        }
+
+        private void QuickAddStudent_Click(object sender, RoutedEventArgs e)
+        {
+            string fName = QuickAddFirstNameTextBox.Text.Trim();
+            string lName = QuickAddLastNameTextBox.Text.Trim();
+
+            // Uczeń musi mieć jakiekolwiek imię lub nazwisko
+            if (string.IsNullOrWhiteSpace(fName) && string.IsNullOrWhiteSpace(lName))
+            {
+                return; // Nic nie wpisano, ignorujemy Enter
+            }
+
+            try
+            {
+                int nextNumber = _allStudents.Any() ? _allStudents.Max(s => s.JournalNumber) + 1 : 1;
 
                 var newStudent = new Student 
                 { 
-                    FirstName = dialog.FirstName, 
-                    LastName = dialog.LastName, 
+                    FirstName = fName, 
+                    LastName = lName, 
                     SchoolClassId = _currentClass.Id,
                     JournalNumber = nextNumber
                 };
 
+                // Zapisujemy na twardo w bazie SQLite
                 _dbContext.Students.Add(newStudent);
                 _dbContext.SaveChanges();
 
+                // Dodajemy ucznia do list - WPF DataGrid, dzięki ObservableCollection, odświeży się sam w tle
                 _allStudents.Add(newStudent);
-                RefreshDisplayedStudents(_allStudents);
+                DisplayedStudents.Add(newStudent);
+                
+                // Aktualizujemy statystyki sprawdzianów
                 RefreshDisplayedWorks();
+
+                // NOWE: Automatyczne przewinięcie do nowo dodanego ucznia na liście
+                StudentsDataGrid.UpdateLayout();
+                StudentsDataGrid.ScrollIntoView(newStudent);
+
+                // Czyszczenie pól i BŁYSKAWICZNY POWRÓT KURSORA
+                QuickAddFirstNameTextBox.Text = string.Empty;
+                QuickAddLastNameTextBox.Text = string.Empty;
+                
+                // Inteligentne ustawienie kursora zależnie od tego, co masz wybrane po lewej
+                if (FirstNameCol.DisplayIndex < LastNameCol.DisplayIndex)
+                    QuickAddFirstNameTextBox.Focus();
+                else
+                    QuickAddLastNameTextBox.Focus();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Błąd zapisu bazy: {ex.Message}", "Ajajajaj! Błąd...", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // ====================================================================
+        // EDYTOWANIE ISTNIEJĄCYCH UCZNIÓW W TABELI
+        // ====================================================================
+        private void StudentsDataGrid_RowEditEnding(object sender, DataGridRowEditEndingEventArgs e)
+        {
+            // Ta metoda służy teraz WYŁĄCZNIE do aktualizowania imion/nazwisk u uczniów, którzy już tam są.
+            if (e.EditAction == DataGridEditAction.Commit)
+            {
+                var student = e.Row.Item as Student;
+                if (student == null) return;
+
+                Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    if (string.IsNullOrWhiteSpace(student.FirstName) && string.IsNullOrWhiteSpace(student.LastName))
+                    {
+                        MessageBox.Show("Uczeń nie może mieć pustego imienia i nazwiska.", "Błąd", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        _dbContext.Entry(student).Reload(); 
+                        StudentsDataGrid.Items.Refresh();
+                        return;
+                    }
+
+                    if (student.JournalNumber > 0)
+                    {
+                        bool isDuplicate = _allStudents.Any(s => s != student && s.JournalNumber == student.JournalNumber);
+                        if (isDuplicate)
+                        {
+                            MessageBox.Show($"Numerek {student.JournalNumber} jest już przypisany do innego ucznia. Zmiany zostały cofnięte.", 
+                                            "Konflikt numerów", MessageBoxButton.OK, MessageBoxImage.Warning);
+                            _dbContext.Entry(student).Reload(); 
+                            StudentsDataGrid.Items.Refresh();
+                            return; 
+                        }
+                    }
+
+                    try
+                    {
+                        _dbContext.Students.Update(student);
+                        _dbContext.SaveChanges();
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Błąd aktualizacji w bazie: {ex.Message}", "Ajajajaj! Błąd...", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+
+                }, DispatcherPriority.Background);
             }
         }
 
@@ -220,8 +438,9 @@ namespace GradebookApp
 
                 _allWorks.Add(newWork);
                 RefreshDisplayedWorks();
+                RefreshCalendar();
 
-                MessageBox.Show($"{dialog.WorkType} '{newWork.Title}' (Zadań: {dialog.Tasks.Count}) została pomyślnie dodana do bazy.", 
+                MessageBox.Show($"{dialog.WorkType} '{newWork.Title}' została pomyślnie dodana do bazy.", 
                                 "Sukces", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
@@ -251,84 +470,6 @@ namespace GradebookApp
             foreach (var student in studentsToShow)
             {
                 DisplayedStudents.Add(student);
-            }
-        }
-
-        private void StudentsDataGrid_InitializingNewItem(object sender, InitializingNewItemEventArgs e)
-        {
-            if (e.NewItem is Student newStudent)
-            {
-                newStudent.JournalNumber = _allStudents.Any() ? _allStudents.Max(s => s.JournalNumber) + 1 : 1;
-            }
-        }
-
-        private void StudentsDataGrid_RowEditEnding(object sender, DataGridRowEditEndingEventArgs e)
-        {
-            if (e.EditAction == DataGridEditAction.Commit)
-            {
-                var student = e.Row.Item as Student;
-                if (student == null) return;
-
-                Application.Current.Dispatcher.InvokeAsync(() =>
-                {
-                    if (string.IsNullOrWhiteSpace(student.FirstName) && string.IsNullOrWhiteSpace(student.LastName))
-                    {
-                        if (student.Id == 0) 
-                        {
-                            DisplayedStudents.Remove(student);
-                        }
-                        return;
-                    }
-
-                    if (student.JournalNumber > 0)
-                    {
-                        bool isDuplicate = _allStudents.Any(s => s != student && s.JournalNumber == student.JournalNumber);
-                        if (isDuplicate)
-                        {
-                            MessageBox.Show($"Numerek {student.JournalNumber} jest już przypisany do innego ucznia. Zmiany zostały cofnięte.", 
-                                            "Konflikt numerów", MessageBoxButton.OK, MessageBoxImage.Warning);
-                            
-                            if (student.Id == 0)
-                            {
-                                DisplayedStudents.Remove(student);
-                            }
-                            else
-                            {
-                                _dbContext.Entry(student).Reload(); 
-                                StudentsDataGrid.Items.Refresh();
-                            }
-                            return; 
-                        }
-                    }
-
-                    try
-                    {
-                        if (student.Id == 0)
-                        {
-                            if (student.JournalNumber <= 0)
-                                student.JournalNumber = _allStudents.Any() ? _allStudents.Max(s => s.JournalNumber) + 1 : 1;
-
-                            student.SchoolClassId = _currentClass.Id;
-                            _dbContext.Students.Add(student);
-                            
-                            if (!_allStudents.Contains(student))
-                                _allStudents.Add(student);
-                        }
-                        else
-                        {
-                            _dbContext.Students.Update(student);
-                        }
-                        
-                        _dbContext.SaveChanges();
-                        StudentsDataGrid.Items.Refresh(); 
-                        RefreshDisplayedWorks();
-                    }
-                    catch (System.Exception ex)
-                    {
-                        MessageBox.Show($"Błąd zapisu bazy: {ex.Message}", "Ajajajaj! Błąd...", MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
-
-                }, DispatcherPriority.Background);
             }
         }
 
@@ -393,11 +534,12 @@ namespace GradebookApp
                     }
 
                     _allWorks = _dbContext.WrittenWorks
-                        .Where(w => w.SchoolClassId == _currentClass.Id)
+                        .Where(w => w.SchoolClassId == _currentClass.Id && !w.IsIndividual)
                         .Include(w => w.Tasks)
                         .ToList();
                         
                     RefreshDisplayedWorks();
+                    RefreshCalendar();
                 }
             }
         }
@@ -419,7 +561,7 @@ namespace GradebookApp
         {
             if (sender is MenuItem menuItem && menuItem.DataContext is ClassWorkViewModel vm)
             {
-                var result = MessageBox.Show($"Czy na pewno chcesz usunąć pracę '{vm.Title}' i wszystkie powiązane z nią dane punktowe?", 
+                var result = MessageBox.Show($"Czy na pewno chcesz usunąć ocenę '{vm.Title}' i wszystkie powiązane z nią dane punktowe?", 
                                              "Potwierdzenie usunięcia", MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (result == MessageBoxResult.Yes)
                 {
@@ -428,6 +570,7 @@ namespace GradebookApp
                     
                     _allWorks.Remove(vm.OriginalWork);
                     RefreshDisplayedWorks();
+                    RefreshCalendar();
                 }
             }
         }
@@ -451,5 +594,18 @@ namespace GradebookApp
         public string DateEnteredDisplay { get; set; } = string.Empty;
         public string AttendanceRatio { get; set; } = string.Empty; 
         public WrittenWork OriginalWork { get; set; } = null!;
+    }
+
+    public class CalendarEventViewModel
+    {
+        public int EventId { get; set; }
+        public bool IsRetake { get; set; }
+        public DateTime SortDate { get; set; }
+        public string DateDisplay { get; set; } = string.Empty;
+        public string TimeDisplay { get; set; } = string.Empty;
+        public string EventType { get; set; } = string.Empty;
+        public string WorkType { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public string StudentsDisplay { get; set; } = string.Empty;
     }
 }
