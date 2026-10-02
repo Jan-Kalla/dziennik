@@ -162,9 +162,6 @@ namespace GradebookApp
             }
         }
 
-        // ====================================================================
-        // LOGIKA DLA ZAKŁADKI KALENDARZA
-        // ====================================================================
         private void RefreshCalendar()
         {
             if (_currentClass == null) return;
@@ -284,9 +281,6 @@ namespace GradebookApp
             }
         }
 
-        // ====================================================================
-        // ZAMIANA KOLEJNOŚCI IMIENIA I NAZWISKA
-        // ====================================================================
         private void SwapColumns_Click(object sender, RoutedEventArgs e)
         {
             if (FirstNameCol != null && LastNameCol != null)
@@ -297,17 +291,12 @@ namespace GradebookApp
             }
         }
 
-        // ====================================================================
-        // NOWY, PŁYNNY SYSTEM DODAWANIA UCZNIÓW (SZYBKIE DODAWANIE)
-        // ====================================================================
-
         private void QuickAdd_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            // Łapiemy wciśnięcie klawisza Enter w jednym z dwóch dolnych pól tekstowych
             if (e.Key == Key.Enter)
             {
-                e.Handled = true; // Zatrzymujemy systemowe "piknięcie"
-                QuickAddStudent_Click(null!, null!); // Wywołujemy przycisk zapisu
+                e.Handled = true; 
+                QuickAddStudent_Click(null!, null!); 
             }
         }
 
@@ -316,10 +305,9 @@ namespace GradebookApp
             string fName = QuickAddFirstNameTextBox.Text.Trim();
             string lName = QuickAddLastNameTextBox.Text.Trim();
 
-            // Uczeń musi mieć jakiekolwiek imię lub nazwisko
             if (string.IsNullOrWhiteSpace(fName) && string.IsNullOrWhiteSpace(lName))
             {
-                return; // Nic nie wpisano, ignorujemy Enter
+                return; 
             }
 
             try
@@ -334,26 +322,20 @@ namespace GradebookApp
                     JournalNumber = nextNumber
                 };
 
-                // Zapisujemy na twardo w bazie SQLite
                 _dbContext.Students.Add(newStudent);
                 _dbContext.SaveChanges();
 
-                // Dodajemy ucznia do list - WPF DataGrid, dzięki ObservableCollection, odświeży się sam w tle
                 _allStudents.Add(newStudent);
                 DisplayedStudents.Add(newStudent);
                 
-                // Aktualizujemy statystyki sprawdzianów
                 RefreshDisplayedWorks();
 
-                // NOWE: Automatyczne przewinięcie do nowo dodanego ucznia na liście
                 StudentsDataGrid.UpdateLayout();
                 StudentsDataGrid.ScrollIntoView(newStudent);
 
-                // Czyszczenie pól i BŁYSKAWICZNY POWRÓT KURSORA
                 QuickAddFirstNameTextBox.Text = string.Empty;
                 QuickAddLastNameTextBox.Text = string.Empty;
                 
-                // Inteligentne ustawienie kursora zależnie od tego, co masz wybrane po lewej
                 if (FirstNameCol.DisplayIndex < LastNameCol.DisplayIndex)
                     QuickAddFirstNameTextBox.Focus();
                 else
@@ -365,12 +347,8 @@ namespace GradebookApp
             }
         }
 
-        // ====================================================================
-        // EDYTOWANIE ISTNIEJĄCYCH UCZNIÓW W TABELI
-        // ====================================================================
         private void StudentsDataGrid_RowEditEnding(object sender, DataGridRowEditEndingEventArgs e)
         {
-            // Ta metoda służy teraz WYŁĄCZNIE do aktualizowania imion/nazwisk u uczniów, którzy już tam są.
             if (e.EditAction == DataGridEditAction.Commit)
             {
                 var student = e.Row.Item as Student;
@@ -429,6 +407,7 @@ namespace GradebookApp
                     MaxFinalPoints = dialog.MaxFinalPoints, 
                     DateWritten = dialog.DateWritten,
                     DateEntered = dialog.DateEntered,
+                    HasGroups = dialog.HasGroups, 
                     SchoolClassId = _currentClass.Id,
                     Tasks = dialog.Tasks 
                 };
@@ -485,14 +464,17 @@ namespace GradebookApp
         {
             if (sender is MenuItem menuItem && menuItem.DataContext is Student student && student.Id != 0)
             {
-                var detailsWindow = new StudentDetailsWindow(student);
+                var detailsWindow = new StudentDetailsWindow(student)
+                {
+                    Owner = Window.GetWindow(this)
+                };
                 
                 detailsWindow.StudentUpdated += (s, args) => 
                 {
                     _dbContext.Entry(student).Reload();
                 };
                 
-                detailsWindow.Show();
+                detailsWindow.ShowDialog();
             }
         }
 
@@ -553,7 +535,7 @@ namespace GradebookApp
                     Owner = Window.GetWindow(this)
                 };
 
-                resultsWindow.Show();
+                resultsWindow.ShowDialog();
             }
         }
 

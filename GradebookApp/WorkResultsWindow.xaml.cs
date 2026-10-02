@@ -14,10 +14,7 @@ namespace GradebookApp
         private int _workId;
         private int _classId;
         
-        // Trzymamy w pamięci stałą listę wszystkich pobranych wyników, by mieć po czym wyszukiwać
         private List<WorkResultViewModel> _allResults = new List<WorkResultViewModel>();
-        
-        // Zmienna widokowa podpięta pod tabelę - zmienia się na żywo w trakcie wpisywania liter
         public ObservableCollection<WorkResultViewModel> DisplayedResults { get; set; } = new ObservableCollection<WorkResultViewModel>();
 
         public WorkResultsWindow(int workId, int classId)
@@ -67,10 +64,24 @@ namespace GradebookApp
                     double baseSum = 0;
                     double retakeSum = 0;
 
+                    var baseTasks = work.Tasks;
+                    var retakeTasks = work.Tasks;
+                    
+                    if (work.HasGroups && record != null)
+                    {
+                        if (!string.IsNullOrEmpty(record.Group))
+                            baseTasks = work.Tasks.Where(t => t.GroupName == record.Group).ToList();
+                        
+                        if (!string.IsNullOrEmpty(record.RetakeGroup))
+                            retakeTasks = work.Tasks.Where(t => t.GroupName == record.RetakeGroup).ToList();
+                        else if (!string.IsNullOrEmpty(record.Group))
+                            retakeTasks = work.Tasks.Where(t => t.GroupName == record.Group).ToList();
+                    }
+
                     if (hasBaseScores || hasRetakeScores)
                     {
-                        baseSum = GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, work.Tasks, studentScores, false);
-                        retakeSum = GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, work.Tasks, studentScores, true);
+                        baseSum = GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, baseTasks, studentScores, false);
+                        retakeSum = GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, retakeTasks, studentScores, true);
                     }
 
                     useRetake = record != null && record.IsRetakeActive && hasRetakeScores && retakeSum > baseSum;
@@ -121,7 +132,6 @@ namespace GradebookApp
                 });
             }
 
-            // Odtwarzamy filtr wyszukiwarki (gdy wracamy z oceniania, wyszukiwarka zostaje zachowana!)
             SearchTextBox_TextChanged(this, null!);
         }
 
@@ -160,13 +170,12 @@ namespace GradebookApp
                     Owner = this
                 };
 
-                // Kiedy nauczyciel zapisze oceny i zamknie tamto okno, ładujemy od nowa dane w tym oknie
                 window.DataSavedEvent += (s, ev) => 
                 {
                     LoadData();
                 };
 
-                window.Show();
+                window.ShowDialog();
             }
         }
     }

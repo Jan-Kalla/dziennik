@@ -1,28 +1,25 @@
-﻿using System;
-using System.Windows;
-using Microsoft.EntityFrameworkCore;
+﻿using System.Windows;
+using System.Windows.Threading;
 
 namespace GradebookApp
 {
     public partial class App : Application
     {
-        protected override void OnStartup(StartupEventArgs e)
+        public App()
         {
-            base.OnStartup(e);
+            // Globalny przechwytywacz błędów dla wątku interfejsu (UI)
+            this.DispatcherUnhandledException += App_DispatcherUnhandledException;
+        }
 
-            try
-            {
-                using (var dbContext = new AppDbContext())
-                {
-                    dbContext.Database.Migrate();
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Błąd podczas aktualizacji bazy danych (Migrate):\n\n{ex.Message}\n\nDetale: {ex.InnerException?.Message}", 
-                                "Krytyczny błąd startu", MessageBoxButton.OK, MessageBoxImage.Error);
-                Application.Current.Shutdown();
-            }
+        private void App_DispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+        {
+            MessageBox.Show($"Wystąpił nieoczekiwany błąd:\n\n{e.Exception.Message}\n\nLokalizacja:\n{e.Exception.StackTrace}", 
+                            "Błąd aplikacji", 
+                            MessageBoxButton.OK, 
+                            MessageBoxImage.Error);
+            
+            // Handled = true zapobiega twardemu zamknięciu aplikacji do pulpitu
+            e.Handled = true; 
         }
     }
 }

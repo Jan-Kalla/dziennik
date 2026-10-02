@@ -20,12 +20,8 @@ namespace GradebookApp
         
         public List<WrittenWorkTask> Tasks { get; private set; } = new List<WrittenWorkTask>();
         
-        // Pamięć podręczna grup: Nazwa Grupy -> Liczba Zadań
         private Dictionary<string, int> _activeGroups = new Dictionary<string, int>();
-        
-        // Pamięć podręczna tabeli, zapobiegająca utracie wpisanych punktów przy odświeżaniu UI
         private Dictionary<string, Dictionary<int, Tuple<string, string, string>>> _backup = new Dictionary<string, Dictionary<int, Tuple<string, string, string>>>();
-        
         private DataTable _dataTable = new DataTable();
 
         public AddWorkDialog()
@@ -58,46 +54,84 @@ namespace GradebookApp
 
         private void HasGroupsCheckBox_Changed(object sender, RoutedEventArgs e)
         {
+            if (GroupManagementPanel == null) return;
+
             if (HasGroupsCheckBox.IsChecked == true)
             {
                 GroupManagementPanel.Visibility = Visibility.Visible;
                 BaseTaskCountPanel.Visibility = Visibility.Collapsed;
+                
+                this.ClearValue(Window.WidthProperty); 
+                this.SizeToContent = SizeToContent.WidthAndHeight;
+
                 if (_activeGroups.Count == 0)
                 {
-                    _activeGroups.Add("A", 3);
-                    _activeGroups.Add("B", 3);
+                    int.TryParse(TaskCountTextBox.Text.Trim(), out int count);
+                    if (count <= 0) count = 1;
+                    
+                    _activeGroups.Add("A", count);
+                    _activeGroups.Add("B", count);
                 }
             }
             else
             {
                 GroupManagementPanel.Visibility = Visibility.Collapsed;
                 BaseTaskCountPanel.Visibility = Visibility.Visible;
+                
+                this.SizeToContent = SizeToContent.Height;
+                this.Width = 470; 
             }
             RefreshGroupsComboBox();
-            RebuildDataTable();
+            if (this.IsLoaded) RebuildDataTable();
+        }
+
+        private void GroupsComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (GroupsComboBox.SelectedItem is string name && _activeGroups.ContainsKey(name))
+            {
+                EditGroupTaskCountTextBox.Text = _activeGroups[name].ToString();
+            }
+            else
+            {
+                EditGroupTaskCountTextBox.Text = string.Empty;
+            }
         }
 
         private void AddGroup_Click(object sender, RoutedEventArgs e)
         {
             string name = NewGroupNameTextBox.Text.Trim();
             if (string.IsNullOrEmpty(name)) return;
+
             if (_activeGroups.ContainsKey(name)) 
             { 
                 MessageBox.Show("Grupa o takiej nazwie już znajduje się w tabeli.", "Błąd", MessageBoxButton.OK, MessageBoxImage.Warning); 
                 return; 
             }
 
-            if (!int.TryParse(NewGroupTaskCountTextBox.Text.Trim(), out int count) || count <= 0 || count > 100)
-            {
-                MessageBox.Show("Wpisz poprawną liczbę zadań dla tej grupy (1-100).", "Błąd", MessageBoxButton.OK, MessageBoxImage.Warning); 
-                return;
-            }
+            int count = _activeGroups.Count > 0 ? _activeGroups.Values.Max() : 1;
 
             _activeGroups.Add(name, count);
+
             NewGroupNameTextBox.Text = string.Empty;
-            NewGroupTaskCountTextBox.Text = string.Empty;
             RefreshGroupsComboBox();
+            GroupsComboBox.SelectedItem = name;
             RebuildDataTable();
+        }
+
+        private void UpdateGroupTaskCount_Click(object sender, RoutedEventArgs e)
+        {
+            if (GroupsComboBox.SelectedItem is string name && _activeGroups.ContainsKey(name))
+            {
+                if (int.TryParse(EditGroupTaskCountTextBox.Text.Trim(), out int count) && count > 0 && count <= 100)
+                {
+                    _activeGroups[name] = count;
+                    RebuildDataTable();
+                }
+                else
+                {
+                    MessageBox.Show("Wpisz poprawną liczbę zadań (1-100).", "Błąd", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
         }
 
         private void RemoveGroup_Click(object sender, RoutedEventArgs e)
@@ -119,7 +153,7 @@ namespace GradebookApp
 
         private void TaskCountTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (HasGroupsCheckBox.IsChecked == false)
+            if (HasGroupsCheckBox != null && HasGroupsCheckBox.IsChecked == false && this.IsLoaded)
             {
                 RebuildDataTable();
             }
@@ -127,36 +161,44 @@ namespace GradebookApp
 
         private void SaveBackup()
         {
-            if (_dataTable == null) return;
+            if (_dataTable == null || _dataTable.Columns.Count == 0) return;
             try { TasksDataGrid.CommitEdit(DataGridEditingUnit.Row, true); } catch { }
 
             foreach (DataRow row in _dataTable.Rows)
             {
                 int tNum = (int)row["TaskNumber"];
                 
-                if (HasGroupsCheckBox.IsChecked == true)
+                foreach (var group in _activeGroups)
                 {
-                    foreach (var group in _activeGroups)
+                    string l1Col = $"{group.Key}_L1";
+                    if (_dataTable.Columns.Contains(l1Col))
                     {
-                        if (tNum > group.Value) continue;
-
                         if (!_backup.ContainsKey(group.Key)) _backup[group.Key] = new Dictionary<int, Tuple<string, string, string>>();
                         
-                        string l1 = row[$"{group.Key}_L1"].ToString() ?? "";
-                        string l2 = row[$"{group.Key}_L2"].ToString() ?? "";
-                        string l3 = row[$"{group.Key}_L3"].ToString() ?? "";
+                        string l1 = row[l1Col]?.ToString() ?? "";
+                        string l2 = row[$"{group.Key}_L2"]?.ToString() ?? "";
+                        string l3 = row[$"{group.Key}_L3"]?.ToString() ?? "";
                         
+                        if (l1 == "-") l1 = "";
+                        if (l2 == "-") l2 = "";
+                        if (l3 == "-") l3 = "";
+
                         _backup[group.Key][tNum] = new Tuple<string, string, string>(l1, l2, l3);
                     }
                 }
-                else
+
+                if (_dataTable.Columns.Contains("BASE_L1"))
                 {
                     if (!_backup.ContainsKey("BASE")) _backup["BASE"] = new Dictionary<int, Tuple<string, string, string>>();
                     
-                    string l1 = row["BASE_L1"].ToString() ?? "";
-                    string l2 = row["BASE_L2"].ToString() ?? "";
-                    string l3 = row["BASE_L3"].ToString() ?? "";
+                    string l1 = row["BASE_L1"]?.ToString() ?? "";
+                    string l2 = row["BASE_L2"]?.ToString() ?? "";
+                    string l3 = row["BASE_L3"]?.ToString() ?? "";
                     
+                    if (l1 == "-") l1 = "";
+                    if (l2 == "-") l2 = "";
+                    if (l3 == "-") l3 = "";
+
                     _backup["BASE"][tNum] = new Tuple<string, string, string>(l1, l2, l3);
                 }
             }
@@ -168,9 +210,18 @@ namespace GradebookApp
 
             _dataTable = new DataTable();
             TasksDataGrid.Columns.Clear();
-
             _dataTable.Columns.Add("TaskNumber", typeof(int));
-            TasksDataGrid.Columns.Add(new DataGridTextColumn { Header = "Zad.", Binding = new Binding("TaskNumber"), IsReadOnly = true });
+
+            // Zmieniono na TasksDataGrid.FindResource, aby poprawnie odnaleźć styl przypisany do siatki danych
+            Style readOnlyStyle = (Style)TasksDataGrid.FindResource("ReadOnlyCellStyle");
+
+            TasksDataGrid.Columns.Add(new DataGridTextColumn { 
+                Header = "Zad.", 
+                Binding = new Binding("TaskNumber"), 
+                IsReadOnly = true,
+                CellStyle = readOnlyStyle,
+                Width = new DataGridLength(45)
+            });
 
             int maxTasks = 0;
 
@@ -184,9 +235,10 @@ namespace GradebookApp
                     _dataTable.Columns.Add($"{group}_L2", typeof(string));
                     _dataTable.Columns.Add($"{group}_L3", typeof(string));
 
-                    TasksDataGrid.Columns.Add(new DataGridTextColumn { Header = $"{group} Poz I", Binding = new Binding($"{group}_L1") });
-                    TasksDataGrid.Columns.Add(new DataGridTextColumn { Header = $"{group} Poz II", Binding = new Binding($"{group}_L2") });
-                    TasksDataGrid.Columns.Add(new DataGridTextColumn { Header = $"{group} Poz III", Binding = new Binding($"{group}_L3") });
+                    // Szerokość zmieniona na Star z Minimum, żeby zawsze wypełniało przestrzeń i nigdy nie ścinało tekstu
+                    TasksDataGrid.Columns.Add(new DataGridTextColumn { Header = $"{group} Poz I", Binding = new Binding($"{group}_L1"), Width = new DataGridLength(1, DataGridLengthUnitType.Star), MinWidth = 55 });
+                    TasksDataGrid.Columns.Add(new DataGridTextColumn { Header = $"{group} Poz II", Binding = new Binding($"{group}_L2"), Width = new DataGridLength(1, DataGridLengthUnitType.Star), MinWidth = 55 });
+                    TasksDataGrid.Columns.Add(new DataGridTextColumn { Header = $"{group} Poz III", Binding = new Binding($"{group}_L3"), Width = new DataGridLength(1, DataGridLengthUnitType.Star), MinWidth = 55 });
                 }
             }
             else
@@ -198,9 +250,9 @@ namespace GradebookApp
                 _dataTable.Columns.Add("BASE_L2", typeof(string));
                 _dataTable.Columns.Add("BASE_L3", typeof(string));
 
-                TasksDataGrid.Columns.Add(new DataGridTextColumn { Header = "Poz I", Binding = new Binding("BASE_L1") });
-                TasksDataGrid.Columns.Add(new DataGridTextColumn { Header = "Poz II", Binding = new Binding("BASE_L2") });
-                TasksDataGrid.Columns.Add(new DataGridTextColumn { Header = "Poz III", Binding = new Binding("BASE_L3") });
+                TasksDataGrid.Columns.Add(new DataGridTextColumn { Header = "Poz I", Binding = new Binding("BASE_L1"), Width = new DataGridLength(1, DataGridLengthUnitType.Star), MinWidth = 55 });
+                TasksDataGrid.Columns.Add(new DataGridTextColumn { Header = "Poz II", Binding = new Binding("BASE_L2"), Width = new DataGridLength(1, DataGridLengthUnitType.Star), MinWidth = 55 });
+                TasksDataGrid.Columns.Add(new DataGridTextColumn { Header = "Poz III", Binding = new Binding("BASE_L3"), Width = new DataGridLength(1, DataGridLengthUnitType.Star), MinWidth = 55 });
             }
 
             for (int i = 1; i <= maxTasks; i++)
@@ -220,10 +272,15 @@ namespace GradebookApp
                                 row[$"{group.Key}_L2"] = _backup[group.Key][i].Item2;
                                 row[$"{group.Key}_L3"] = _backup[group.Key][i].Item3;
                             }
+                            else if (_backup.ContainsKey("BASE") && _backup["BASE"].ContainsKey(i))
+                            {
+                                row[$"{group.Key}_L1"] = _backup["BASE"][i].Item1;
+                                row[$"{group.Key}_L2"] = _backup["BASE"][i].Item2;
+                                row[$"{group.Key}_L3"] = _backup["BASE"][i].Item3;
+                            }
                         }
                         else
                         {
-                            // Blokujemy puste wiersze u grup, które mają mniej zadań niż inne obok
                             row[$"{group.Key}_L1"] = "-";
                             row[$"{group.Key}_L2"] = "-";
                             row[$"{group.Key}_L3"] = "-";
@@ -238,12 +295,20 @@ namespace GradebookApp
                         row["BASE_L2"] = _backup["BASE"][i].Item2;
                         row["BASE_L3"] = _backup["BASE"][i].Item3;
                     }
+                    else if (_activeGroups.Count > 0 && _backup.ContainsKey(_activeGroups.Keys.First()) && _backup[_activeGroups.Keys.First()].ContainsKey(i))
+                    {
+                        string firstGroup = _activeGroups.Keys.First();
+                        row["BASE_L1"] = _backup[firstGroup][i].Item1;
+                        row["BASE_L2"] = _backup[firstGroup][i].Item2;
+                        row["BASE_L3"] = _backup[firstGroup][i].Item3;
+                    }
                 }
 
                 _dataTable.Rows.Add(row);
             }
 
             TasksDataGrid.ItemsSource = _dataTable.DefaultView;
+            TasksDataGrid.UpdateLayout(); 
         }
 
         private void TasksDataGrid_BeginningEdit(object sender, DataGridBeginningEditEventArgs e)
@@ -258,7 +323,6 @@ namespace GradebookApp
                 if (rowView != null)
                 {
                     int taskNum = (int)rowView["TaskNumber"];
-                    // Blokada edycji komórki, jeśli wykracza ona poza liczbę zadań zadeklarowaną dla danej grupy!
                     if (_activeGroups.ContainsKey(groupName) && taskNum > _activeGroups[groupName])
                     {
                         e.Cancel = true;
@@ -269,6 +333,16 @@ namespace GradebookApp
 
         private void TasksDataGrid_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            if (e.Key == Key.Tab)
+            {
+                var dir = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift ? FocusNavigationDirection.Previous : FocusNavigationDirection.Next;
+                if (Keyboard.FocusedElement is UIElement element)
+                {
+                    element.MoveFocus(new TraversalRequest(dir));
+                    e.Handled = true;
+                }
+            }
+            
             if (e.Key == Key.Left || e.Key == Key.Right)
             {
                 var dir = e.Key == Key.Left ? FocusNavigationDirection.Previous : FocusNavigationDirection.Next;
@@ -282,6 +356,8 @@ namespace GradebookApp
 
         private void Save_Click(object sender, RoutedEventArgs e)
         {
+            TasksDataGrid.CommitEdit(DataGridEditingUnit.Row, true);
+
             WorkTitle = TitleTextBox.Text.Trim();
             WorkType = (WorkTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "inne";
             HasGroups = HasGroupsCheckBox.IsChecked == true;
@@ -294,7 +370,7 @@ namespace GradebookApp
 
             if (!double.TryParse(MaxPointsTextBox.Text.Trim(), out double m) || m <= 0)
             {
-                MessageBox.Show("Podaj poprawną wartość dla M (Max musi być większe od 0).", "Ajajajaj! Błąd...", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Wartość Max musi być prawidłową liczbą większą od zera.", "Ajajajaj! Błąd...", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -319,9 +395,9 @@ namespace GradebookApp
                     {
                         for (int i = 1; i <= group.Value; i++)
                         {
-                            string l1 = _backup.ContainsKey(group.Key) && _backup[group.Key].ContainsKey(i) ? _backup[group.Key][i].Item1 : "";
-                            string l2 = _backup.ContainsKey(group.Key) && _backup[group.Key].ContainsKey(i) ? _backup[group.Key][i].Item2 : "";
-                            string l3 = _backup.ContainsKey(group.Key) && _backup[group.Key].ContainsKey(i) ? _backup[group.Key][i].Item3 : "";
+                            string l1 = _dataTable.Rows[i - 1][$"{group.Key}_L1"]?.ToString() ?? "";
+                            string l2 = _dataTable.Rows[i - 1][$"{group.Key}_L2"]?.ToString() ?? "";
+                            string l3 = _dataTable.Rows[i - 1][$"{group.Key}_L3"]?.ToString() ?? "";
 
                             if (string.IsNullOrWhiteSpace(l1) || string.IsNullOrWhiteSpace(l2) || string.IsNullOrWhiteSpace(l3))
                             {
@@ -363,9 +439,9 @@ namespace GradebookApp
 
                     for (int i = 1; i <= count; i++)
                     {
-                        string l1 = _backup.ContainsKey("BASE") && _backup["BASE"].ContainsKey(i) ? _backup["BASE"][i].Item1 : "";
-                        string l2 = _backup.ContainsKey("BASE") && _backup["BASE"].ContainsKey(i) ? _backup["BASE"][i].Item2 : "";
-                        string l3 = _backup.ContainsKey("BASE") && _backup["BASE"].ContainsKey(i) ? _backup["BASE"][i].Item3 : "";
+                        string l1 = _dataTable.Rows[i - 1]["BASE_L1"]?.ToString() ?? "";
+                        string l2 = _dataTable.Rows[i - 1]["BASE_L2"]?.ToString() ?? "";
+                        string l3 = _dataTable.Rows[i - 1]["BASE_L3"]?.ToString() ?? "";
 
                         if (string.IsNullOrWhiteSpace(l1) || string.IsNullOrWhiteSpace(l2) || string.IsNullOrWhiteSpace(l3))
                         {

@@ -63,12 +63,8 @@ namespace GradebookApp
                 _isRetakeActive = workRecord.IsRetakeActive;
             }
 
-            // ====================================================================
-            // INTELIGENTNY PRZEŁĄCZNIK WIDOKÓW I ZABEZPIECZEŃ
-            // ====================================================================
             if (_currentWork.HasGroups)
             {
-                // Praca skomplikowana z różnymi limitami: blokujemy ręczne wpisywanie
                 GroupTextBox.Visibility = Visibility.Collapsed;
                 RetakeGroupTextBox.Visibility = Visibility.Collapsed;
                 
@@ -79,17 +75,23 @@ namespace GradebookApp
                 GroupComboBox.ItemsSource = groups;
                 RetakeGroupComboBox.ItemsSource = groups;
 
-                // Autouzupełnianie na bazie ostatnio wybranej z listy poprawnej grupy
                 string targetGroup = workRecord != null && !string.IsNullOrEmpty(workRecord.Group) && groups.Contains(workRecord.Group)
                     ? workRecord.Group
                     : (groups.Contains(_lastUsedGroup) ? _lastUsedGroup : groups.FirstOrDefault() ?? string.Empty);
 
                 GroupComboBox.SelectedItem = targetGroup;
-                RetakeGroupComboBox.SelectedItem = workRecord != null && !string.IsNullOrEmpty(workRecord.RetakeGroup) && groups.Contains(workRecord.RetakeGroup) ? workRecord.RetakeGroup : targetGroup;
+                
+                if (workRecord != null && !string.IsNullOrEmpty(workRecord.RetakeGroup) && groups.Contains(workRecord.RetakeGroup))
+                {
+                    RetakeGroupComboBox.SelectedItem = workRecord.RetakeGroup;
+                }
+                else
+                {
+                    SetRotationalRetakeGroup(groups, targetGroup);
+                }
             }
             else
             {
-                // Praca standardowa: swoboda działania
                 GroupTextBox.Visibility = Visibility.Visible;
                 RetakeGroupTextBox.Visibility = Visibility.Visible;
                 
@@ -98,10 +100,9 @@ namespace GradebookApp
 
                 GroupTextBox.Text = string.IsNullOrEmpty(workRecord?.Group) ? _lastUsedGroup : workRecord.Group;
                 RetakeGroupTextBox.Text = string.IsNullOrEmpty(workRecord?.RetakeGroup) ? _lastUsedRetakeGroup : workRecord.RetakeGroup;
-                
-                // Ładujemy wiersze standardowej pracy (wszyscy mają te same zadania)
-                RebuildScoresCollectionForBase();
             }
+
+            RebuildScoresCollection();
 
             UpdateDeadlinePrompt(); 
             ApplyRetakeVisibility(); 
@@ -129,89 +130,112 @@ namespace GradebookApp
             RecalculateTotalScore(); 
         }
 
-        private void RebuildScoresCollectionForBase()
-        {
-            ScoresCollection.Clear();
-            var tasksForBase = _currentWork!.Tasks.OrderBy(t => t.TaskNumber).ToList();
-            
-            foreach (var task in tasksForBase)
-            {
-                var vm = new TaskScoreViewModel 
-                { 
-                    TaskId = task.Id, 
-                    TaskNumber = task.TaskNumber, 
-                    MaxL1 = task.MaxPointsLevel1, 
-                    MaxL2 = task.MaxPointsLevel2, 
-                    MaxL3 = task.MaxPointsLevel3 
-                };
-                
-                var scoreRecord = _existingScores.FirstOrDefault(s => s.WrittenWorkTaskId == task.Id);
-                vm.ScoreL1 = scoreRecord?.PointsLevel1;
-                vm.ScoreL2 = scoreRecord?.PointsLevel2;
-                vm.ScoreL3 = scoreRecord?.PointsLevel3;
-                vm.RetakeScoreL1 = scoreRecord?.RetakePointsLevel1;
-                vm.RetakeScoreL2 = scoreRecord?.RetakePointsLevel2;
-                vm.RetakeScoreL3 = scoreRecord?.RetakePointsLevel3;
-                
-                vm.PropertyChanged += (s, e) => RecalculateTotalScore();
-                ScoresCollection.Add(vm);
-            }
-        }
-
         private void GroupComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (_currentWork == null || !_currentWork.HasGroups) return;
             
-            // Sztywne związanie grup. To zapobiega sytuacji, gdzie termin bazowy liczony jest 
-            // w limitach Grupy A, a poprawa ucznia w limitach Grupy B w ramach jednego okna.
-            RetakeGroupComboBox.SelectedItem = GroupComboBox.SelectedItem; 
-            
-            UpdateLimitsForSelectedGroup(GroupComboBox.SelectedItem as string);
+            string? selectedBaseGroup = GroupComboBox.SelectedItem as string;
+
+            if (_isLoaded && selectedBaseGroup != null)
+            {
+                var groups = _currentWork.Tasks.Where(t => !string.IsNullOrEmpty(t.GroupName)).Select(t => t.GroupName!).Distinct().OrderBy(g => g).ToList();
+                SetRotationalRetakeGroup(groups, selectedBaseGroup);
+            }
+
+            if (_isLoaded) RebuildScoresCollection();
         }
 
         private void RetakeGroupComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (_currentWork == null || !_currentWork.HasGroups || !_isRetakeActive) return;
-            // Opcjonalnie, gdyby nauczyciel chciał nadpisać, tutaj dodajemy logikę. Aktualnie to zablokowane powiązaniem.
+            if (_currentWork == null || !_currentWork.HasGroups || !_isRetakeActive || !_isLoaded) return;
+            
+            RebuildScoresCollection();
         }
 
-        private void UpdateLimitsForSelectedGroup(string? groupName)
+        private void SetRotationalRetakeGroup(List<string> allGroups, string currentBaseGroup)
         {
-            if (string.IsNullOrEmpty(groupName) || _currentWork == null || !_currentWork.HasGroups) return;
-            
-            ScoresCollection.Clear(); // Usuwamy wszystkie wiersze starej grupy
-            
-            // Pobieramy z bazy zadania należące TYLKO i wyłącznie do aktualnie wybranej grupy i tworzymy na ich podstawie nowe wiersze
-            var groupTasks = _currentWork.Tasks.Where(t => t.GroupName == groupName).OrderBy(t => t.TaskNumber).ToList();
+            if (allGroups.Count <= 1 || string.IsNullOrEmpty(currentBaseGroup)) return;
 
-            foreach (var task in groupTasks)
+            int currentIndex = allGroups.IndexOf(currentBaseGroup);
+            int nextIndex = (currentIndex + 1) % allGroups.Count; 
+            
+            RetakeGroupComboBox.SelectedItem = allGroups[nextIndex];
+        }
+
+        private void RebuildScoresCollection()
+        {
+            if (_currentWork == null) return;
+
+            ScoresCollection.Clear();
+
+            string baseGroupName = GroupComboBox.Visibility == Visibility.Visible ? (GroupComboBox.SelectedItem as string ?? "") : GroupTextBox.Text.Trim();
+            string retakeGroupName = RetakeGroupComboBox.Visibility == Visibility.Visible ? (RetakeGroupComboBox.SelectedItem as string ?? "") : RetakeGroupTextBox.Text.Trim();
+
+            var baseTasks = _currentWork.HasGroups && !string.IsNullOrEmpty(baseGroupName)
+                ? _currentWork.Tasks.Where(t => t.GroupName == baseGroupName).OrderBy(t => t.TaskNumber).ToList()
+                : (!_currentWork.HasGroups ? _currentWork.Tasks.OrderBy(t => t.TaskNumber).ToList() : new List<WrittenWorkTask>());
+
+            var retakeTasks = _currentWork.HasGroups && !string.IsNullOrEmpty(retakeGroupName)
+                ? _currentWork.Tasks.Where(t => t.GroupName == retakeGroupName).OrderBy(t => t.TaskNumber).ToList()
+                : (!_currentWork.HasGroups ? _currentWork.Tasks.OrderBy(t => t.TaskNumber).ToList() : new List<WrittenWorkTask>());
+
+            int maxTaskNum = Math.Max(
+                baseTasks.Any() ? baseTasks.Max(t => t.TaskNumber) : 0,
+                retakeTasks.Any() ? retakeTasks.Max(t => t.TaskNumber) : 0
+            );
+
+            for (int i = 1; i <= maxTaskNum; i++)
             {
-                var vm = new TaskScoreViewModel 
-                { 
-                    TaskId = task.Id, 
-                    TaskNumber = task.TaskNumber, 
-                    MaxL1 = task.MaxPointsLevel1, 
-                    MaxL2 = task.MaxPointsLevel2, 
-                    MaxL3 = task.MaxPointsLevel3 
-                };
-                
-                var scoreRecord = _existingScores.FirstOrDefault(s => s.WrittenWorkTaskId == task.Id);
-                vm.ScoreL1 = scoreRecord?.PointsLevel1;
-                vm.ScoreL2 = scoreRecord?.PointsLevel2;
-                vm.ScoreL3 = scoreRecord?.PointsLevel3;
-                vm.RetakeScoreL1 = scoreRecord?.RetakePointsLevel1;
-                vm.RetakeScoreL2 = scoreRecord?.RetakePointsLevel2;
-                vm.RetakeScoreL3 = scoreRecord?.RetakePointsLevel3;
-                
+                var bTask = baseTasks.FirstOrDefault(t => t.TaskNumber == i);
+                var rTask = retakeTasks.FirstOrDefault(t => t.TaskNumber == i);
+
+                var vm = new TaskScoreViewModel { TaskNumber = i };
+
+                if (bTask != null)
+                {
+                    vm.BaseTaskId = bTask.Id; 
+                    vm.MaxL1 = bTask.MaxPointsLevel1;
+                    vm.MaxL2 = bTask.MaxPointsLevel2;
+                    vm.MaxL3 = bTask.MaxPointsLevel3;
+
+                    var bScore = _existingScores.FirstOrDefault(s => s.WrittenWorkTaskId == bTask.Id);
+                    if (bScore != null)
+                    {
+                        vm.ScoreL1 = bScore.PointsLevel1;
+                        vm.ScoreL2 = bScore.PointsLevel2;
+                        vm.ScoreL3 = bScore.PointsLevel3;
+                    }
+                }
+                else
+                {
+                    vm.MaxL1 = 0; vm.MaxL2 = 0; vm.MaxL3 = 0; 
+                }
+
+                if (rTask != null)
+                {
+                    vm.RetakeTaskId = rTask.Id; 
+                    vm.RetakeMaxL1 = rTask.MaxPointsLevel1;
+                    vm.RetakeMaxL2 = rTask.MaxPointsLevel2;
+                    vm.RetakeMaxL3 = rTask.MaxPointsLevel3;
+
+                    var rScore = _existingScores.FirstOrDefault(s => s.WrittenWorkTaskId == rTask.Id);
+                    if (rScore != null)
+                    {
+                        vm.RetakeScoreL1 = rScore.RetakePointsLevel1;
+                        vm.RetakeScoreL2 = rScore.RetakePointsLevel2;
+                        vm.RetakeScoreL3 = rScore.RetakePointsLevel3;
+                    }
+                }
+                else
+                {
+                    vm.RetakeMaxL1 = 0; vm.RetakeMaxL2 = 0; vm.RetakeMaxL3 = 0; 
+                }
+
                 vm.PropertyChanged += (s, e) => RecalculateTotalScore();
                 ScoresCollection.Add(vm);
             }
             RecalculateTotalScore();
         }
-
-        // ====================================================================
-        // LOGIKA INTERFEJSU (Daty, panele, NB)
-        // ====================================================================
 
         private void UpdateDeadlinePrompt()
         {
@@ -255,9 +279,14 @@ namespace GradebookApp
                 }
                 
                 if (_currentWork != null && _currentWork.HasGroups) 
-                    RetakeGroupComboBox.SelectedItem = GroupComboBox.SelectedItem;
+                {
+                    var groups = _currentWork.Tasks.Where(t => !string.IsNullOrEmpty(t.GroupName)).Select(t => t.GroupName!).Distinct().OrderBy(g => g).ToList();
+                    SetRotationalRetakeGroup(groups, GroupComboBox.SelectedItem as string ?? "");
+                }
                 else 
+                {
                     RetakeGroupTextBox.Text = string.Empty; 
+                }
                     
                 RetakeDateWrittenPicker.SelectedDate = null;
                 RetakeDateEnteredPicker.SelectedDate = null;
@@ -323,15 +352,21 @@ namespace GradebookApp
             {
                 if (_isRetakeActive)
                 {
-                    if (vm.MaxL3 > 0) vm.RetakeScoreL3 = vm.MaxL3;
-                    else if (vm.MaxL2 > 0) vm.RetakeScoreL2 = vm.MaxL2;
-                    else if (vm.MaxL1 > 0) vm.RetakeScoreL1 = vm.MaxL1;
+                    if (vm.RetakeTaskId.HasValue) 
+                    {
+                        if (vm.RetakeMaxL3 > 0) vm.RetakeScoreL3 = vm.RetakeMaxL3;
+                        else if (vm.RetakeMaxL2 > 0) vm.RetakeScoreL2 = vm.RetakeMaxL2;
+                        else if (vm.RetakeMaxL1 > 0) vm.RetakeScoreL1 = vm.RetakeMaxL1;
+                    }
                 }
                 else
                 {
-                    if (vm.MaxL3 > 0) vm.ScoreL3 = vm.MaxL3;
-                    else if (vm.MaxL2 > 0) vm.ScoreL2 = vm.MaxL2;
-                    else if (vm.MaxL1 > 0) vm.ScoreL1 = vm.MaxL1;
+                    if (vm.BaseTaskId.HasValue)
+                    {
+                        if (vm.MaxL3 > 0) vm.ScoreL3 = vm.MaxL3;
+                        else if (vm.MaxL2 > 0) vm.ScoreL2 = vm.MaxL2;
+                        else if (vm.MaxL1 > 0) vm.ScoreL1 = vm.MaxL1;
+                    }
                 }
             }
         }
@@ -351,25 +386,24 @@ namespace GradebookApp
             }
         }
 
-        // ====================================================================
-        // DYNAMICZNY KALKULATOR PSO (Liczy w locie, w pamięci)
-        // ====================================================================
         private double CalculateScoreFromViewModels(double M, bool isRetake)
         {
-            if (M <= 0 || ScoresCollection.Count == 0) return 0;
+            var validVms = isRetake ? ScoresCollection.Where(vm => vm.RetakeTaskId.HasValue).ToList() : ScoresCollection.Where(vm => vm.BaseTaskId.HasValue).ToList();
             
-            int n = ScoresCollection.Count; 
+            if (M <= 0 || validVms.Count == 0) return 0;
+            
+            int n = validVms.Count; 
             double sumQ1 = 0, sumQ2 = 0, sumQ3 = 0;
 
-            foreach (var vm in ScoresCollection)
+            foreach (var vm in validVms)
             {
                 double p1 = isRetake ? (vm.RetakeScoreL1 ?? 0) : (vm.ScoreL1 ?? 0);
                 double p2 = isRetake ? (vm.RetakeScoreL2 ?? 0) : (vm.ScoreL2 ?? 0);
                 double p3 = isRetake ? (vm.RetakeScoreL3 ?? 0) : (vm.ScoreL3 ?? 0);
 
-                double P1 = vm.MaxL1 ?? 0;
-                double P2 = vm.MaxL2 ?? 0;
-                double P3 = vm.MaxL3 ?? 0;
+                double P1 = isRetake ? (vm.RetakeMaxL1 ?? 0) : (vm.MaxL1 ?? 0);
+                double P2 = isRetake ? (vm.RetakeMaxL2 ?? 0) : (vm.MaxL2 ?? 0);
+                double P3 = isRetake ? (vm.RetakeMaxL3 ?? 0) : (vm.MaxL3 ?? 0);
 
                 sumQ1 += (P1 > 0) ? (p1 / P1) : 0;
                 sumQ2 += (P2 > 0) ? (p2 / P2) : 0;
@@ -398,8 +432,8 @@ namespace GradebookApp
             double totalBase = CalculateScoreFromViewModels(M, false);
             double totalRetake = CalculateScoreFromViewModels(M, true);
 
-            bool hasBaseScores = ScoresCollection.Any(vm => vm.ScoreL1.HasValue || vm.ScoreL2.HasValue || vm.ScoreL3.HasValue);
-            bool hasRetakeScores = ScoresCollection.Any(vm => vm.RetakeScoreL1.HasValue || vm.RetakeScoreL2.HasValue || vm.RetakeScoreL3.HasValue);
+            bool hasBaseScores = ScoresCollection.Any(vm => vm.BaseTaskId.HasValue && (vm.ScoreL1 != null || vm.ScoreL2 != null || vm.ScoreL3 != null));
+            bool hasRetakeScores = ScoresCollection.Any(vm => vm.RetakeTaskId.HasValue && (vm.RetakeScoreL1 != null || vm.RetakeScoreL2 != null || vm.RetakeScoreL3 != null));
 
             BasePanelScoreText.Text = hasBaseScores ? $"{totalBase} / {M} pkt ({Math.Floor(M > 0 ? (totalBase / M) * 100 : 0)}%)" : "Brak ocen";
             RetakePanelScoreText.Text = hasRetakeScores ? $"{totalRetake} / {M} pkt ({Math.Floor(M > 0 ? (totalRetake / M) * 100 : 0)}%)" : "Brak ocen";
@@ -442,9 +476,6 @@ namespace GradebookApp
             }
         }
 
-        // ====================================================================
-        // ZAPISYWANIE DANYCH (WALIDACJE I PUSZCZANIE DO BAZY)
-        // ====================================================================
         private void Save_Click(object sender, RoutedEventArgs e)
         {
             Keyboard.ClearFocus();
@@ -455,8 +486,8 @@ namespace GradebookApp
                 return;
             }
 
-            bool hasAnyBaseScore = ScoresCollection.Any(vm => vm.ScoreL1 != null || vm.ScoreL2 != null || vm.ScoreL3 != null);
-            bool hasAllBaseScores = ScoresCollection.All(vm => vm.ScoreL1 != null || vm.ScoreL2 != null || vm.ScoreL3 != null);
+            bool hasAnyBaseScore = ScoresCollection.Any(vm => vm.BaseTaskId.HasValue && (vm.ScoreL1 != null || vm.ScoreL2 != null || vm.ScoreL3 != null));
+            bool hasAllBaseScores = ScoresCollection.Where(vm => vm.BaseTaskId.HasValue).All(vm => vm.ScoreL1 != null || vm.ScoreL2 != null || vm.ScoreL3 != null);
 
             if (AbsentCheckBox.IsChecked == false && hasAnyBaseScore && !hasAllBaseScores)
             {
@@ -467,8 +498,8 @@ namespace GradebookApp
 
             if (_isRetakeActive)
             {
-                bool hasAnyRetakeScore = ScoresCollection.Any(vm => vm.RetakeScoreL1 != null || vm.RetakeScoreL2 != null || vm.RetakeScoreL3 != null);
-                bool hasAllRetakeScores = ScoresCollection.All(vm => vm.RetakeScoreL1 != null || vm.RetakeScoreL2 != null || vm.RetakeScoreL3 != null);
+                bool hasAnyRetakeScore = ScoresCollection.Any(vm => vm.RetakeTaskId.HasValue && (vm.RetakeScoreL1 != null || vm.RetakeScoreL2 != null || vm.RetakeScoreL3 != null));
+                bool hasAllRetakeScores = ScoresCollection.Where(vm => vm.RetakeTaskId.HasValue).All(vm => vm.RetakeScoreL1 != null || vm.RetakeScoreL2 != null || vm.RetakeScoreL3 != null);
 
                 if (hasAnyRetakeScore && !hasAllRetakeScores)
                 {
@@ -480,15 +511,18 @@ namespace GradebookApp
 
             foreach (var vm in ScoresCollection)
             {
-                if (vm.ScoreL1 > vm.MaxL1) { ShowError(vm.TaskNumber, 1, vm.MaxL1, "Baza"); return; }
-                if (vm.ScoreL2 > vm.MaxL2) { ShowError(vm.TaskNumber, 2, vm.MaxL2, "Baza"); return; }
-                if (vm.ScoreL3 > vm.MaxL3) { ShowError(vm.TaskNumber, 3, vm.MaxL3, "Baza"); return; }
-                
-                if (_isRetakeActive)
+                if (vm.BaseTaskId.HasValue)
                 {
-                    if (vm.RetakeScoreL1 > vm.MaxL1) { ShowError(vm.TaskNumber, 1, vm.MaxL1, "Poprawa"); return; }
-                    if (vm.RetakeScoreL2 > vm.MaxL2) { ShowError(vm.TaskNumber, 2, vm.MaxL2, "Poprawa"); return; }
-                    if (vm.RetakeScoreL3 > vm.MaxL3) { ShowError(vm.TaskNumber, 3, vm.MaxL3, "Poprawa"); return; }
+                    if (vm.ScoreL1 > vm.MaxL1) { ShowError(vm.TaskNumber, 1, vm.MaxL1, "Baza"); return; }
+                    if (vm.ScoreL2 > vm.MaxL2) { ShowError(vm.TaskNumber, 2, vm.MaxL2, "Baza"); return; }
+                    if (vm.ScoreL3 > vm.MaxL3) { ShowError(vm.TaskNumber, 3, vm.MaxL3, "Baza"); return; }
+                }
+                
+                if (_isRetakeActive && vm.RetakeTaskId.HasValue)
+                {
+                    if (vm.RetakeScoreL1 > vm.RetakeMaxL1) { ShowError(vm.TaskNumber, 1, vm.RetakeMaxL1, "Poprawa"); return; }
+                    if (vm.RetakeScoreL2 > vm.RetakeMaxL2) { ShowError(vm.TaskNumber, 2, vm.RetakeMaxL2, "Poprawa"); return; }
+                    if (vm.RetakeScoreL3 > vm.RetakeMaxL3) { ShowError(vm.TaskNumber, 3, vm.RetakeMaxL3, "Poprawa"); return; }
                 }
             }
             
@@ -515,20 +549,49 @@ namespace GradebookApp
 
             foreach (var vm in ScoresCollection)
             {
-                var record = _dbContext.StudentTaskScores.FirstOrDefault(s => s.StudentId == _studentId && s.WrittenWorkTaskId == vm.TaskId);
-                if (record == null)
+                StudentTaskScore? baseRecord = null;
+                if (vm.BaseTaskId.HasValue)
                 {
-                    record = new StudentTaskScore { StudentId = _studentId, WrittenWorkTaskId = vm.TaskId };
-                    _dbContext.StudentTaskScores.Add(record);
+                    baseRecord = _dbContext.StudentTaskScores.FirstOrDefault(s => s.StudentId == _studentId && s.WrittenWorkTaskId == vm.BaseTaskId.Value);
+                    if (baseRecord == null)
+                    {
+                        baseRecord = new StudentTaskScore { StudentId = _studentId, WrittenWorkTaskId = vm.BaseTaskId.Value };
+                        _dbContext.StudentTaskScores.Add(baseRecord);
+                    }
+                    baseRecord.PointsLevel1 = AbsentCheckBox.IsChecked == true ? 0 : vm.ScoreL1;
+                    baseRecord.PointsLevel2 = AbsentCheckBox.IsChecked == true ? 0 : vm.ScoreL2;
+                    baseRecord.PointsLevel3 = AbsentCheckBox.IsChecked == true ? 0 : vm.ScoreL3;
+
+                    if (!_isRetakeActive)
+                    {
+                        baseRecord.RetakePointsLevel1 = null;
+                        baseRecord.RetakePointsLevel2 = null;
+                        baseRecord.RetakePointsLevel3 = null;
+                    }
                 }
-                
-                record.PointsLevel1 = AbsentCheckBox.IsChecked == true ? 0 : vm.ScoreL1;
-                record.PointsLevel2 = AbsentCheckBox.IsChecked == true ? 0 : vm.ScoreL2;
-                record.PointsLevel3 = AbsentCheckBox.IsChecked == true ? 0 : vm.ScoreL3;
-                
-                record.RetakePointsLevel1 = _isRetakeActive ? vm.RetakeScoreL1 : null;
-                record.RetakePointsLevel2 = _isRetakeActive ? vm.RetakeScoreL2 : null;
-                record.RetakePointsLevel3 = _isRetakeActive ? vm.RetakeScoreL3 : null;
+
+                if (vm.RetakeTaskId.HasValue)
+                {
+                    StudentTaskScore? retakeRecord = _dbContext.StudentTaskScores.FirstOrDefault(s => s.StudentId == _studentId && s.WrittenWorkTaskId == vm.RetakeTaskId.Value);
+                    if (retakeRecord == null)
+                    {
+                        retakeRecord = new StudentTaskScore { StudentId = _studentId, WrittenWorkTaskId = vm.RetakeTaskId.Value };
+                        _dbContext.StudentTaskScores.Add(retakeRecord);
+                    }
+
+                    if (_isRetakeActive)
+                    {
+                        retakeRecord.RetakePointsLevel1 = vm.RetakeScoreL1;
+                        retakeRecord.RetakePointsLevel2 = vm.RetakeScoreL2;
+                        retakeRecord.RetakePointsLevel3 = vm.RetakeScoreL3;
+                    }
+                    else
+                    {
+                        retakeRecord.RetakePointsLevel1 = null;
+                        retakeRecord.RetakePointsLevel2 = null;
+                        retakeRecord.RetakePointsLevel3 = null;
+                    }
+                }
             }
 
             _dbContext.SaveChanges();
@@ -539,7 +602,7 @@ namespace GradebookApp
 
         private void ShowError(int taskNum, int level, double? max, string attempt)
         {
-            MessageBox.Show($"Błąd w zadaniu {taskNum} ({attempt}): wpisano więcej punktów niż przewidziano dla poziomu {level} (Max: {max}).", 
+            MessageBox.Show($"Błąd w zadaniu {taskNum} ({attempt}): wpisano więcej punktów niż przewidziano (Max: {max}).", 
                             "Ajajajaj! Przekroczono limit...", MessageBoxButton.OK, MessageBoxImage.Error);
         }
 
@@ -547,10 +610,6 @@ namespace GradebookApp
         {
             this.Close(); 
         }
-
-        // ====================================================================
-        // OPTYMALIZACJA KLAWIATURY (Automatyczny focus na TextBox)
-        // ====================================================================
 
         private void ScoreTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
         {
@@ -598,16 +657,31 @@ namespace GradebookApp
         }
     }
 
-    // ====================================================================
-    // MODEL DANYCH - INTELIGENTNA WALIDACJA W LOCIE (Max Punkty)
-    // ====================================================================
     public class TaskScoreViewModel : INotifyPropertyChanged
     {
-        public int TaskId { get; set; }
+        public int? BaseTaskId { get; set; }
+        public int? RetakeTaskId { get; set; }
         public int TaskNumber { get; set; }
-        public double? MaxL1 { get; set; }
-        public double? MaxL2 { get; set; }
-        public double? MaxL3 { get; set; }
+
+        public Visibility BaseVisibility => BaseTaskId.HasValue ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility BaseDashVisibility => BaseTaskId.HasValue ? Visibility.Collapsed : Visibility.Visible;
+        
+        public Visibility RetakeVisibility => RetakeTaskId.HasValue ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility RetakeDashVisibility => RetakeTaskId.HasValue ? Visibility.Collapsed : Visibility.Visible;
+
+        private double? _maxL1;
+        public double? MaxL1 { get => _maxL1; set { _maxL1 = value; OnPropertyChanged(); } }
+        private double? _maxL2;
+        public double? MaxL2 { get => _maxL2; set { _maxL2 = value; OnPropertyChanged(); } }
+        private double? _maxL3;
+        public double? MaxL3 { get => _maxL3; set { _maxL3 = value; OnPropertyChanged(); } }
+        
+        private double? _retakeMaxL1;
+        public double? RetakeMaxL1 { get => _retakeMaxL1; set { _retakeMaxL1 = value; OnPropertyChanged(); } }
+        private double? _retakeMaxL2;
+        public double? RetakeMaxL2 { get => _retakeMaxL2; set { _retakeMaxL2 = value; OnPropertyChanged(); } }
+        private double? _retakeMaxL3;
+        public double? RetakeMaxL3 { get => _retakeMaxL3; set { _retakeMaxL3 = value; OnPropertyChanged(); } }
 
         private double? _scoreL1;
         public double? ScoreL1 
@@ -653,7 +727,7 @@ namespace GradebookApp
             get => _retakeScoreL1; 
             set 
             { 
-                if (value.HasValue && value.Value > (MaxL1 ?? 0)) { _retakeScoreL1 = null; } 
+                if (value.HasValue && value.Value > (RetakeMaxL1 ?? 0)) { _retakeScoreL1 = null; } 
                 else { _retakeScoreL1 = value; if(value != null) { _retakeScoreL2 = null; _retakeScoreL3 = null; OnBothChangedRetake(); } } 
                 OnPropertyChanged(); 
             } 
@@ -665,7 +739,7 @@ namespace GradebookApp
             get => _retakeScoreL2; 
             set 
             { 
-                if (value.HasValue && value.Value > (MaxL2 ?? 0)) { _retakeScoreL2 = null; } 
+                if (value.HasValue && value.Value > (RetakeMaxL2 ?? 0)) { _retakeScoreL2 = null; } 
                 else { _retakeScoreL2 = value; if(value != null) { _retakeScoreL1 = null; _retakeScoreL3 = null; OnBothChangedRetake(); } } 
                 OnPropertyChanged(); 
             } 
@@ -677,7 +751,7 @@ namespace GradebookApp
             get => _retakeScoreL3; 
             set 
             { 
-                if (value.HasValue && value.Value > (MaxL3 ?? 0)) { _retakeScoreL3 = null; } 
+                if (value.HasValue && value.Value > (RetakeMaxL3 ?? 0)) { _retakeScoreL3 = null; } 
                 else { _retakeScoreL3 = value; if(value != null) { _retakeScoreL1 = null; _retakeScoreL2 = null; OnBothChangedRetake(); } } 
                 OnPropertyChanged(); 
             } 

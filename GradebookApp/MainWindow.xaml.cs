@@ -1,6 +1,7 @@
 ﻿using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
+using Microsoft.EntityFrameworkCore;
 
 namespace GradebookApp
 {
@@ -14,6 +15,7 @@ namespace GradebookApp
             InitializeComponent();
 
             _dbContext = new AppDbContext();
+            _dbContext.Database.Migrate();
 
             var classesFromDb = _dbContext.Classes.ToList();
             
@@ -56,7 +58,6 @@ namespace GradebookApp
             }
         }
         
-        // NOWA METODA: Globalne dodawanie prac pisemnych
         private void AddGlobalWorkButton_Click(object sender, RoutedEventArgs e)
         {
             var classes = _dbContext.Classes.ToList();
@@ -87,7 +88,6 @@ namespace GradebookApp
                         DateEntered = dialog.DateEntered,
                         SchoolClassId = classId,
                         
-                        // Konieczne jest utworzenie nowych obiektów zadań dla każdej klasy z osobna
                         Tasks = dialog.Tasks.Select(t => new WrittenWorkTask 
                         {
                             TaskNumber = t.TaskNumber,
@@ -170,8 +170,11 @@ namespace GradebookApp
         {
             if (ClassesListBox.SelectedItem is SchoolClass selectedClass)
             {
-                var newWindow = new ClassDetailsWindow(selectedClass);
-                newWindow.Show();
+                var newWindow = new ClassDetailsWindow(selectedClass)
+                {
+                    Owner = this
+                };
+                newWindow.ShowDialog();
             }
         }
 

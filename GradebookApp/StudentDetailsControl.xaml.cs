@@ -30,7 +30,6 @@ namespace GradebookApp
 
             StudentNameText.Text = dbStudent.FullName;
 
-            // Ładujemy oceny globalne klasy ORAZ oceny indywidualne przypisane WYŁĄCZNIE do tego ucznia
             var classWorks = _dbContext.WrittenWorks.Include(w => w.Tasks)
                                        .Where(w => w.SchoolClassId == dbStudent.SchoolClassId && 
                                                   (!w.IsIndividual || w.IndividualStudentId == dbStudent.Id))
@@ -159,8 +158,8 @@ namespace GradebookApp
                     DateEntered = dialog.DateEntered,
                     SchoolClassId = _currentStudent.SchoolClassId,
                     Tasks = dialog.Tasks,
-                    IsIndividual = true, // Zaznaczamy jako indywidualna!
-                    IndividualStudentId = _currentStudent.Id // Wiążemy z uczniem!
+                    IsIndividual = true, 
+                    IndividualStudentId = _currentStudent.Id 
                 };
 
                 _dbContext.WrittenWorks.Add(newWork);
@@ -168,7 +167,6 @@ namespace GradebookApp
 
                 if (newWork.WorkType.ToLower() == "aktywność")
                 {
-                    // MEGA AUTOMAT: Pomijamy otwieranie okna i z palca ładujemy uczniowi punkty do bazy.
                     var record = new StudentWorkRecord { 
                         StudentId = _currentStudent.Id, 
                         WrittenWorkId = newWork.Id, 
@@ -189,7 +187,6 @@ namespace GradebookApp
                 }
                 else
                 {
-                    // Tradycyjna ocena: odpalamy okienko
                     LoadStudentData(_currentStudent);
 
                     var gradeWindow = new StudentWorkDetailsWindow(_currentStudent.Id, newWork.Id)
@@ -202,7 +199,7 @@ namespace GradebookApp
                         LoadStudentData(_currentStudent);
                     };
 
-                    gradeWindow.Show();
+                    gradeWindow.ShowDialog();
                 }
             }
         }
@@ -221,7 +218,7 @@ namespace GradebookApp
                     LoadStudentData(_currentStudent);
                 };
 
-                window.Show();
+                window.ShowDialog();
             }
         }
     }
@@ -231,7 +228,7 @@ namespace GradebookApp
         public int WorkId { get; set; }
         public string WorkType { get; set; } = string.Empty; 
         public string WorkTitle { get; set; } = string.Empty;
-        public string DeadlineDisplay { get; set; } = string.Empty; // NOWE
+        public string DeadlineDisplay { get; set; } = string.Empty; 
         public string ScoreDisplay { get; set; } = string.Empty;
         public string GroupDisplay { get; set; } = string.Empty; 
     }
