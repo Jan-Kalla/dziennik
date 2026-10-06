@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using GradebookApp.ViewModels;
 
 namespace GradebookApp
 {
@@ -133,12 +134,5 @@ namespace GradebookApp
         {
             DialogResult = false;
         }
-    }
-
-    public class ClassSelectionItem
-    {
-        public int ClassId { get; set; }
-        public string ClassName { get; set; } = string.Empty;
-        public bool IsSelected { get; set; }
     }
 }

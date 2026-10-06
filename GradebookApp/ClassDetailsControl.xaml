@@ -128,17 +128,17 @@
 
                             <TextBlock Grid.Column="0" Text="Szybkie dodawanie:" Foreground="#4DB6AC" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,20,0"/>
 
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,10,0">
+                            <StackPanel x:Name="FirstNameStackPanel" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,10,0">
                                 <TextBlock Text="Imię:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                <TextBox x:Name="QuickAddFirstNameTextBox" Width="150" Height="28" VerticalContentAlignment="Center" PreviewKeyDown="QuickAdd_PreviewKeyDown"/>
+                                <TextBox x:Name="QuickAddFirstNameTextBox" TabIndex="1" Width="150" Height="28" VerticalContentAlignment="Center" PreviewKeyDown="QuickAdd_PreviewKeyDown"/>
                             </StackPanel>
 
-                            <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Left" Margin="10,0,0,0">
+                            <StackPanel x:Name="LastNameStackPanel" Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Left" Margin="10,0,0,0">
                                 <TextBlock Text="Nazwisko:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                <TextBox x:Name="QuickAddLastNameTextBox" Width="150" Height="28" VerticalContentAlignment="Center" PreviewKeyDown="QuickAdd_PreviewKeyDown"/>
+                                <TextBox x:Name="QuickAddLastNameTextBox" TabIndex="2" Width="150" Height="28" VerticalContentAlignment="Center" PreviewKeyDown="QuickAdd_PreviewKeyDown"/>
                             </StackPanel>
 
-                            <Button Grid.Column="3" Content="Dodaj (Enter)" Width="120" Height="28" Click="QuickAddStudent_Click" Background="#2E4A2E" BorderBrush="#4CAF50" Foreground="White" Cursor="Hand" Margin="20,0,0,0"/>
+                            <Button Grid.Column="3" Content="Dodaj (Enter)" TabIndex="3" Width="120" Height="28" Click="QuickAddStudent_Click" Background="#2E4A2E" BorderBrush="#4CAF50" Foreground="White" Cursor="Hand" Margin="20,0,0,0"/>
                         </Grid>
                     </Border>
                 </Grid>
@@ -220,33 +220,24 @@
                         </DataGrid.ContextMenu>
 
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Data" Binding="{Binding DateDisplay}" Width="110">
-                                <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="HorizontalAlignment" Value="Center"/>
-                                        <Setter Property="Foreground" Value="#FFB74D"/>
-                                    </Style>
-                                </DataGridTextColumn.ElementStyle>
-                            </DataGridTextColumn>
-                            
-                            <DataGridTextColumn Header="Godzina" Binding="{Binding TimeDisplay}" Width="80">
-                                <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Center"/></Style>
-                                </DataGridTextColumn.ElementStyle>
-                            </DataGridTextColumn>
-                            
-                            <DataGridTextColumn Header="Rodzaj zdarzenia" Binding="{Binding EventType}" Width="150" />
-                            <DataGridTextColumn Header="Rodzaj pracy" Binding="{Binding WorkType}" Width="120" />
-                            <DataGridTextColumn Header="Tytuł pracy" Binding="{Binding Title}" Width="*" />
-                            
-                            <DataGridTextColumn Header="Uczniowie" Binding="{Binding StudentsDisplay}" Width="*">
-                                <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="TextWrapping" Value="Wrap"/>
-                                        <Setter Property="Padding" Value="0,5,0,5"/>
-                                    </Style>
-                                </DataGridTextColumn.ElementStyle>
-                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Data" Binding="{Binding DateDisplay}" Width="100"/>
+                            <DataGridTextColumn Header="Godz." Binding="{Binding TimeDisplay}" Width="70"/>
+                            <DataGridTextColumn Header="Forma" Binding="{Binding WorkType}" Width="120"/>
+                            <DataGridTextColumn Header="Tytuł" Binding="{Binding Title}" Width="*"/>
+                            <DataGridTemplateColumn Width="100">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="Szczegóły" Margin="2" Click="ViewRetakeDetails_Click" Cursor="Hand">
+                                            <Button.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem Header="Edytuj" Click="EditRetake_Click"/>
+                                                    <MenuItem Header="Usuń" Click="DeleteRetake_Click" Foreground="#E57373" FontWeight="Bold"/>
+                                                </ContextMenu>
+                                            </Button.ContextMenu>
+                                        </Button>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
 

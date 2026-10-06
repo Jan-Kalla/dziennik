@@ -64,7 +64,13 @@
                 <DataGridTemplateColumn Width="120">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <Button Content="Oceń / Podgląd" Margin="2" Click="GradeWork_Click" Cursor="Hand"/>
+                            <Button Content="Oceń / Podgląd" Margin="2" Click="GradeWork_Click" Cursor="Hand">
+                                <Button.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Usuń ocenę" Click="DeleteIndividualGrade_Click" Foreground="#E57373" FontWeight="Bold"/>
+                                    </ContextMenu>
+                                </Button.ContextMenu>
+                            </Button>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>

@@ -153,102 +153,162 @@
                         <EventSetter Event="GotFocus" Handler="DataGridCell_GotFocus"/>
                     </Style>
                 </DataGrid.CellStyle>
-                <DataGrid.Columns>
-                    <DataGridTextColumn Binding="{Binding TaskNumber}" Header="Zad." IsReadOnly="True" Width="40">
-                        <DataGridTextColumn.CellStyle>
-                            <Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
-                                <Setter Property="Focusable" Value="False"/>
-                                <Setter Property="IsTabStop" Value="False"/>
-                            </Style>
-                        </DataGridTextColumn.CellStyle>
-                    </DataGridTextColumn>
-                    
-                    <DataGridTemplateColumn Header="BAZA: Poz I" Width="*">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
+            <DataGrid.Columns>
+                <DataGridTextColumn Binding="{Binding TaskNumber}" Header="Zad." IsReadOnly="True" Width="40">
+                    <DataGridTextColumn.CellStyle>
+                        <Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
+                            <Setter Property="Focusable" Value="False"/>
+                            <Setter Property="IsTabStop" Value="False"/>
+                        </Style>
+                    </DataGridTextColumn.CellStyle>
+                </DataGridTextColumn>
+                
+                <DataGridTemplateColumn Header="BAZA: Poz I" Width="*">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <StackPanel Margin="5,0,0,0" Orientation="Horizontal" Visibility="{Binding BaseVisibility}">
+                                    <TextBox Margin="0,0,5,0" Text="{Binding ScoreL1, UpdateSourceTrigger=LostFocus}" Width="40">
+                                        <TextBox.Style>
+                                            <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                                <Setter Property="IsEnabled" Value="True"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding MaxL1}" Value="0"><Setter Property="IsEnabled" Value="False"/><Setter Property="Background" Value="#2D2D30"/></DataTrigger>
+                                                    <DataTrigger Binding="{Binding MaxL1}" Value="{x:Null}"><Setter Property="IsEnabled" Value="False"/><Setter Property="Background" Value="#2D2D30"/></DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBox.Style>
+                                    </TextBox>
+                                    <TextBlock Foreground="#AAAAAA" Text="{Binding MaxL1, StringFormat=/ {0}}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <TextBlock Text="-" Foreground="#777777" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding BaseDashVisibility}"/>
+                            </Grid>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="BAZA: Poz II" Width="*">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <StackPanel Margin="5,0,0,0" Orientation="Horizontal" Visibility="{Binding BaseVisibility}">
+                                    <TextBox Margin="0,0,5,0" Text="{Binding ScoreL2, UpdateSourceTrigger=LostFocus}" Width="40">
+                                        <TextBox.Style>
+                                            <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                                <Setter Property="IsEnabled" Value="True"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding MaxL2}" Value="0"><Setter Property="IsEnabled" Value="False"/><Setter Property="Background" Value="#2D2D30"/></DataTrigger>
+                                                    <DataTrigger Binding="{Binding MaxL2}" Value="{x:Null}"><Setter Property="IsEnabled" Value="False"/><Setter Property="Background" Value="#2D2D30"/></DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBox.Style>
+                                    </TextBox>
+                                    <TextBlock Foreground="#AAAAAA" Text="{Binding MaxL2, StringFormat=/ {0}}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <TextBlock Text="-" Foreground="#777777" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding BaseDashVisibility}"/>
+                            </Grid>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="BAZA: Poz III" Width="*">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <StackPanel Margin="5,0,0,0" Orientation="Horizontal" Visibility="{Binding BaseVisibility}">
+                                    <TextBox Margin="0,0,5,0" Text="{Binding ScoreL3, UpdateSourceTrigger=LostFocus}" Width="40">
+                                        <TextBox.Style>
+                                            <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                                <Setter Property="IsEnabled" Value="True"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding MaxL3}" Value="0"><Setter Property="IsEnabled" Value="False"/><Setter Property="Background" Value="#2D2D30"/></DataTrigger>
+                                                    <DataTrigger Binding="{Binding MaxL3}" Value="{x:Null}"><Setter Property="IsEnabled" Value="False"/><Setter Property="Background" Value="#2D2D30"/></DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBox.Style>
+                                    </TextBox>
+                                    <TextBlock Foreground="#AAAAAA" Text="{Binding MaxL3, StringFormat=/ {0}}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <TextBlock Text="-" Foreground="#777777" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding BaseDashVisibility}"/>
+                            </Grid>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                
+                <DataGridTemplateColumn Header="POPRAWA: Poz I" Visibility="Collapsed" Width="*" x:Name="RetakeCol1">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Border Background="#1E2E1E" Padding="5,0,0,0">
                                 <Grid>
-                                    <StackPanel Margin="5,0,0,0" Orientation="Horizontal" Visibility="{Binding BaseVisibility}">
-                                        <TextBox Margin="0,0,5,0" Text="{Binding ScoreL1, UpdateSourceTrigger=LostFocus}" VerticalContentAlignment="Center" Width="40"/>
-                                        <TextBlock Foreground="#AAAAAA" Text="{Binding MaxL1, StringFormat=/ {0}}" VerticalAlignment="Center"/>
+                                    <StackPanel Orientation="Horizontal" Visibility="{Binding RetakeVisibility}">
+                                        <TextBox Margin="0,0,5,0" Text="{Binding RetakeScoreL1, UpdateSourceTrigger=LostFocus}" Width="40">
+                                            <TextBox.Style>
+                                                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                                    <Setter Property="IsEnabled" Value="True"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding RetakeMaxL1}" Value="0"><Setter Property="IsEnabled" Value="False"/><Setter Property="Background" Value="#1E1E1E"/></DataTrigger>
+                                                        <DataTrigger Binding="{Binding RetakeMaxL1}" Value="{x:Null}"><Setter Property="IsEnabled" Value="False"/><Setter Property="Background" Value="#1E1E1E"/></DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBox.Style>
+                                        </TextBox>
+                                        <TextBlock Foreground="#81C784" Text="{Binding RetakeMaxL1, StringFormat=/ {0}}" VerticalAlignment="Center"/>
                                     </StackPanel>
-                                    <TextBlock Text="-" Foreground="#777777" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding BaseDashVisibility}"/>
+                                    <TextBlock Text="-" Foreground="#555555" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,5,0" Visibility="{Binding RetakeDashVisibility}"/>
                                 </Grid>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="BAZA: Poz II" Width="*">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
+                            </Border>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="POPRAWA: Poz II" Visibility="Collapsed" Width="*" x:Name="RetakeCol2">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Border Background="#1E2E1E" Padding="5,0,0,0">
                                 <Grid>
-                                    <StackPanel Margin="5,0,0,0" Orientation="Horizontal" Visibility="{Binding BaseVisibility}">
-                                        <TextBox Margin="0,0,5,0" Text="{Binding ScoreL2, UpdateSourceTrigger=LostFocus}" VerticalContentAlignment="Center" Width="40"/>
-                                        <TextBlock Foreground="#AAAAAA" Text="{Binding MaxL2, StringFormat=/ {0}}" VerticalAlignment="Center"/>
+                                    <StackPanel Orientation="Horizontal" Visibility="{Binding RetakeVisibility}">
+                                        <TextBox Margin="0,0,5,0" Text="{Binding RetakeScoreL2, UpdateSourceTrigger=LostFocus}" Width="40">
+                                            <TextBox.Style>
+                                                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                                    <Setter Property="IsEnabled" Value="True"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding RetakeMaxL2}" Value="0"><Setter Property="IsEnabled" Value="False"/><Setter Property="Background" Value="#1E1E1E"/></DataTrigger>
+                                                        <DataTrigger Binding="{Binding RetakeMaxL2}" Value="{x:Null}"><Setter Property="IsEnabled" Value="False"/><Setter Property="Background" Value="#1E1E1E"/></DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBox.Style>
+                                        </TextBox>
+                                        <TextBlock Foreground="#81C784" Text="{Binding RetakeMaxL2, StringFormat=/ {0}}" VerticalAlignment="Center"/>
                                     </StackPanel>
-                                    <TextBlock Text="-" Foreground="#777777" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding BaseDashVisibility}"/>
+                                    <TextBlock Text="-" Foreground="#555555" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,5,0" Visibility="{Binding RetakeDashVisibility}"/>
                                 </Grid>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="BAZA: Poz III" Width="*">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
+                            </Border>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="POPRAWA: Poz III" Visibility="Collapsed" Width="*" x:Name="RetakeCol3">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Border Background="#1E2E1E" Padding="5,0,0,0">
                                 <Grid>
-                                    <StackPanel Margin="5,0,0,0" Orientation="Horizontal" Visibility="{Binding BaseVisibility}">
-                                        <TextBox Margin="0,0,5,0" Text="{Binding ScoreL3, UpdateSourceTrigger=LostFocus}" VerticalContentAlignment="Center" Width="40"/>
-                                        <TextBlock Foreground="#AAAAAA" Text="{Binding MaxL3, StringFormat=/ {0}}" VerticalAlignment="Center"/>
+                                    <StackPanel Orientation="Horizontal" Visibility="{Binding RetakeVisibility}">
+                                        <TextBox Margin="0,0,5,0" Text="{Binding RetakeScoreL3, UpdateSourceTrigger=LostFocus}" Width="40">
+                                            <TextBox.Style>
+                                                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                                    <Setter Property="IsEnabled" Value="True"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding RetakeMaxL3}" Value="0"><Setter Property="IsEnabled" Value="False"/><Setter Property="Background" Value="#1E1E1E"/></DataTrigger>
+                                                        <DataTrigger Binding="{Binding RetakeMaxL3}" Value="{x:Null}"><Setter Property="IsEnabled" Value="False"/><Setter Property="Background" Value="#1E1E1E"/></DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBox.Style>
+                                        </TextBox>
+                                        <TextBlock Foreground="#81C784" Text="{Binding RetakeMaxL3, StringFormat=/ {0}}" VerticalAlignment="Center"/>
                                     </StackPanel>
-                                    <TextBlock Text="-" Foreground="#777777" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding BaseDashVisibility}"/>
+                                    <TextBlock Text="-" Foreground="#555555" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,5,0" Visibility="{Binding RetakeDashVisibility}"/>
                                 </Grid>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    
-                    <DataGridTemplateColumn Header="POPRAWA: Poz I" Visibility="Collapsed" Width="*" x:Name="RetakeCol1">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <Border Background="#1E2E1E" Padding="5,0,0,0">
-                                    <Grid>
-                                        <StackPanel Orientation="Horizontal" Visibility="{Binding RetakeVisibility}">
-                                            <TextBox Margin="0,0,5,0" Text="{Binding RetakeScoreL1, UpdateSourceTrigger=LostFocus}" VerticalContentAlignment="Center" Width="40"/>
-                                            <TextBlock Foreground="#81C784" Text="{Binding RetakeMaxL1, StringFormat=/ {0}}" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                        <TextBlock Text="-" Foreground="#555555" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,5,0" Visibility="{Binding RetakeDashVisibility}"/>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="POPRAWA: Poz II" Visibility="Collapsed" Width="*" x:Name="RetakeCol2">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <Border Background="#1E2E1E" Padding="5,0,0,0">
-                                    <Grid>
-                                        <StackPanel Orientation="Horizontal" Visibility="{Binding RetakeVisibility}">
-                                            <TextBox Margin="0,0,5,0" Text="{Binding RetakeScoreL2, UpdateSourceTrigger=LostFocus}" VerticalContentAlignment="Center" Width="40"/>
-                                            <TextBlock Foreground="#81C784" Text="{Binding RetakeMaxL2, StringFormat=/ {0}}" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                        <TextBlock Text="-" Foreground="#555555" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,5,0" Visibility="{Binding RetakeDashVisibility}"/>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="POPRAWA: Poz III" Visibility="Collapsed" Width="*" x:Name="RetakeCol3">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <Border Background="#1E2E1E" Padding="5,0,0,0">
-                                    <Grid>
-                                        <StackPanel Orientation="Horizontal" Visibility="{Binding RetakeVisibility}">
-                                            <TextBox Margin="0,0,5,0" Text="{Binding RetakeScoreL3, UpdateSourceTrigger=LostFocus}" VerticalContentAlignment="Center" Width="40"/>
-                                            <TextBlock Foreground="#81C784" Text="{Binding RetakeMaxL3, StringFormat=/ {0}}" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                        <TextBlock Text="-" Foreground="#555555" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,5,0" Visibility="{Binding RetakeDashVisibility}"/>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                </DataGrid.Columns>
+                            </Border>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
             </DataGrid>
         </Grid>
 

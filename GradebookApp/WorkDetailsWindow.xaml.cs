@@ -1,429 +1,168 @@
 using System;
 using System.Collections.Generic;
-using System.Data;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
+using GradebookApp.Services;
 using System.Windows.Input;
-using Microsoft.EntityFrameworkCore;
 
 namespace GradebookApp
 {
     public partial class WorkDetailsWindow : Window
     {
-        private AppDbContext _dbContext;
-        private WrittenWork _work = null!; 
+        private readonly GradebookDataService _dataService;
+        private WrittenWork _work = null!;
         
-        private Dictionary<string, int> _activeGroups = new Dictionary<string, int>();
-        private Dictionary<string, Dictionary<int, Tuple<string, string, string>>> _backup = new Dictionary<string, Dictionary<int, Tuple<string, string, string>>>();
-        private DataTable _dataTable = new DataTable();
+        private ObservableCollection<string> _groups = new ObservableCollection<string>();
+        private Dictionary<string, ObservableCollection<TaskRow>> _divergedData = new Dictionary<string, ObservableCollection<TaskRow>>();
+        public ObservableCollection<TaskRow> CurrentTasks { get; set; } = new ObservableCollection<TaskRow>();
         
         private bool _isInitializing = true;
 
         public WorkDetailsWindow(int workId)
         {
             InitializeComponent();
-            
-            _dbContext = new AppDbContext();
-            _work = _dbContext.WrittenWorks.Include(w => w.Tasks).FirstOrDefault(w => w.Id == workId)!;
+            _dataService = new GradebookDataService();
+            _work = _dataService.GetWorkByIdWithTasks(workId)!;
 
             if (_work != null)
             {
-                TitleTextBox.Text = _work.Title;
-                DateWrittenPicker.SelectedDate = _work.DateWritten;
-                DateEnteredPicker.SelectedDate = _work.DateEntered;
-                MaxPointsTextBox.Text = _work.MaxFinalPoints.ToString();
+                TitleTextBox.Text = _work.Title; DateWrittenPicker.SelectedDate = _work.DateWritten; DateEnteredPicker.SelectedDate = _work.DateEntered; MaxPointsTextBox.Text = _work.MaxFinalPoints.ToString();
+                foreach (ComboBoxItem item in WorkTypeComboBox.Items) if (item.Content?.ToString() == _work.WorkType) { WorkTypeComboBox.SelectedItem = item; break; }
 
-                foreach (ComboBoxItem item in WorkTypeComboBox.Items)
-                {
-                    if (item.Content.ToString() == _work.WorkType)
-                    {
-                        WorkTypeComboBox.SelectedItem = item;
-                        break;
-                    }
-                }
-
-                if (_work.HasGroups)
-                {
-                    var grouped = _work.Tasks.GroupBy(t => t.GroupName).Where(g => !string.IsNullOrEmpty(g.Key)).ToList();
-                    foreach (var g in grouped)
-                    {
-                        string groupName = g.Key!;
-                        int maxTaskNum = g.Max(t => t.TaskNumber);
-                        _activeGroups.Add(groupName, maxTaskNum);
-
-                        _backup[groupName] = new Dictionary<int, Tuple<string, string, string>>();
-                        foreach (var task in g)
-                        {
-                            _backup[groupName][task.TaskNumber] = new Tuple<string, string, string>(
-                                task.MaxPointsLevel1?.ToString() ?? "",
-                                task.MaxPointsLevel2?.ToString() ?? "",
-                                task.MaxPointsLevel3?.ToString() ?? "");
-                        }
-                    }
-                }
-                else
-                {
-                    _backup["BASE"] = new Dictionary<int, Tuple<string, string, string>>();
-                    foreach (var task in _work.Tasks)
-                    {
-                        _backup["BASE"][task.TaskNumber] = new Tuple<string, string, string>(
-                            task.MaxPointsLevel1?.ToString() ?? "",
-                            task.MaxPointsLevel2?.ToString() ?? "",
-                            task.MaxPointsLevel3?.ToString() ?? "");
-                    }
-                    TaskCountTextBox.Text = _work.Tasks.Count.ToString();
-                }
-
-                HasGroupsCheckBox.Checked -= HasGroupsCheckBox_Changed;
-                HasGroupsCheckBox.Unchecked -= HasGroupsCheckBox_Changed;
+                var grouped = _work.Tasks.GroupBy(t => t.GroupName ?? "A").ToList();
+                foreach (var g in grouped) _groups.Add(g.Key);
+                if (_groups.Count == 0) { _groups.Add("A"); _groups.Add("B"); } 
                 
-                HasGroupsCheckBox.IsChecked = _work.HasGroups;
-                
-                HasGroupsCheckBox.Checked += HasGroupsCheckBox_Changed;
-                HasGroupsCheckBox.Unchecked += HasGroupsCheckBox_Changed;
-
-                if (_work.HasGroups)
+                foreach (var g in grouped)
                 {
-                    GroupManagementPanel.Visibility = Visibility.Visible;
-                    BaseTaskCountPanel.Visibility = Visibility.Collapsed;
-                    this.ClearValue(Window.WidthProperty);
-                    this.SizeToContent = SizeToContent.WidthAndHeight;
+                    var list = new ObservableCollection<TaskRow>();
+                    foreach (var t in g) list.Add(new TaskRow { TaskNumber = t.TaskNumber, L1 = t.MaxPointsLevel1 == 0 ? "" : t.MaxPointsLevel1?.ToString() ?? "", L2 = t.MaxPointsLevel2 == 0 ? "" : t.MaxPointsLevel2?.ToString() ?? "", L3 = t.MaxPointsLevel3 == 0 ? "" : t.MaxPointsLevel3?.ToString() ?? "" });
+                    _divergedData[g.Key] = list;
                 }
-                else
-                {
-                    GroupManagementPanel.Visibility = Visibility.Collapsed;
-                    BaseTaskCountPanel.Visibility = Visibility.Visible;
-                    this.SizeToContent = SizeToContent.Height;
-                    this.Width = 470;
-                }
-
-                RefreshGroupsComboBox();
-                RebuildDataTable();
                 
-                _isInitializing = false;
-                TitleTextBox.Focus();
+                if (grouped.Count == 0) _divergedData["A"] = new ObservableCollection<TaskRow> { new TaskRow { TaskNumber = 1 } };
+
+                bool identical = CheckIfIdentical();
+                ApplyToAllCheckBox.IsChecked = identical;
+                CurrentTasks = identical ? new ObservableCollection<TaskRow>(_divergedData[_groups[0]].Select(t => t.Clone())) : _divergedData[_groups[0]];
+
+                GroupsComboBox.ItemsSource = _groups; GroupsComboBox.SelectedIndex = 0;
+                TasksDataGrid.ItemsSource = CurrentTasks;
+                TaskCountTextBox.Text = CurrentTasks.Count.ToString();
+                _isInitializing = false; TitleTextBox.Focus();
             }
+        }
+
+        private bool CheckIfIdentical()
+        {
+            if (_groups.Count <= 1) return true;
+            var first = _divergedData[_groups[0]];
+            for (int i = 1; i < _groups.Count; i++)
+            {
+                var compare = _divergedData[_groups[i]];
+                if (first.Count != compare.Count) return false;
+                for (int j = 0; j < first.Count; j++) if (first[j].L1 != compare[j].L1 || first[j].L2 != compare[j].L2 || first[j].L3 != compare[j].L3) return false;
+            }
+            return true;
         }
 
         private void WorkTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (BaseTaskCountPanel == null || MaxPointsLabel == null) return; 
+            if (MaxPointsLabel == null) return; 
+            if ((WorkTypeComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() == "aktywność")
+            { GroupManagementPanel.Visibility = TasksDataGrid.Visibility = ApplyToAllCheckBox.Visibility = Visibility.Collapsed; MaxPointsLabel.Text = "Ilość przyznanych punktów:"; }
+            else { GroupManagementPanel.Visibility = TasksDataGrid.Visibility = ApplyToAllCheckBox.Visibility = Visibility.Visible; MaxPointsLabel.Text = "Max:"; }
+        }
 
-            string selectedType = (WorkTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "";
-            if (selectedType == "aktywność")
+        private void TaskCountTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (int.TryParse(TaskCountTextBox.Text.Trim(), out int count) && count > 0)
             {
-                BaseTaskCountPanel.Visibility = Visibility.Collapsed;
-                TasksDataGrid.Visibility = Visibility.Collapsed;
-                HasGroupsCheckBox.Visibility = Visibility.Collapsed;
-                MaxPointsLabel.Text = "Ilość przyznanych punktów:"; 
-            }
-            else
-            {
-                BaseTaskCountPanel.Visibility = HasGroupsCheckBox.IsChecked == true ? Visibility.Collapsed : Visibility.Visible;
-                TasksDataGrid.Visibility = Visibility.Visible;
-                HasGroupsCheckBox.Visibility = Visibility.Visible;
-                MaxPointsLabel.Text = "Max:"; 
+                while (CurrentTasks.Count < count) CurrentTasks.Add(new TaskRow { TaskNumber = CurrentTasks.Count + 1 });
+                while (CurrentTasks.Count > count) CurrentTasks.RemoveAt(CurrentTasks.Count - 1);
             }
         }
 
-        private void HasGroupsCheckBox_Changed(object sender, RoutedEventArgs e)
+        private void ApplyToAllCheckBox_Changed(object sender, RoutedEventArgs e)
         {
-            if (GroupManagementPanel == null || _isInitializing) return;
-
-            if (HasGroupsCheckBox.IsChecked == true)
-            {
-                GroupManagementPanel.Visibility = Visibility.Visible;
-                BaseTaskCountPanel.Visibility = Visibility.Collapsed;
-                
-                this.ClearValue(Window.WidthProperty);
-                this.SizeToContent = SizeToContent.WidthAndHeight;
-
-                if (_activeGroups.Count == 0)
-                {
-                    int.TryParse(TaskCountTextBox.Text.Trim(), out int count);
-                    if (count <= 0) count = 1;
-                    
-                    _activeGroups.Add("A", count);
-                    _activeGroups.Add("B", count);
-                }
-            }
+            if (_isInitializing) return;
+            if (ApplyToAllCheckBox.IsChecked == true) _divergedData.Clear();
             else
             {
-                GroupManagementPanel.Visibility = Visibility.Collapsed;
-                BaseTaskCountPanel.Visibility = Visibility.Visible;
-                
-                this.SizeToContent = SizeToContent.Height;
-                this.Width = 470;
+                foreach (var g in _groups) _divergedData[g] = new ObservableCollection<TaskRow>(CurrentTasks.Select(t => t.Clone()));
+                CurrentTasks = _divergedData[GroupsComboBox.SelectedItem as string ?? _groups[0]];
+                TasksDataGrid.ItemsSource = CurrentTasks;
             }
-            RefreshGroupsComboBox();
-            if (this.IsLoaded) RebuildDataTable();
         }
 
         private void GroupsComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (GroupsComboBox.SelectedItem is string name && _activeGroups.ContainsKey(name))
+            if (_isInitializing || GroupsComboBox.SelectedItem == null) return;
+            string newGroup = GroupsComboBox.SelectedItem.ToString()!;
+            if (ApplyToAllCheckBox.IsChecked == false && _divergedData.ContainsKey(newGroup))
             {
-                EditGroupTaskCountTextBox.Text = _activeGroups[name].ToString();
-            }
-            else
-            {
-                EditGroupTaskCountTextBox.Text = string.Empty;
+                CurrentTasks = _divergedData[newGroup]; TasksDataGrid.ItemsSource = CurrentTasks; TaskCountTextBox.Text = CurrentTasks.Count.ToString();
             }
         }
 
         private void AddGroup_Click(object sender, RoutedEventArgs e)
         {
             string name = NewGroupNameTextBox.Text.Trim();
-            if (string.IsNullOrEmpty(name)) return;
-
-            if (_activeGroups.ContainsKey(name)) 
-            { 
-                MessageBox.Show("Grupa o takiej nazwie już znajduje się w tabeli.", "Błąd", MessageBoxButton.OK, MessageBoxImage.Warning); 
-                return; 
-            }
-
-            int count = _activeGroups.Count > 0 ? _activeGroups.Values.Max() : 1;
-
-            _activeGroups.Add(name, count);
-
-            NewGroupNameTextBox.Text = string.Empty;
-            RefreshGroupsComboBox();
-            GroupsComboBox.SelectedItem = name;
-            RebuildDataTable();
-        }
-
-        private void UpdateGroupTaskCount_Click(object sender, RoutedEventArgs e)
-        {
-            if (GroupsComboBox.SelectedItem is string name && _activeGroups.ContainsKey(name))
+            if (!string.IsNullOrEmpty(name) && !_groups.Contains(name))
             {
-                if (int.TryParse(EditGroupTaskCountTextBox.Text.Trim(), out int count) && count > 0 && count <= 100)
-                {
-                    _activeGroups[name] = count;
-                    RebuildDataTable();
-                }
-                else
-                {
-                    MessageBox.Show("Wpisz poprawną liczbę zadań (1-100).", "Błąd", MessageBoxButton.OK, MessageBoxImage.Warning);
-                }
+                _groups.Add(name); if (ApplyToAllCheckBox.IsChecked == false) _divergedData[name] = new ObservableCollection<TaskRow>(CurrentTasks.Select(t => t.Clone()));
+                GroupsComboBox.SelectedItem = name; NewGroupNameTextBox.Clear();
             }
         }
 
         private void RemoveGroup_Click(object sender, RoutedEventArgs e)
         {
-            if (GroupsComboBox.SelectedItem is string name && _activeGroups.ContainsKey(name))
-            {
-                _activeGroups.Remove(name);
-                RefreshGroupsComboBox();
-                RebuildDataTable();
-            }
+            if (_groups.Count <= 1) { MessageBox.Show("Musi pozostać co najmniej jedna grupa.", "Zablokowane", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
+            string current = GroupsComboBox.SelectedItem as string ?? "";
+            _groups.Remove(current); if (_divergedData.ContainsKey(current)) _divergedData.Remove(current);
+            GroupsComboBox.SelectedIndex = 0;
         }
 
-        private void RefreshGroupsComboBox()
-        {
-            GroupsComboBox.ItemsSource = null;
-            GroupsComboBox.ItemsSource = _activeGroups.Keys.OrderBy(k => k).ToList();
-            if (_activeGroups.Count > 0) GroupsComboBox.SelectedIndex = 0;
-        }
-
-        private void TaskCountTextBox_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            if (HasGroupsCheckBox != null && HasGroupsCheckBox.IsChecked == false && !_isInitializing)
-            {
-                RebuildDataTable();
-            }
-        }
-
-        private void SaveBackup()
-        {
-            if (_dataTable == null || _dataTable.Columns.Count == 0) return;
-            try { TasksDataGrid.CommitEdit(DataGridEditingUnit.Row, true); } catch { }
-
-            foreach (DataRow row in _dataTable.Rows)
-            {
-                int tNum = (int)row["TaskNumber"];
-                
-                foreach (var group in _activeGroups)
-                {
-                    string l1Col = $"{group.Key}_L1";
-                    if (_dataTable.Columns.Contains(l1Col))
-                    {
-                        if (!_backup.ContainsKey(group.Key)) _backup[group.Key] = new Dictionary<int, Tuple<string, string, string>>();
-                        
-                        string l1 = row[l1Col]?.ToString() ?? "";
-                        string l2 = row[$"{group.Key}_L2"]?.ToString() ?? "";
-                        string l3 = row[$"{group.Key}_L3"]?.ToString() ?? "";
-                        
-                        if (l1 == "-") l1 = "";
-                        if (l2 == "-") l2 = "";
-                        if (l3 == "-") l3 = "";
-
-                        _backup[group.Key][tNum] = new Tuple<string, string, string>(l1, l2, l3);
-                    }
-                }
-
-                if (_dataTable.Columns.Contains("BASE_L1"))
-                {
-                    if (!_backup.ContainsKey("BASE")) _backup["BASE"] = new Dictionary<int, Tuple<string, string, string>>();
-                    
-                    string l1 = row["BASE_L1"]?.ToString() ?? "";
-                    string l2 = row["BASE_L2"]?.ToString() ?? "";
-                    string l3 = row["BASE_L3"]?.ToString() ?? "";
-                    
-                    if (l1 == "-") l1 = "";
-                    if (l2 == "-") l2 = "";
-                    if (l3 == "-") l3 = "";
-
-                    _backup["BASE"][tNum] = new Tuple<string, string, string>(l1, l2, l3);
-                }
-            }
-        }
-
-        private void RebuildDataTable()
-        {
-            SaveBackup();
-
-            _dataTable = new DataTable();
-            TasksDataGrid.Columns.Clear();
-            _dataTable.Columns.Add("TaskNumber", typeof(int));
-
-            Style readOnlyStyle = (Style)TasksDataGrid.FindResource("ReadOnlyCellStyle");
-
-            TasksDataGrid.Columns.Add(new DataGridTextColumn { 
-                Header = "Zad.", 
-                Binding = new Binding("TaskNumber"), 
-                IsReadOnly = true,
-                CellStyle = readOnlyStyle,
-                Width = new DataGridLength(45)
-            });
-
-            int maxTasks = 0;
-
-            if (HasGroupsCheckBox.IsChecked == true)
-            {
-                maxTasks = _activeGroups.Count > 0 ? _activeGroups.Values.Max() : 0;
-                
-                foreach (var group in _activeGroups.Keys.OrderBy(k => k))
-                {
-                    _dataTable.Columns.Add($"{group}_L1", typeof(string));
-                    _dataTable.Columns.Add($"{group}_L2", typeof(string));
-                    _dataTable.Columns.Add($"{group}_L3", typeof(string));
-
-                    TasksDataGrid.Columns.Add(new DataGridTextColumn { Header = $"{group} Poz I", Binding = new Binding($"{group}_L1"), Width = new DataGridLength(1, DataGridLengthUnitType.Star), MinWidth = 55 });
-                    TasksDataGrid.Columns.Add(new DataGridTextColumn { Header = $"{group} Poz II", Binding = new Binding($"{group}_L2"), Width = new DataGridLength(1, DataGridLengthUnitType.Star), MinWidth = 55 });
-                    TasksDataGrid.Columns.Add(new DataGridTextColumn { Header = $"{group} Poz III", Binding = new Binding($"{group}_L3"), Width = new DataGridLength(1, DataGridLengthUnitType.Star), MinWidth = 55 });
-                }
-            }
-            else
-            {
-                int.TryParse(TaskCountTextBox.Text.Trim(), out maxTasks);
-                if (maxTasks <= 0) return;
-
-                _dataTable.Columns.Add("BASE_L1", typeof(string));
-                _dataTable.Columns.Add("BASE_L2", typeof(string));
-                _dataTable.Columns.Add("BASE_L3", typeof(string));
-
-                TasksDataGrid.Columns.Add(new DataGridTextColumn { Header = "Poz I", Binding = new Binding("BASE_L1"), Width = new DataGridLength(1, DataGridLengthUnitType.Star), MinWidth = 55 });
-                TasksDataGrid.Columns.Add(new DataGridTextColumn { Header = "Poz II", Binding = new Binding("BASE_L2"), Width = new DataGridLength(1, DataGridLengthUnitType.Star), MinWidth = 55 });
-                TasksDataGrid.Columns.Add(new DataGridTextColumn { Header = "Poz III", Binding = new Binding("BASE_L3"), Width = new DataGridLength(1, DataGridLengthUnitType.Star), MinWidth = 55 });
-            }
-
-            for (int i = 1; i <= maxTasks; i++)
-            {
-                DataRow row = _dataTable.NewRow();
-                row["TaskNumber"] = i;
-
-                if (HasGroupsCheckBox.IsChecked == true)
-                {
-                    foreach (var group in _activeGroups)
-                    {
-                        if (i <= group.Value)
-                        {
-                            if (_backup.ContainsKey(group.Key) && _backup[group.Key].ContainsKey(i))
-                            {
-                                row[$"{group.Key}_L1"] = _backup[group.Key][i].Item1;
-                                row[$"{group.Key}_L2"] = _backup[group.Key][i].Item2;
-                                row[$"{group.Key}_L3"] = _backup[group.Key][i].Item3;
-                            }
-                            else if (_backup.ContainsKey("BASE") && _backup["BASE"].ContainsKey(i))
-                            {
-                                row[$"{group.Key}_L1"] = _backup["BASE"][i].Item1;
-                                row[$"{group.Key}_L2"] = _backup["BASE"][i].Item2;
-                                row[$"{group.Key}_L3"] = _backup["BASE"][i].Item3;
-                            }
-                        }
-                        else
-                        {
-                            row[$"{group.Key}_L1"] = "-";
-                            row[$"{group.Key}_L2"] = "-";
-                            row[$"{group.Key}_L3"] = "-";
-                        }
-                    }
-                }
-                else
-                {
-                    if (_backup.ContainsKey("BASE") && _backup["BASE"].ContainsKey(i))
-                    {
-                        row["BASE_L1"] = _backup["BASE"][i].Item1;
-                        row["BASE_L2"] = _backup["BASE"][i].Item2;
-                        row["BASE_L3"] = _backup["BASE"][i].Item3;
-                    }
-                    else if (_activeGroups.Count > 0 && _backup.ContainsKey(_activeGroups.Keys.First()) && _backup[_activeGroups.Keys.First()].ContainsKey(i))
-                    {
-                        string firstGroup = _activeGroups.Keys.First();
-                        row["BASE_L1"] = _backup[firstGroup][i].Item1;
-                        row["BASE_L2"] = _backup[firstGroup][i].Item2;
-                        row["BASE_L3"] = _backup[firstGroup][i].Item3;
-                    }
-                }
-
-                _dataTable.Rows.Add(row);
-            }
-
-            TasksDataGrid.ItemsSource = _dataTable.DefaultView;
-            TasksDataGrid.UpdateLayout(); 
-        }
-
-        private void TasksDataGrid_BeginningEdit(object sender, DataGridBeginningEditEventArgs e)
-        {
-            var colHeader = e.Column.Header?.ToString() ?? "";
-            if (colHeader == "Zad.") { e.Cancel = true; return; }
-
-            if (HasGroupsCheckBox.IsChecked == true)
-            {
-                string groupName = colHeader.Split(' ')[0];
-                var rowView = e.Row.Item as DataRowView;
-                if (rowView != null)
-                {
-                    int taskNum = (int)rowView["TaskNumber"];
-                    if (_activeGroups.ContainsKey(groupName) && taskNum > _activeGroups[groupName])
-                    {
-                        e.Cancel = true;
-                    }
-                }
-            }
-        }
+        private double ParseScore(string? input) => string.IsNullOrWhiteSpace(input) ? 0 : (double.TryParse(input, out double val) ? val : -1);
 
         private void TasksDataGrid_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Tab)
             {
-                var dir = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift ? FocusNavigationDirection.Previous : FocusNavigationDirection.Next;
+                e.Handled = true;
+                var direction = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift ? FocusNavigationDirection.Previous : FocusNavigationDirection.Next;
+                var request = new TraversalRequest(direction);
+                
                 if (Keyboard.FocusedElement is UIElement element)
                 {
-                    element.MoveFocus(new TraversalRequest(dir));
-                    e.Handled = true;
+                    element.MoveFocus(request);
+                    
+                    // Wykorzystujemy zmienną 'cell', która już jest zrzutowana na typ UIElement (DataGridCell)
+                    if (Keyboard.FocusedElement is DataGridCell cell && (!cell.IsEditing && cell.Column.Header?.ToString() == "Zad."))
+                    {
+                        cell.MoveFocus(request);
+                    }
                 }
             }
-            
-            if (e.Key == Key.Left || e.Key == Key.Right)
+            else if (e.Key == Key.Left || e.Key == Key.Right || e.Key == Key.Up || e.Key == Key.Down)
             {
-                var dir = e.Key == Key.Left ? FocusNavigationDirection.Previous : FocusNavigationDirection.Next;
-                if (Keyboard.FocusedElement is UIElement element)
+                if (e.OriginalSource is TextBox textBox)
                 {
-                    element.MoveFocus(new TraversalRequest(dir));
+                    // Jeśli kursor tekstowy nie jest na skraju wpisanego tekstu, pozwalamy na normalne poruszanie się wewnątrz kratki
+                    if ((e.Key == Key.Left && textBox.CaretIndex > 0) || 
+                        (e.Key == Key.Right && textBox.CaretIndex < textBox.Text.Length))
+                    {
+                        return;
+                    }
+
                     e.Handled = true;
+                    var direction = e.Key == Key.Left ? FocusNavigationDirection.Left : 
+                                    e.Key == Key.Right ? FocusNavigationDirection.Right : 
+                                    e.Key == Key.Up ? FocusNavigationDirection.Up : FocusNavigationDirection.Down;
+
+                    textBox.MoveFocus(new TraversalRequest(direction));
                 }
             }
         }
@@ -431,150 +170,30 @@ namespace GradebookApp
         private void Save_Click(object sender, RoutedEventArgs e)
         {
             TasksDataGrid.CommitEdit(DataGridEditingUnit.Row, true);
+            string title = TitleTextBox.Text.Trim(); string type = (WorkTypeComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "inne";
+            if (string.IsNullOrEmpty(title) || !double.TryParse(MaxPointsTextBox.Text.Trim(), out double m) || m <= 0) { MessageBox.Show("Sprawdź tytuł i poprawność punktów Max.", "Błąd", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
 
-            string newTitle = TitleTextBox.Text.Trim();
-            if (string.IsNullOrEmpty(newTitle))
-            {
-                MessageBox.Show("Podaj tytuł oceny.", "Ajajajaj! Błąd...", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            if (!double.TryParse(MaxPointsTextBox.Text.Trim(), out double m) || m <= 0)
-            {
-                MessageBox.Show("Wartość Max musi być prawidłową liczbą większą od zera.", "Ajajajaj! Błąd...", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            SaveBackup();
-            
             var generatedTasks = new List<WrittenWorkTask>();
-
-            if ((WorkTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() == "aktywność")
-            {
-                generatedTasks.Add(new WrittenWorkTask { TaskNumber = 1, MaxPointsLevel3 = m });
-            }
+            if (type == "aktywność") generatedTasks.Add(new WrittenWorkTask { TaskNumber = 1, MaxPointsLevel3 = m });
             else
             {
-                if (HasGroupsCheckBox.IsChecked == true)
+                foreach (var g in _groups)
                 {
-                    if (_activeGroups.Count == 0)
+                    var sourceList = ApplyToAllCheckBox.IsChecked == true ? CurrentTasks : _divergedData[g];
+                    foreach (var row in sourceList)
                     {
-                        MessageBox.Show("Zaznaczono tryb zmiennych grup. Musisz dodać przynajmniej jedną do tabeli.", "Ajajajaj! Błąd...", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        return;
-                    }
-
-                    foreach (var group in _activeGroups)
-                    {
-                        for (int i = 1; i <= group.Value; i++)
-                        {
-                            string l1 = _dataTable.Rows[i - 1][$"{group.Key}_L1"]?.ToString() ?? "";
-                            string l2 = _dataTable.Rows[i - 1][$"{group.Key}_L2"]?.ToString() ?? "";
-                            string l3 = _dataTable.Rows[i - 1][$"{group.Key}_L3"]?.ToString() ?? "";
-
-                            if (string.IsNullOrWhiteSpace(l1) || string.IsNullOrWhiteSpace(l2) || string.IsNullOrWhiteSpace(l3))
-                            {
-                                MessageBox.Show($"Musisz wypełnić wszystkie pola dla grupy {group.Key}, zadanie {i}. Wpisz 0 dla poziomów niepunktowanych.", "Brak danych", MessageBoxButton.OK, MessageBoxImage.Warning);
-                                return;
-                            }
-
-                            if (!double.TryParse(l1, out double p1) || !double.TryParse(l2, out double p2) || !double.TryParse(l3, out double p3))
-                            {
-                                MessageBox.Show($"Wykryto błędny format liczby w grupie {group.Key}, zadanie {i}.", "Błąd", MessageBoxButton.OK, MessageBoxImage.Warning);
-                                return;
-                            }
-
-                            if (p1 < 0 || p2 < 0 || p3 < 0)
-                            {
-                                MessageBox.Show($"Punkty nie mogą być ujemne (Grupa {group.Key}, zad. {i}).", "Błąd", MessageBoxButton.OK, MessageBoxImage.Warning);
-                                return;
-                            }
-
-                            generatedTasks.Add(new WrittenWorkTask
-                            {
-                                TaskNumber = i,
-                                GroupName = group.Key,
-                                MaxPointsLevel1 = p1,
-                                MaxPointsLevel2 = p2,
-                                MaxPointsLevel3 = p3
-                            });
-                        }
-                    }
-                }
-                else
-                {
-                    int.TryParse(TaskCountTextBox.Text.Trim(), out int count);
-                    if (count <= 0)
-                    {
-                        MessageBox.Show("Podaj poprawną liczbę zadań.", "Błąd", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        return;
-                    }
-
-                    for (int i = 1; i <= count; i++)
-                    {
-                        string l1 = _dataTable.Rows[i - 1]["BASE_L1"]?.ToString() ?? "";
-                        string l2 = _dataTable.Rows[i - 1]["BASE_L2"]?.ToString() ?? "";
-                        string l3 = _dataTable.Rows[i - 1]["BASE_L3"]?.ToString() ?? "";
-
-                        if (string.IsNullOrWhiteSpace(l1) || string.IsNullOrWhiteSpace(l2) || string.IsNullOrWhiteSpace(l3))
-                        {
-                            MessageBox.Show($"Wypełnij wszystkie poziomy dla zadania {i}. Wpisz 0 tam, gdzie brak punktów.", "Brak danych", MessageBoxButton.OK, MessageBoxImage.Warning);
-                            return;
-                        }
-
-                        if (!double.TryParse(l1, out double p1) || !double.TryParse(l2, out double p2) || !double.TryParse(l3, out double p3) || p1 < 0 || p2 < 0 || p3 < 0)
-                        {
-                            MessageBox.Show($"Błędne wartości punktowe w zadaniu {i}.", "Błąd", MessageBoxButton.OK, MessageBoxImage.Warning);
-                            return;
-                        }
-
-                        generatedTasks.Add(new WrittenWorkTask
-                        {
-                            TaskNumber = i,
-                            MaxPointsLevel1 = p1,
-                            MaxPointsLevel2 = p2,
-                            MaxPointsLevel3 = p3
-                        });
+                        double p1 = ParseScore(row.L1); double p2 = ParseScore(row.L2); double p3 = ParseScore(row.L3);
+                        if (p1 < 0 || p2 < 0 || p3 < 0) { MessageBox.Show($"Błędny format liczb w grupie {g}, zadanie {row.TaskNumber}.", "Błąd", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
+                        generatedTasks.Add(new WrittenWorkTask { TaskNumber = row.TaskNumber, GroupName = g, MaxPointsLevel1 = p1, MaxPointsLevel2 = p2, MaxPointsLevel3 = p3 });
                     }
                 }
             }
 
-            // BEZPIECZNE SCALANIE DANYCH (chroni klucze obce w bazie SQLite)
-            foreach (var oldTask in _work.Tasks.ToList())
-            {
-                var match = generatedTasks.FirstOrDefault(t => t.GroupName == oldTask.GroupName && t.TaskNumber == oldTask.TaskNumber);
-                if (match != null)
-                {
-                    oldTask.MaxPointsLevel1 = match.MaxPointsLevel1;
-                    oldTask.MaxPointsLevel2 = match.MaxPointsLevel2;
-                    oldTask.MaxPointsLevel3 = match.MaxPointsLevel3;
-                    generatedTasks.Remove(match);
-                }
-                else
-                {
-                    _dbContext.WrittenWorkTasks.Remove(oldTask);
-                    _work.Tasks.Remove(oldTask);
-                }
-            }
-
-            foreach (var newTask in generatedTasks)
-            {
-                _work.Tasks.Add(newTask);
-            }
-
-            _work.Title = newTitle;
-            _work.MaxFinalPoints = m;
-            _work.WorkType = (WorkTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "inne";
-            _work.HasGroups = HasGroupsCheckBox.IsChecked == true;
-            _work.DateWritten = DateWrittenPicker.SelectedDate;
-            _work.DateEntered = DateEnteredPicker.SelectedDate;
-
-            _dbContext.SaveChanges();
+            _dataService.UpdateWorkAndTasks(_work, generatedTasks, title, m, type, _groups.Count > 1, DateWrittenPicker.SelectedDate, DateEnteredPicker.SelectedDate);
             DialogResult = true;
         }
 
-        private void Cancel_Click(object sender, RoutedEventArgs e)
-        {
-            DialogResult = false;
-        }
+        private void Cancel_Click(object sender, RoutedEventArgs e) => DialogResult = false;
+        protected override void OnClosed(EventArgs e) { _dataService.Dispose(); base.OnClosed(e); }
     }
 }

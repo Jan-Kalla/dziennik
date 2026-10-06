@@ -5,6 +5,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.EntityFrameworkCore;
+using GradebookApp.ViewModels;
 
 namespace GradebookApp
 {
@@ -178,16 +179,5 @@ namespace GradebookApp
                 window.ShowDialog();
             }
         }
-    }
-
-    public class WorkResultViewModel
-    {
-        public int StudentId { get; set; }
-        public int JournalNumber { get; set; }
-        public string StudentName { get; set; } = string.Empty;
-        public string DateEnteredDisplay { get; set; } = string.Empty;
-        public string DeadlineDisplay { get; set; } = string.Empty;
-        public string ScoreDisplay { get; set; } = string.Empty;
-        public string GroupDisplay { get; set; } = string.Empty;
     }
 }

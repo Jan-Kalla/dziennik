@@ -7,18 +7,23 @@ namespace GradebookApp
     {
         public App()
         {
-            // Globalny przechwytywacz błędów dla wątku interfejsu (UI)
             this.DispatcherUnhandledException += App_DispatcherUnhandledException;
         }
 
         private void App_DispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
         {
-            MessageBox.Show($"Wystąpił nieoczekiwany błąd:\n\n{e.Exception.Message}\n\nLokalizacja:\n{e.Exception.StackTrace}", 
+            // Wyciągamy szczegóły błędu (InnerException), które WPF chowa wewnątrz wyjątku XamlParseException
+            string errorMessage = e.Exception.Message;
+            if (e.Exception.InnerException != null)
+            {
+                errorMessage += $"\n\nSzczegóły błędu (InnerException):\n{e.Exception.InnerException.Message}";
+            }
+
+            MessageBox.Show($"Wystąpił nieoczekiwany błąd:\n\n{errorMessage}\n\nLokalizacja:\n{e.Exception.StackTrace}", 
                             "Błąd aplikacji", 
                             MessageBoxButton.OK, 
                             MessageBoxImage.Error);
             
-            // Handled = true zapobiega twardemu zamknięciu aplikacji do pulpitu
             e.Handled = true; 
         }
     }

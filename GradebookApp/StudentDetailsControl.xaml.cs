@@ -1,15 +1,14 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
-using Microsoft.EntityFrameworkCore;
+using GradebookApp.ViewModels;
+using GradebookApp.Services;
 
 namespace GradebookApp
 {
     public partial class StudentDetailsControl : UserControl
     {
-        private AppDbContext _dbContext;
+        private readonly GradebookDataService _dataService;
         private Student _currentStudent = null!;
 
         public event EventHandler? StudentUpdated;
@@ -17,188 +16,51 @@ namespace GradebookApp
         public StudentDetailsControl()
         {
             InitializeComponent();
-            _dbContext = new AppDbContext();
+            _dataService = new GradebookDataService();
         }
 
         public void LoadStudentData(Student student)
         {
             _currentStudent = student;
-            _dbContext.ChangeTracker.Clear();
-
-            var dbStudent = _dbContext.Students.FirstOrDefault(s => s.Id == student.Id);
+            
+            var dbStudent = _dataService.GetStudentById(student.Id);
             if (dbStudent == null) return;
 
             StudentNameText.Text = dbStudent.FullName;
 
-            var classWorks = _dbContext.WrittenWorks.Include(w => w.Tasks)
-                                       .Where(w => w.SchoolClassId == dbStudent.SchoolClassId && 
-                                                  (!w.IsIndividual || w.IndividualStudentId == dbStudent.Id))
-                                       .ToList();
+            // Cała logika pobierania i kalkulacji schowana za jedną czystą metodą
+            var result = _dataService.GetStudentWorksAndRecalculateAverage(dbStudent);
             
-            var studentScores = _dbContext.StudentTaskScores.Where(s => s.StudentId == dbStudent.Id).ToList();
-            var studentWorkRecords = _dbContext.StudentWorkRecords.Where(r => r.StudentId == dbStudent.Id).ToList();
-
-            var worksList = new List<StudentWorkViewModel>();
-            
-            double totalEarnedP = 0;
-            double totalPossibleM = 0;
-
-            foreach (var work in classWorks)
+            if (dbStudent.AveragePercentage == result.Average)
             {
-                var workScores = studentScores.Where(s => work.Tasks.Any(t => t.Id == s.WrittenWorkTaskId)).ToList();
-                var workRecord = studentWorkRecords.FirstOrDefault(r => r.WrittenWorkId == work.Id);
-                
-                bool hasBaseScores = workScores.Any(s => s.PointsLevel1.HasValue || s.PointsLevel2.HasValue || s.PointsLevel3.HasValue);
-                bool hasRetakeScores = workScores.Any(s => s.RetakePointsLevel1.HasValue || s.RetakePointsLevel2.HasValue || s.RetakePointsLevel3.HasValue);
-
-                string scoreText = "Brak ocen";
-                string groupText = "-"; 
-                bool useRetake = false;
-                
-                if (workRecord != null && workRecord.IsAbsent)
-                {
-                    scoreText = "NB"; 
-                }
-                else 
-                {
-                    double baseSum = 0;
-                    double retakeSum = 0;
-                    
-                    if (hasBaseScores || hasRetakeScores)
-                    {
-                        baseSum = GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, work.Tasks, workScores, false);
-                        retakeSum = GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, work.Tasks, workScores, true);
-                    }
-
-                    useRetake = workRecord != null && workRecord.IsRetakeActive && hasRetakeScores && retakeSum > baseSum;
-
-                    if (useRetake)
-                    {
-                        scoreText = $"{retakeSum:0} / {work.MaxFinalPoints:0} pkt (popr.)";
-                        totalEarnedP += retakeSum;
-                        totalPossibleM += work.MaxFinalPoints;
-                    }
-                    else if (hasBaseScores)
-                    {
-                        scoreText = $"{baseSum:0} / {work.MaxFinalPoints:0} pkt";
-                        totalEarnedP += baseSum;
-                        totalPossibleM += work.MaxFinalPoints;
-                    }
-                }
-
-                if (workRecord != null)
-                {
-                    if (useRetake && !string.IsNullOrWhiteSpace(workRecord.RetakeGroup))
-                    {
-                        groupText = workRecord.RetakeGroup;
-                    }
-                    else if (!string.IsNullOrWhiteSpace(workRecord.Group))
-                    {
-                        groupText = workRecord.Group;
-                    }
-                }
-
-                DateTime? baseEntered = workRecord?.CustomDateEntered ?? work.DateEntered;
-                bool isRetakeDone = workRecord != null && workRecord.IsRetakeActive && hasRetakeScores;
-                string deadlineStr = "";
-
-                if (isRetakeDone)
-                {
-                    deadlineStr = "Poprawiono";
-                }
-                else
-                {
-                    DateTime? deadlineDate = workRecord?.RetakeDeadline ?? baseEntered?.AddDays(14);
-                    deadlineStr = deadlineDate?.ToString("dd.MM.yyyy") ?? "-";
-                }
-
-                worksList.Add(new StudentWorkViewModel
-                {
-                    WorkId = work.Id,
-                    WorkType = work.WorkType, 
-                    WorkTitle = work.Title,
-                    DeadlineDisplay = deadlineStr, 
-                    ScoreDisplay = scoreText,
-                    GroupDisplay = groupText
-                });
-            }
-
-            double average = 0;
-            if (totalPossibleM > 0)
-            {
-                average = Math.Round((totalEarnedP / totalPossibleM) * 100, 0, MidpointRounding.AwayFromZero);
-            }
-            
-            if (dbStudent.AveragePercentage != average)
-            {
-                dbStudent.AveragePercentage = average;
-                _dbContext.SaveChanges();
                 StudentUpdated?.Invoke(this, EventArgs.Empty);
             }
 
-            StudentAverageText.Text = $"- Średnia: {average:0}%";
-            StudentWorksDataGrid.ItemsSource = worksList;
+            StudentAverageText.Text = $"- Średnia: {result.Average:0}%";
+            StudentWorksDataGrid.ItemsSource = result.WorksList;
         }
 
         private void AddIndividualGrade_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new AddWorkDialog
-            {
-                Owner = Window.GetWindow(this)
-            };
+            var dialog = new AddWorkDialog { Owner = Window.GetWindow(this) };
 
             if (dialog.ShowDialog() == true && !string.IsNullOrEmpty(dialog.WorkTitle))
             {
-                var newWork = new WrittenWork 
-                { 
-                    Title = dialog.WorkTitle, 
-                    WorkType = dialog.WorkType,
-                    MaxFinalPoints = dialog.MaxFinalPoints, 
-                    DateWritten = dialog.DateWritten,
-                    DateEntered = dialog.DateEntered,
-                    SchoolClassId = _currentStudent.SchoolClassId,
-                    Tasks = dialog.Tasks,
-                    IsIndividual = true, 
-                    IndividualStudentId = _currentStudent.Id 
-                };
-
-                _dbContext.WrittenWorks.Add(newWork);
-                _dbContext.SaveChanges();
+                var newWork = _dataService.AddIndividualWork(
+                    _currentStudent.Id, _currentStudent.SchoolClassId, dialog.WorkTitle, 
+                    dialog.WorkType, dialog.MaxFinalPoints, dialog.DateWritten, dialog.DateEntered, dialog.Tasks);
 
                 if (newWork.WorkType.ToLower() == "aktywność")
                 {
-                    var record = new StudentWorkRecord { 
-                        StudentId = _currentStudent.Id, 
-                        WrittenWorkId = newWork.Id, 
-                        CustomDateWritten = newWork.DateWritten,
-                        CustomDateEntered = newWork.DateEntered ?? DateTime.Today
-                    };
-                    _dbContext.StudentWorkRecords.Add(record);
-                    
-                    var score = new StudentTaskScore { 
-                        StudentId = _currentStudent.Id, 
-                        WrittenWorkTaskId = newWork.Tasks.First().Id,
-                        PointsLevel3 = newWork.MaxFinalPoints 
-                    };
-                    _dbContext.StudentTaskScores.Add(score);
-                    _dbContext.SaveChanges();
-                    
+                    _dataService.SaveActivityScore(_currentStudent.Id, newWork);
                     LoadStudentData(_currentStudent);
                 }
                 else
                 {
                     LoadStudentData(_currentStudent);
 
-                    var gradeWindow = new StudentWorkDetailsWindow(_currentStudent.Id, newWork.Id)
-                    {
-                        Owner = Window.GetWindow(this)
-                    };
-
-                    gradeWindow.DataSavedEvent += (s, ev) => 
-                    {
-                        LoadStudentData(_currentStudent);
-                    };
-
+                    var gradeWindow = new StudentWorkDetailsWindow(_currentStudent.Id, newWork.Id) { Owner = Window.GetWindow(this) };
+                    gradeWindow.DataSavedEvent += (s, ev) => LoadStudentData(_currentStudent);
                     gradeWindow.ShowDialog();
                 }
             }
@@ -208,28 +70,41 @@ namespace GradebookApp
         {
             if (sender is Button button && button.DataContext is StudentWorkViewModel vm)
             {
-                var window = new StudentWorkDetailsWindow(_currentStudent.Id, vm.WorkId)
-                {
-                    Owner = Window.GetWindow(this)
-                };
-
-                window.DataSavedEvent += (s, ev) => 
-                {
-                    LoadStudentData(_currentStudent);
-                };
-
+                var window = new StudentWorkDetailsWindow(_currentStudent.Id, vm.WorkId) { Owner = Window.GetWindow(this) };
+                window.DataSavedEvent += (s, ev) => LoadStudentData(_currentStudent);
                 window.ShowDialog();
             }
         }
-    }
 
-    public class StudentWorkViewModel
-    {
-        public int WorkId { get; set; }
-        public string WorkType { get; set; } = string.Empty; 
-        public string WorkTitle { get; set; } = string.Empty;
-        public string DeadlineDisplay { get; set; } = string.Empty; 
-        public string ScoreDisplay { get; set; } = string.Empty;
-        public string GroupDisplay { get; set; } = string.Empty; 
+        // Metoda podłączona do opcji menu kontekstowego "Usuń ocenę" w pliku XAML
+        private void DeleteIndividualGrade_Click(object sender, RoutedEventArgs e)
+        {
+            var menuItem = sender as MenuItem;
+            var contextMenu = menuItem?.Parent as ContextMenu;
+            var button = contextMenu?.PlacementTarget as Button;
+
+            if (button?.DataContext is StudentWorkViewModel vm)
+            {
+                var work = _dataService.GetWorkById(vm.WorkId);
+                if (work != null)
+                {
+                    if (work.IsIndividual)
+                    {
+                        var result = MessageBox.Show($"Czy na pewno chcesz usunąć ocenę '{work.Title}'?", 
+                                                     "Potwierdzenie usunięcia", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                        if (result == MessageBoxResult.Yes)
+                        {
+                            _dataService.DeleteWork(work);
+                            LoadStudentData(_currentStudent);
+                        }
+                    }
+                    else
+                    {
+                        MessageBox.Show("To jest ocena globalna przypisana do całej klasy. Aby usunąć ją całkowicie, przejdź do widoku klasy.", 
+                                        "Ajajajaj! Zablokowane", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                }
+            }
+        }
     }
 }
