@@ -42,13 +42,15 @@ namespace GradebookApp
 
         private void AddIndividualGrade_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new AddWorkDialog { Owner = Window.GetWindow(this) };
+            // Wywołujemy nasz nowy, uniwersalny edytor, przekazując mu ID klasy ORAZ ID konkretnego ucznia
+            var dialog = new WorkEditorDialog(targetClassId: _currentStudent.SchoolClassId, targetStudentId: _currentStudent.Id) 
+            { 
+                Owner = Window.GetWindow(this) 
+            };
 
-            if (dialog.ShowDialog() == true && !string.IsNullOrEmpty(dialog.WorkTitle))
+            if (dialog.ShowDialog() == true && dialog.SavedWork != null)
             {
-                var newWork = _dataService.AddIndividualWork(
-                    _currentStudent.Id, _currentStudent.SchoolClassId, dialog.WorkTitle, 
-                    dialog.WorkType, dialog.MaxFinalPoints, dialog.DateWritten, dialog.DateEntered, dialog.Tasks);
+                var newWork = dialog.SavedWork;
 
                 if (newWork.WorkType.ToLower() == "aktywność")
                 {

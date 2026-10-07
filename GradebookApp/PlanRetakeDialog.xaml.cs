@@ -13,15 +13,16 @@ namespace GradebookApp
     public partial class PlanRetakeDialog : Window
     {
         private AppDbContext _dbContext;
-        private int _classId;
+        private int? _classId;
         private int? _editRetakeId;
         private List<Student> _allClassStudents = new List<Student>();
+        private bool _isInitializing = true;
 
         public ObservableCollection<Student> AvailableStudents { get; set; } = new ObservableCollection<Student>();
         public ObservableCollection<Student> SelectedStudents { get; set; } = new ObservableCollection<Student>();
 
-        // Konstruktor przyjmujący opcjonalne ID do edycji
-        public PlanRetakeDialog(int classId, int? editRetakeId = null)
+        // Konstruktor obsługujący zarówno widok klasy (sztywne classId) jak i globalny (classId = null)
+        public PlanRetakeDialog(int? classId = null, int? editRetakeId = null)
         {
             InitializeComponent();
             _dbContext = new AppDbContext();
@@ -31,57 +32,100 @@ namespace GradebookApp
             if (_editRetakeId.HasValue)
             {
                 this.Title = "Edytuj zaplanowaną poprawę";
+                ClassComboBox.IsEnabled = false; // Blokujemy zmianę klasy podczas edycji
+            }
+            else if (_classId.HasValue)
+            {
+                ClassComboBox.IsEnabled = false; // Blokujemy zmianę klasy, bo otworzono okno z widoku konkretnej klasy
             }
 
-            LoadData();
+            LoadInitialData();
         }
 
-        private void LoadData()
+        private void LoadInitialData()
         {
-            var works = _dbContext.WrittenWorks.Where(w => w.SchoolClassId == _classId && !w.IsIndividual).ToList();
-            WorkComboBox.ItemsSource = works;
+            var allClasses = _dbContext.Classes.OrderBy(c => c.Name).ToList();
+            ClassComboBox.ItemsSource = allClasses;
 
-            _allClassStudents = _dbContext.Students.Where(s => s.SchoolClassId == _classId).OrderBy(s => s.JournalNumber).ToList();
-
-            // TRYB EDYCJI: Ładujemy dane z bazy
             if (_editRetakeId.HasValue)
             {
                 var existingRetake = _dbContext.PlannedRetakes
+                    .Include(r => r.WrittenWork)
                     .Include(r => r.Attendees).ThenInclude(a => a.Student)
                     .FirstOrDefault(r => r.Id == _editRetakeId.Value);
 
                 if (existingRetake != null)
                 {
-                    WorkComboBox.SelectedItem = works.FirstOrDefault(w => w.Id == existingRetake.WrittenWorkId);
+                    _classId = existingRetake.WrittenWork.SchoolClassId;
+                    ClassComboBox.SelectedItem = allClasses.FirstOrDefault(c => c.Id == _classId);
+                    
+                    LoadClassData();
+
+                    WorkComboBox.SelectedItem = (WorkComboBox.ItemsSource as List<WrittenWork>)?.FirstOrDefault(w => w.Id == existingRetake.WrittenWorkId);
                     DatePicker.SelectedDate = existingRetake.Date;
                     TimeTextBox.Text = existingRetake.Time;
 
                     foreach (var attendee in existingRetake.Attendees)
                     {
-                        SelectedStudents.Add(attendee.Student);
+                        var student = _allClassStudents.FirstOrDefault(s => s.Id == attendee.StudentId);
+                        if (student != null)
+                        {
+                            AvailableStudents.Remove(student);
+                            SelectedStudents.Add(student);
+                        }
                     }
                 }
             }
-            else
+            else if (_classId.HasValue)
             {
-                if (works.Any()) WorkComboBox.SelectedIndex = 0;
-            }
-            
-            // Wypełnianie listy dostępnych uczniów (z pominięciem tych już wybranych w trybie edycji)
-            foreach (var s in _allClassStudents)
-            {
-                if (!SelectedStudents.Any(sel => sel.Id == s.Id))
-                {
-                    AvailableStudents.Add(s);
-                }
+                ClassComboBox.SelectedItem = allClasses.FirstOrDefault(c => c.Id == _classId);
+                LoadClassData();
             }
 
             AvailableStudentsList.ItemsSource = AvailableStudents;
             SelectedStudentsList.ItemsSource = SelectedStudents;
+            
+            _isInitializing = false;
+        }
+
+        private void ClassComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isInitializing) return;
+            
+            if (ClassComboBox.SelectedItem is SchoolClass selectedClass)
+            {
+                _classId = selectedClass.Id;
+                LoadClassData();
+            }
+        }
+
+        private void LoadClassData()
+        {
+            if (!_classId.HasValue) return;
+
+            var works = _dbContext.WrittenWorks.Where(w => w.SchoolClassId == _classId.Value && !w.IsIndividual).ToList();
+            WorkComboBox.ItemsSource = works;
+            
+            if (works.Any() && !_editRetakeId.HasValue) 
+                WorkComboBox.SelectedIndex = 0;
+
+            _allClassStudents = _dbContext.Students.Where(s => s.SchoolClassId == _classId.Value).OrderBy(s => s.JournalNumber).ToList();
+
+            AvailableStudents.Clear();
+            SelectedStudents.Clear();
+
+            foreach (var s in _allClassStudents)
+            {
+                AvailableStudents.Add(s);
+            }
+
+            SearchTextBox.Text = string.Empty;
+            SearchTextBox_TextChanged(this, null!);
         }
 
         private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
+            if (SearchTextBox == null) return;
             string query = SearchTextBox.Text.Trim().ToLower();
             AvailableStudents.Clear();
 
@@ -117,6 +161,11 @@ namespace GradebookApp
 
         private void Save_Click(object sender, RoutedEventArgs e)
         {
+            if (!_classId.HasValue)
+            {
+                MessageBox.Show("Wybierz klasę z listy.", "Ajajajaj! Błąd...", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
             if (WorkComboBox.SelectedItem is not WrittenWork selectedWork)
             {
                 MessageBox.Show("Wybierz pracę pisemną.", "Ajajajaj! Błąd...", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -133,32 +182,14 @@ namespace GradebookApp
                 return;
             }
 
-            // WALIDACJA GODZINY - Obsługa różnych formatów (15:15, 1515, 930, 0930, 9:30)
             string timeStr = TimeTextBox.Text.Trim();
             if (!string.IsNullOrEmpty(timeStr))
             {
-                // Usuwamy ewentualne spacje wplątane przez pomyłkę
                 timeStr = timeStr.Replace(" ", "");
+                if (timeStr.Length == 3 && timeStr.All(char.IsDigit)) timeStr = "0" + timeStr;
+                if (timeStr.Length == 4 && timeStr.All(char.IsDigit)) timeStr = timeStr.Insert(2, ":");
+                if (timeStr.Length == 4 && timeStr.IndexOf(':') == 1) timeStr = "0" + timeStr;
 
-                // Zamiana 3 cyfr na 4 cyfry (np. 930 -> 0930)
-                if (timeStr.Length == 3 && timeStr.All(char.IsDigit))
-                {
-                    timeStr = "0" + timeStr;
-                }
-                
-                // Zamiana 4 cyfr na format z dwukropkiem (np. 0930 -> 09:30, 1515 -> 15:15)
-                if (timeStr.Length == 4 && timeStr.All(char.IsDigit))
-                {
-                    timeStr = timeStr.Insert(2, ":");
-                }
-                
-                // Zamiana formatu "H:mm" na "HH:mm" (np. 9:30 -> 09:30)
-                if (timeStr.Length == 4 && timeStr.IndexOf(':') == 1)
-                {
-                    timeStr = "0" + timeStr;
-                }
-
-                // Ostateczna weryfikacja poprawności godziny i minuty
                 if (!Regex.IsMatch(timeStr, @"^([0-1][0-9]|2[0-3]):[0-5][0-9]$"))
                 {
                     MessageBox.Show("Podaj poprawną godzinę (np. 14:30, 1515, 0930 lub 930).", 
@@ -172,8 +203,6 @@ namespace GradebookApp
             if (_editRetakeId.HasValue)
             {
                 retake = _dbContext.PlannedRetakes.First(r => r.Id == _editRetakeId.Value);
-                
-                // Usuwamy dotychczasowe powiązania uczniów z bazy, by wpisać zaktualizowaną listę
                 var existingAttendees = _dbContext.PlannedRetakeStudents.Where(a => a.PlannedRetakeId == _editRetakeId.Value);
                 _dbContext.PlannedRetakeStudents.RemoveRange(existingAttendees);
             }

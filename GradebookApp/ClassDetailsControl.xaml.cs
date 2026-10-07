@@ -224,11 +224,12 @@ namespace GradebookApp
 
         private void AddWork_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new AddWorkDialog { Owner = Window.GetWindow(this) };
-            if (dialog.ShowDialog() == true && !string.IsNullOrEmpty(dialog.WorkTitle))
+            var dialog = new WorkEditorDialog(targetClassId: _currentClass.Id) { Owner = Window.GetWindow(this) };
+            if (dialog.ShowDialog() == true && dialog.SavedWork != null)
             {
-                var newWork = _dataService.AddWork(new WrittenWork { Title = dialog.WorkTitle, WorkType = dialog.WorkType, MaxFinalPoints = dialog.MaxFinalPoints, DateWritten = dialog.DateWritten, DateEntered = dialog.DateEntered, HasGroups = dialog.HasGroups, SchoolClassId = _currentClass.Id, Tasks = dialog.Tasks });
-                _allWorks.Add(newWork); RefreshDisplayedWorks(); RefreshCalendar();
+                _allWorks.Add(dialog.SavedWork); 
+                RefreshDisplayedWorks(); 
+                RefreshCalendar();
             }
         }
 
@@ -263,7 +264,7 @@ namespace GradebookApp
 
         private void WorkDetailsButton_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button b && b.DataContext is ClassWorkViewModel vm && new WorkDetailsWindow(vm.WorkId) { Owner = Window.GetWindow(this) }.ShowDialog() == true)
+            if (sender is Button b && b.DataContext is ClassWorkViewModel vm && new WorkEditorDialog(editWorkId: vm.WorkId) { Owner = Window.GetWindow(this) }.ShowDialog() == true)
             {
                 _allWorks = _dataService.GetWorksByClass(_currentClass.Id); RefreshDisplayedWorks(); RefreshCalendar();
             }

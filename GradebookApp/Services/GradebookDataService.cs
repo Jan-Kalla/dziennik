@@ -19,16 +19,14 @@ namespace GradebookApp.Services
         public void Dispose() => _dbContext.Dispose();
 
         // ====================================================================
-        // ZARZĄDZANIE KLASAMI I GLOBALNYMI PRACAMI
+        // ZARZĄDZANIE KLASAMI, SZABLONAMI I GLOBALNYM KALENDARZEM
         // ====================================================================
         public List<SchoolClass> GetAllClasses() => _dbContext.Classes.ToList();
 
         public SchoolClass AddClass(string className)
         {
             var newClass = new SchoolClass { Name = className };
-            _dbContext.Classes.Add(newClass);
-            _dbContext.SaveChanges();
-            return newClass;
+            _dbContext.Classes.Add(newClass); _dbContext.SaveChanges(); return newClass;
         }
 
         public void UpdateClassName(SchoolClass schoolClass, string newName)
@@ -43,18 +41,65 @@ namespace GradebookApp.Services
             if (tracked != null) { _dbContext.Classes.Remove(tracked); _dbContext.SaveChanges(); }
         }
 
-        public void AddGlobalWorkToClasses(List<int> classIds, string title, string type, double maxPoints, DateTime? written, DateTime? entered, List<WrittenWorkTask> tasks)
+        // --- SZABLONY ---
+        public List<WorkTemplate> GetAllTemplates() => _dbContext.WorkTemplates.Include(t => t.Tasks).ToList();
+        
+        public void AddTemplate(WorkTemplate template)
         {
-            foreach (var classId in classIds)
-            {
-                var newWork = new WrittenWork 
-                { 
-                    Title = title, WorkType = type, MaxFinalPoints = maxPoints, DateWritten = written, DateEntered = entered, SchoolClassId = classId,
-                    Tasks = tasks.Select(t => new WrittenWorkTask { TaskNumber = t.TaskNumber, MaxPointsLevel1 = t.MaxPointsLevel1, MaxPointsLevel2 = t.MaxPointsLevel2, MaxPointsLevel3 = t.MaxPointsLevel3 }).ToList()
-                };
-                _dbContext.WrittenWorks.Add(newWork);
-            }
+            _dbContext.WorkTemplates.Add(template);
             _dbContext.SaveChanges();
+        }
+
+        // --- GLOBALNY KALENDARZ ---
+        public List<CalendarEventViewModel> GetGlobalCalendarEvents(DateTime fromDate, bool includeAllWorks)
+        {
+            var events = new List<CalendarEventViewModel>();
+            
+            // UWAGA: Dodano .Include(r => r.Attendees) aby przycisk "Szczegóły" miał kogo wyświetlić!
+            var retakes = _dbContext.PlannedRetakes
+                .Include(r => r.WrittenWork).ThenInclude(w => w.SchoolClass)
+                .Include(r => r.Attendees)
+                .Where(r => r.Date >= fromDate).ToList();
+
+            foreach(var r in retakes) {
+                events.Add(new CalendarEventViewModel {
+                    EventId = r.Id, WorkId = r.WrittenWorkId, IsRetake = true, SortDate = r.Date,
+                    DateDisplay = r.Date.ToString("dd.MM.yyyy"), TimeDisplay = string.IsNullOrEmpty(r.Time) ? "-" : r.Time,
+                    WorkType = r.WrittenWork.WorkType, Title = r.WrittenWork.Title, ClassName = r.WrittenWork.SchoolClass.Name,
+                    AttendeeIds = r.Attendees.Select(a => a.StudentId).ToList() // Pobranie ID uczniów
+                });
+            }
+
+            if (includeAllWorks)
+            {
+                var works = _dbContext.WrittenWorks
+                    .Include(w => w.SchoolClass)
+                    .Where(w => w.DateWritten >= fromDate && !w.IsIndividual).ToList();
+                    
+                foreach(var w in works) {
+                    events.Add(new CalendarEventViewModel {
+                        EventId = w.Id, WorkId = w.Id, IsRetake = false, SortDate = w.DateWritten!.Value,
+                        DateDisplay = w.DateWritten.Value.ToString("dd.MM.yyyy"), TimeDisplay = "-",
+                        WorkType = w.WorkType, Title = w.Title, ClassName = w.SchoolClass.Name
+                    });
+                }
+            }
+            return events.OrderBy(e => e.SortDate).ToList();
+        }
+
+        // ====================================================================
+        // ZARZĄDZANIE UCZNIAMI I WIDOK KLASY
+        // ====================================================================
+        public List<Student> GetStudentsByClass(int classId)
+        {
+            _dbContext.ChangeTracker.Clear();
+            return _dbContext.Students.Where(s => s.SchoolClassId == classId).Include(s => s.WrittenWorks).ToList();
+        }
+
+        public List<WrittenWork> GetWorksByClass(int classId)
+        {
+            _dbContext.ChangeTracker.Clear();
+            return _dbContext.WrittenWorks.Where(w => w.SchoolClassId == classId).Include(w => w.Tasks).ToList();
         }
 
         public List<RetakeStudentDetailViewModel> GetRetakeStudentDetails(int workId, List<int> attendeeIds)
@@ -74,17 +119,10 @@ namespace GradebookApp.Services
 
                 if (record != null)
                 {
-                    if (record.IsAbsent)
-                    {
-                        group = "NB";
-                    }
-                    else
-                    {
-                        group = string.IsNullOrEmpty(record.Group) ? "-" : record.Group;
-                    }
+                    if (record.IsAbsent) group = "NB";
+                    else group = string.IsNullOrEmpty(record.Group) ? "-" : record.Group;
                 }
 
-                // Jeżeli uczeń ma wpisane jakiekolwiek bazowe oceny punktowe (nie jest pusto) i nie jest NB, traktujemy to jako poprawę.
                 bool hasBaseScores = scores.Any(s => s.PointsLevel1.HasValue || s.PointsLevel2.HasValue || s.PointsLevel3.HasValue);
                 if (hasBaseScores && (record == null || !record.IsAbsent))
                 {
@@ -100,21 +138,6 @@ namespace GradebookApp.Services
             }
 
             return details.OrderBy(d => d.StudentName).ToList();
-        }
-
-        // ====================================================================
-        // ZARZĄDZANIE UCZNIAMI I WIDOK KLASY
-        // ====================================================================
-        public List<Student> GetStudentsByClass(int classId)
-        {
-            _dbContext.ChangeTracker.Clear();
-            return _dbContext.Students.Where(s => s.SchoolClassId == classId).Include(s => s.WrittenWorks).ToList();
-        }
-
-        public List<WrittenWork> GetWorksByClass(int classId)
-        {
-            _dbContext.ChangeTracker.Clear();
-            return _dbContext.WrittenWorks.Where(w => w.SchoolClassId == classId).Include(w => w.Tasks).ToList();
         }
 
         public Student AddStudent(string firstName, string lastName, int classId, int journalNumber)

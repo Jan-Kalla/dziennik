@@ -14,10 +14,10 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="0,0,0,25">
-            <TextBlock Text="Witaj w tym przecudownym dzienniku!" FontSize="14" Foreground="#AAAAAA" Margin="0,0,0,2" HorizontalAlignment="Center" />
-            <TextBlock Text="Baza wszystkich klas" FontSize="26" FontWeight="Bold" Foreground="#E0E0E0" HorizontalAlignment="Center" />
-        </StackPanel>
+            <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="0,0,0,25">
+                <TextBlock Text="Witaj w tym przecudownym dzienniku!" FontSize="14" Foreground="#AAAAAA" Margin="0,0,0,2" HorizontalAlignment="Center" />
+                <TextBlock Text="Baza wszystkich klas" FontSize="26" FontWeight="Bold" Foreground="#E0E0E0" HorizontalAlignment="Center" />
+            </StackPanel>
 
             <ListBox x:Name="ClassesListBox" Grid.Row="1" Margin="0,0,0,15" FontSize="18" DisplayMemberPath="Name" BorderBrush="#3E3E42" BorderThickness="1">
                 <ListBox.ItemContainerStyle>
@@ -40,16 +40,52 @@
 
             <TextBox x:Name="NewClassNameTextBox" Grid.Row="2" Margin="0,0,0,15" Height="35" FontSize="16" VerticalContentAlignment="Center" KeyDown="NewClassNameTextBox_KeyDown" ToolTip="Wpisz nazwę nowej klasy..." />
             
-            <!-- PRZYCISKI AKCJI -->
             <Grid Grid.Row="3">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="15" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="15" />
+                    <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Button Grid.Column="0" Content="Dodaj nową klasę" Height="45" FontSize="16" Click="AddClassButton_Click"/>
-                <Button Grid.Column="2" Content="Dodaj pracę pisemną (dla wielu klas)" Height="45" FontSize="16" Click="AddGlobalWorkButton_Click" Background="#2E4A2E" BorderBrush="#4CAF50"/>
+                <Button Grid.Column="2" Content="Dodaj szablon" Height="45" FontSize="16" Click="AddTemplateButton_Click" Background="#2E4A2E" BorderBrush="#4CAF50"/>
+                <Button Grid.Column="4" Content="Kalendarz (Wszystkie klasy)" Height="45" FontSize="16" Click="GlobalCalendarButton_Click" Background="#007ACC" BorderBrush="#005A9E"/>
             </Grid>
+        </Grid>
+
+        <!-- WIDOK GLOBALNEGO KALENDARZA -->
+        <Grid x:Name="GlobalCalendarView" Visibility="Collapsed">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" /> <!-- Nowy wiersz -->
+            </Grid.RowDefinitions>
+            <Button Grid.Row="0" Content="← Powrót do bazy klas" Width="150" Height="30" Margin="0,0,0,10" HorizontalAlignment="Left" Click="BackButton_Click" />
+            
+            <CheckBox x:Name="ShowAllGlobalWorksCheckBox" Grid.Row="1" Content="Pokaż wszystkie prace (również pierwsze terminy)" Margin="0,0,0,15" FontSize="14" Checked="RefreshGlobalCalendar_Click" Unchecked="RefreshGlobalCalendar_Click" />
+
+            <DataGrid x:Name="GlobalCalendarDataGrid" Grid.Row="2" FontSize="16" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Data" Binding="{Binding DateDisplay}" Width="100"/>
+                    <DataGridTextColumn Header="Godz." Binding="{Binding TimeDisplay}" Width="70"/>
+                    <DataGridTextColumn Header="Klasa" Binding="{Binding ClassName}" Width="80"/>
+                    <DataGridTextColumn Header="Forma" Binding="{Binding WorkType}" Width="120"/>
+                    <DataGridTextColumn Header="Tytuł" Binding="{Binding Title}" Width="*"/>
+                    
+                    <DataGridTemplateColumn Width="100">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="Szczegóły" Margin="2" Click="ViewGlobalRetakeDetails_Click" Cursor="Hand"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <!-- NOWY PRZYCISK DODAWANIA POPRAWY -->
+            <Button Grid.Row="3" Content="Zaplanuj poprawę" Width="150" Height="35" HorizontalAlignment="Center" Margin="0,10,0,0" Click="PlanGlobalRetake_Click"/>
         </Grid>
 
         <!-- WIDOK 2: SZCZEGÓŁY KLASY -->

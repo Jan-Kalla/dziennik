@@ -1,7 +1,9 @@
 ﻿using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls; 
 using GradebookApp.Services;
+using GradebookApp.ViewModels;
 
 namespace GradebookApp
 {
@@ -15,9 +17,9 @@ namespace GradebookApp
             InitializeComponent();
 
             _dataService = new GradebookDataService();
-            _dataService.ApplyMigrations(); // Automatyczna migracja bazy wywoływana z serwisu
+            _dataService.ApplyMigrations(); 
             
-            ClassesList = new ObservableCollection<SchoolClass>(_dataService.GetAllClasses());
+            ClassesList = new ObservableCollection<SchoolClass>(_dataService.GetAllClasses().OrderBy(c => c.Name));
             ClassesListBox.ItemsSource = ClassesList;
             
             SharedClassControl.StudentDetailsRequested += SharedClassControl_StudentDetailsRequested;
@@ -26,17 +28,15 @@ namespace GradebookApp
         private void AddNewClass()
         {
             string newName = NewClassNameTextBox.Text.Trim();
-            
             if (!string.IsNullOrEmpty(newName))
             {
                 var newClass = _dataService.AddClass(newName);
                 ClassesList.Add(newClass);
                 NewClassNameTextBox.Clear();
+                ClassesList = new ObservableCollection<SchoolClass>(ClassesList.OrderBy(c => c.Name));
+                ClassesListBox.ItemsSource = ClassesList;
             }
-            else
-            {
-                MessageBox.Show("Nazwa klasy nie może być pusta.", "Ajajajaj! Błąd walidacji...", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
+            else MessageBox.Show("Nazwa klasy nie może być pusta.", "Ajajajaj! Błąd walidacji...", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
         private void AddClassButton_Click(object sender, RoutedEventArgs e) => AddNewClass();
@@ -46,27 +46,56 @@ namespace GradebookApp
             if (e.Key == System.Windows.Input.Key.Enter) AddNewClass();
         }
         
-        private void AddGlobalWorkButton_Click(object sender, RoutedEventArgs e)
+        private void AddTemplateButton_Click(object sender, RoutedEventArgs e)
         {
-            var classes = _dataService.GetAllClasses();
-            if (classes.Count == 0)
+            var dialog = new WorkEditorDialog(isTemplateMode: true) { Owner = this };
+            if (dialog.ShowDialog() == true)
             {
-                MessageBox.Show("W bazie nie ma żadnych klas. Dodaj najpierw klasę.", "AJajajaj! Brak klas...", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            var dialog = new AddGlobalWorkDialog(classes) { Owner = this };
-
-            if (dialog.ShowDialog() == true && dialog.SelectedClassIds.Any())
-            {
-                _dataService.AddGlobalWorkToClasses(
-                    dialog.SelectedClassIds, dialog.WorkTitle, dialog.WorkType, 
-                    dialog.MaxFinalPoints, dialog.DateWritten, dialog.DateEntered, dialog.Tasks);
-
-                MessageBox.Show($"Ocena '{dialog.WorkTitle}' została pomyślnie dodana do {dialog.SelectedClassIds.Count} klas.", 
-                                "Sukces", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("Szablon został pomyślnie zapisany.", "Sukces", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
+
+        // --- SEKCJA KALENDARZA GLOBALNEGO ---
+        private void GlobalCalendarButton_Click(object sender, RoutedEventArgs e)
+        {
+            ClassesListView.Visibility = Visibility.Collapsed;
+            GlobalCalendarView.Visibility = Visibility.Visible;
+            RefreshGlobalCalendar();
+        }
+
+        private void RefreshGlobalCalendar_Click(object sender, RoutedEventArgs e) => RefreshGlobalCalendar();
+
+        private void RefreshGlobalCalendar()
+        {
+            bool includeAll = ShowAllGlobalWorksCheckBox.IsChecked == true;
+            GlobalCalendarDataGrid.ItemsSource = _dataService.GetGlobalCalendarEvents(System.DateTime.Today, includeAll);
+        }
+
+        private void ViewGlobalRetakeDetails_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button button && button.DataContext is CalendarEventViewModel vm)
+            {
+                if (vm.IsRetake)
+                {
+                    new RetakeDetailsDialog(vm.WorkId, vm.Title, vm.AttendeeIds) { Owner = this }.ShowDialog();
+                }
+                else
+                {
+                    MessageBox.Show("To jest pierwszy termin dla całej klasy. Piszą go domyślnie wszyscy obecni uczniowie.", "Informacja", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+        }
+
+        private void PlanGlobalRetake_Click(object sender, RoutedEventArgs e)
+        {
+            // Otwiera dialog bez przypisania do konkretnej klasy (można wybrać klasę z ComboBoxa)
+            var dialog = new PlanRetakeDialog() { Owner = this };
+            if (dialog.ShowDialog() == true)
+            {
+                RefreshGlobalCalendar();
+            }
+        }
+        // ------------------------------------
 
         private void ClassItem_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
@@ -101,7 +130,8 @@ namespace GradebookApp
                 if (dialog.ShowDialog() == true && !string.IsNullOrEmpty(dialog.NewName) && dialog.NewName != selectedClass.Name)
                 {
                     _dataService.UpdateClassName(selectedClass, dialog.NewName);
-                    ClassesListBox.Items.Refresh();
+                    ClassesList = new ObservableCollection<SchoolClass>(_dataService.GetAllClasses().OrderBy(c => c.Name));
+                    ClassesListBox.ItemsSource = ClassesList;
                 }
             }
         }
@@ -109,6 +139,7 @@ namespace GradebookApp
         private void BackButton_Click(object sender, RoutedEventArgs e)
         {
             ClassDetailsView.Visibility = Visibility.Collapsed;
+            GlobalCalendarView.Visibility = Visibility.Collapsed;
             ClassesListView.Visibility = Visibility.Visible;
         }
 
@@ -136,7 +167,7 @@ namespace GradebookApp
 
         protected override void OnClosed(System.EventArgs e)
         {
-            _dataService.Dispose(); // Bezpieczne zwalnianie zasobów bazy przy zamykaniu okna
+            _dataService.Dispose(); 
             base.OnClosed(e);
         }
     }

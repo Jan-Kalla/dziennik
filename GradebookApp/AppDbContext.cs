@@ -53,7 +53,6 @@ namespace GradebookApp
         public bool IsIndividual { get; set; } 
         public int? IndividualStudentId { get; set; }
 
-        // NOWA FLAGA: Czy praca posiada unikalne punkty dla różnych grup?
         public bool HasGroups { get; set; }
 
         public int SchoolClassId { get; set; }
@@ -71,7 +70,6 @@ namespace GradebookApp
         public double? MaxPointsLevel2 { get; set; }
         public double? MaxPointsLevel3 { get; set; }
 
-        // NOWE POLE: Przypisanie zadania do konkretnej grupy (np. "A")
         public string? GroupName { get; set; }
 
         public int WrittenWorkId { get; set; }
@@ -135,6 +133,30 @@ namespace GradebookApp
         public Student Student { get; set; } = null!;
     }
 
+    // Nowe klasy Szablonów:
+    public class WorkTemplate
+    {
+        public int Id { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string WorkType { get; set; } = string.Empty;
+        public double MaxFinalPoints { get; set; }
+        public bool HasGroups { get; set; }
+        public List<WorkTemplateTask> Tasks { get; set; } = new List<WorkTemplateTask>();
+    }
+
+    public class WorkTemplateTask
+    {
+        public int Id { get; set; }
+        public int TaskNumber { get; set; }
+        public double? MaxPointsLevel1 { get; set; }
+        public double? MaxPointsLevel2 { get; set; }
+        public double? MaxPointsLevel3 { get; set; }
+        public string? GroupName { get; set; }
+        
+        public int WorkTemplateId { get; set; }
+        public WorkTemplate WorkTemplate { get; set; } = null!;
+    }
+
     public class AppDbContext : DbContext
     {
         public DbSet<SchoolClass> Classes { get; set; }
@@ -145,6 +167,9 @@ namespace GradebookApp
         public DbSet<StudentWorkRecord> StudentWorkRecords { get; set; } 
         public DbSet<PlannedRetake> PlannedRetakes { get; set; }
         public DbSet<PlannedRetakeStudent> PlannedRetakeStudents { get; set; }
+        
+        public DbSet<WorkTemplate> WorkTemplates { get; set; }
+        public DbSet<WorkTemplateTask> WorkTemplateTasks { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {

@@ -52,6 +52,8 @@ namespace GradebookApp.ViewModels
         public string WorkType { get; set; } = string.Empty;
         public string Title { get; set; } = string.Empty;
         public List<int> AttendeeIds { get; set; } = new List<int>(); // Dodane: lista ID uczniów
+        public string ClassName { get; set; } = string.Empty; // DODAJ TĘ LINIJKĘ
+
     }
 
     // ---------------------------------------------------------
