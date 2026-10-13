@@ -49,7 +49,7 @@ namespace GradebookApp
 
             if (editWorkId.HasValue)
             {
-                this.Title = "Edycja oceny"; SaveButton.Content = "Zapisz zmiany"; EditWarningText.Visibility = Visibility.Visible; UseTemplateButton.Visibility = Visibility.Collapsed;
+                this.Title = "Edycja oceny"; SaveButton.Content = "Zapisz zmiany"; UseTemplateButton.Visibility = Visibility.Collapsed;
                 _editingWork = _dataService.GetWorkByIdWithTasks(editWorkId.Value);
 
                 if (_editingWork != null)
@@ -97,15 +97,35 @@ namespace GradebookApp
             var templates = _dataService.GetAllTemplates();
             if (!templates.Any()) { MessageBox.Show("W systemie nie zapisano jeszcze żadnych szablonów.", "Brak danych", MessageBoxButton.OK, MessageBoxImage.Information); return; }
             
-            var contextMenu = new ContextMenu();
-            foreach(var t in templates)
+            var dialog = new TemplateSelectionWindow(templates) { Owner = this };
+            
+            if (dialog.ShowDialog() == true && dialog.SelectedTemplate != null)
             {
-                var menuItem = new MenuItem { Header = $"{t.WorkType.ToUpper()}: {t.Title}" };
-                menuItem.Click += (s, ev) => ApplyTemplate(t);
-                contextMenu.Items.Add(menuItem);
+                ApplyTemplate(dialog.SelectedTemplate);
             }
-            contextMenu.PlacementTarget = UseTemplateButton;
-            contextMenu.IsOpen = true;
+        }
+
+        private void WorkTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (MaxPointsLabel == null) return; 
+            
+            if ((WorkTypeComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() == "aktywność")
+            { 
+                GroupManagementPanel.Visibility = TasksDataGrid.Visibility = ApplyToAllCheckBox.Visibility = Visibility.Collapsed; 
+                MaxPointsLabel.Text = "Ilość przyznanych punktów:"; 
+                
+                if (UseTemplateButton != null) UseTemplateButton.Visibility = Visibility.Collapsed;
+            }
+            else 
+            { 
+                GroupManagementPanel.Visibility = TasksDataGrid.Visibility = ApplyToAllCheckBox.Visibility = Visibility.Visible; 
+                MaxPointsLabel.Text = "Max:"; 
+                
+                if (UseTemplateButton != null && !_isTemplateMode && _editingWork == null) 
+                {
+                    UseTemplateButton.Visibility = Visibility.Visible;
+                }
+            }
         }
 
         private void ApplyTemplate(WorkTemplate t)
@@ -153,14 +173,6 @@ namespace GradebookApp
                 for (int j = 0; j < first.Count; j++) if (first[j].L1 != compare[j].L1 || first[j].L2 != compare[j].L2 || first[j].L3 != compare[j].L3) return false;
             }
             return true;
-        }
-
-        private void WorkTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (MaxPointsLabel == null) return; 
-            if ((WorkTypeComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() == "aktywność")
-            { GroupManagementPanel.Visibility = TasksDataGrid.Visibility = ApplyToAllCheckBox.Visibility = Visibility.Collapsed; MaxPointsLabel.Text = "Ilość przyznanych punktów:"; }
-            else { GroupManagementPanel.Visibility = TasksDataGrid.Visibility = ApplyToAllCheckBox.Visibility = Visibility.Visible; MaxPointsLabel.Text = "Max:"; }
         }
 
         private void TaskCountTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -249,7 +261,6 @@ namespace GradebookApp
             string title = TitleTextBox.Text.Trim(); string type = (WorkTypeComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "inne";
             if (string.IsNullOrEmpty(title) || !double.TryParse(MaxPointsTextBox.Text.Trim(), out double m) || m <= 0) { MessageBox.Show("Sprawdź tytuł i poprawność punktów Max.", "Błąd", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
 
-            // Dla szablonów nie będziemy generować listy Tasks, tylko WorkTemplateTasks
             if (_isTemplateMode)
             {
                 var templateTasks = new List<WorkTemplateTask>();
@@ -291,6 +302,18 @@ namespace GradebookApp
 
                 if (_editingWork != null)
                 {
+                    // NOWOŚĆ: Blokada zapisu z inteligentnym ostrzeżeniem, jeśli praca ma już oceny
+                    if (_dataService.HasWorkAnyScores(_editingWork.Id))
+                    {
+                        var res = MessageBox.Show(
+                            "Ta praca posiada już wpisane punkty u co najmniej jednego ucznia. Jeżeli zdecydujesz się na zmianę jej struktury, to koniecznie upewnij się po tym, że w ocenach wszystko się zgadza.\n\nCzy jesteś pewien, że chcesz dokonać tych zmian i je zapisać?", 
+                            "Uwaga - praca została już oceniona", 
+                            MessageBoxButton.YesNo, 
+                            MessageBoxImage.Warning);
+                            
+                        if (res != MessageBoxResult.Yes) return;
+                    }
+
                     _dataService.UpdateWorkAndTasks(_editingWork, generatedTasks, title, m, type, _groups.Count > 1, DateWrittenPicker.SelectedDate, DateEnteredPicker.SelectedDate);
                     SavedWork = _editingWork;
                 }

@@ -18,9 +18,6 @@ namespace GradebookApp.Services
         public void ApplyMigrations() => _dbContext.Database.Migrate();
         public void Dispose() => _dbContext.Dispose();
 
-        // ====================================================================
-        // ZARZĄDZANIE KLASAMI, SZABLONAMI I GLOBALNYM KALENDARZEM
-        // ====================================================================
         public List<SchoolClass> GetAllClasses() => _dbContext.Classes.ToList();
 
         public SchoolClass AddClass(string className)
@@ -41,55 +38,77 @@ namespace GradebookApp.Services
             if (tracked != null) { _dbContext.Classes.Remove(tracked); _dbContext.SaveChanges(); }
         }
 
-        // --- SZABLONY ---
         public List<WorkTemplate> GetAllTemplates() => _dbContext.WorkTemplates.Include(t => t.Tasks).ToList();
         
         public void AddTemplate(WorkTemplate template)
         {
-            _dbContext.WorkTemplates.Add(template);
+            _dbContext.WorkTemplates.Add(template); _dbContext.SaveChanges();
+        }
+
+        public void UpdateTemplate(WorkTemplate template, List<WorkTemplateTask> generatedTasks, string newTitle, double maxPoints, string type, bool hasGroups)
+        {
+            var tracked = _dbContext.WorkTemplates.Include(t => t.Tasks).FirstOrDefault(t => t.Id == template.Id);
+            if (tracked == null) return;
+
+            foreach (var oldTask in tracked.Tasks.ToList())
+            {
+                string oldGrp = string.IsNullOrEmpty(oldTask.GroupName) ? "A" : oldTask.GroupName;
+                var match = generatedTasks.FirstOrDefault(t => (string.IsNullOrEmpty(t.GroupName) ? "A" : t.GroupName) == oldGrp && t.TaskNumber == oldTask.TaskNumber);
+                
+                if (match != null)
+                {
+                    oldTask.MaxPointsLevel1 = match.MaxPointsLevel1; oldTask.MaxPointsLevel2 = match.MaxPointsLevel2; oldTask.MaxPointsLevel3 = match.MaxPointsLevel3;
+                    oldTask.GroupName = match.GroupName;
+                    generatedTasks.Remove(match);
+                }
+                else _dbContext.WorkTemplateTasks.Remove(oldTask);
+            }
+            foreach (var newTask in generatedTasks) tracked.Tasks.Add(newTask);
+            
+            tracked.Title = newTitle; tracked.MaxFinalPoints = maxPoints; tracked.WorkType = type; tracked.HasGroups = hasGroups;
             _dbContext.SaveChanges();
         }
 
-        // --- GLOBALNY KALENDARZ ---
-        public List<CalendarEventViewModel> GetGlobalCalendarEvents(DateTime fromDate, bool includeAllWorks)
+        public void DeleteTemplate(int templateId)
         {
-            var events = new List<CalendarEventViewModel>();
-            
-            // UWAGA: Dodano .Include(r => r.Attendees) aby przycisk "Szczegóły" miał kogo wyświetlić!
-            var retakes = _dbContext.PlannedRetakes
-                .Include(r => r.WrittenWork).ThenInclude(w => w.SchoolClass)
-                .Include(r => r.Attendees)
-                .Where(r => r.Date >= fromDate).ToList();
+            var tracked = _dbContext.WorkTemplates.Include(t => t.Tasks).FirstOrDefault(t => t.Id == templateId);
+            if (tracked != null) { _dbContext.WorkTemplateTasks.RemoveRange(tracked.Tasks); _dbContext.WorkTemplates.Remove(tracked); _dbContext.SaveChanges(); }
+        }
 
-            foreach(var r in retakes) {
+        public List<CalendarEventViewModel> GetGlobalCalendarEvents(bool upcomingOnly, bool includeAllWorks)
+        {
+            _dbContext.ChangeTracker.Clear(); 
+            var events = new List<CalendarEventViewModel>();
+            var today = DateTime.Today;
+
+            var retakesQuery = _dbContext.PlannedRetakes.Include(r => r.WrittenWork).ThenInclude(w => w.SchoolClass).Include(r => r.Attendees).AsQueryable();
+            if (upcomingOnly) retakesQuery = retakesQuery.Where(r => r.Date >= today);
+            
+            foreach(var r in retakesQuery.ToList()) {
                 events.Add(new CalendarEventViewModel {
                     EventId = r.Id, WorkId = r.WrittenWorkId, IsRetake = true, SortDate = r.Date,
                     DateDisplay = r.Date.ToString("dd.MM.yyyy"), TimeDisplay = string.IsNullOrEmpty(r.Time) ? "-" : r.Time,
                     WorkType = r.WrittenWork.WorkType, Title = r.WrittenWork.Title, ClassName = r.WrittenWork.SchoolClass.Name,
-                    AttendeeIds = r.Attendees.Select(a => a.StudentId).ToList() // Pobranie ID uczniów
+                    AttendeeIds = r.Attendees.Select(a => a.StudentId).ToList(), AttendeesCountDisplay = r.Attendees.Count.ToString()
                 });
             }
 
             if (includeAllWorks)
             {
-                var works = _dbContext.WrittenWorks
-                    .Include(w => w.SchoolClass)
-                    .Where(w => w.DateWritten >= fromDate && !w.IsIndividual).ToList();
-                    
-                foreach(var w in works) {
+                var worksQuery = _dbContext.WrittenWorks.Include(w => w.SchoolClass).Where(w => !w.IsIndividual).AsQueryable();
+                if (upcomingOnly) worksQuery = worksQuery.Where(w => w.DateWritten >= today);
+
+                foreach(var w in worksQuery.ToList()) {
                     events.Add(new CalendarEventViewModel {
-                        EventId = w.Id, WorkId = w.Id, IsRetake = false, SortDate = w.DateWritten!.Value,
-                        DateDisplay = w.DateWritten.Value.ToString("dd.MM.yyyy"), TimeDisplay = "-",
-                        WorkType = w.WorkType, Title = w.Title, ClassName = w.SchoolClass.Name
+                        EventId = w.Id, WorkId = w.Id, IsRetake = false, SortDate = w.DateWritten ?? DateTime.MinValue,
+                        DateDisplay = w.DateWritten?.ToString("dd.MM.yyyy") ?? "Brak", TimeDisplay = "-",
+                        WorkType = w.WorkType, Title = w.Title, ClassName = w.SchoolClass.Name, AttendeesCountDisplay = "Cała klasa"
                     });
                 }
             }
             return events.OrderBy(e => e.SortDate).ToList();
         }
 
-        // ====================================================================
-        // ZARZĄDZANIE UCZNIAMI I WIDOK KLASY
-        // ====================================================================
         public List<Student> GetStudentsByClass(int classId)
         {
             _dbContext.ChangeTracker.Clear();
@@ -102,50 +121,10 @@ namespace GradebookApp.Services
             return _dbContext.WrittenWorks.Where(w => w.SchoolClassId == classId).Include(w => w.Tasks).ToList();
         }
 
-        public List<RetakeStudentDetailViewModel> GetRetakeStudentDetails(int workId, List<int> attendeeIds)
-        {
-            var details = new List<RetakeStudentDetailViewModel>();
-            var students = _dbContext.Students.Where(s => attendeeIds.Contains(s.Id)).ToList();
-            var records = _dbContext.StudentWorkRecords.Where(r => r.WrittenWorkId == workId && attendeeIds.Contains(r.StudentId)).ToList();
-            var allScores = _dbContext.StudentTaskScores.Where(s => s.WrittenWorkTask.WrittenWorkId == workId && attendeeIds.Contains(s.StudentId)).ToList();
-
-            foreach (var student in students)
-            {
-                var record = records.FirstOrDefault(r => r.StudentId == student.Id);
-                var scores = allScores.Where(s => s.StudentId == student.Id).ToList();
-
-                string group = "-";
-                string eventType = "Pierwsze podejście";
-
-                if (record != null)
-                {
-                    if (record.IsAbsent) group = "NB";
-                    else group = string.IsNullOrEmpty(record.Group) ? "-" : record.Group;
-                }
-
-                bool hasBaseScores = scores.Any(s => s.PointsLevel1.HasValue || s.PointsLevel2.HasValue || s.PointsLevel3.HasValue);
-                if (hasBaseScores && (record == null || !record.IsAbsent))
-                {
-                    eventType = "Poprawa";
-                }
-
-                details.Add(new RetakeStudentDetailViewModel
-                {
-                    StudentName = student.FullName,
-                    OriginalGroup = group,
-                    EventType = eventType
-                });
-            }
-
-            return details.OrderBy(d => d.StudentName).ToList();
-        }
-
         public Student AddStudent(string firstName, string lastName, int classId, int journalNumber)
         {
             var student = new Student { FirstName = firstName, LastName = lastName, SchoolClassId = classId, JournalNumber = journalNumber };
-            _dbContext.Students.Add(student);
-            _dbContext.SaveChanges();
-            return student;
+            _dbContext.Students.Add(student); _dbContext.SaveChanges(); return student;
         }
 
         public void UpdateStudent(Student student)
@@ -176,7 +155,6 @@ namespace GradebookApp.Services
             {
                 var studentScores = allScores.Where(s => s.StudentId == student.Id).ToList();
                 var studentRecords = allRecords.Where(r => r.StudentId == student.Id).ToList();
-
                 double totalEarnedP = 0, totalPossibleM = 0;
 
                 foreach (var work in classWorks)
@@ -193,13 +171,9 @@ namespace GradebookApp.Services
                     double retakeSum = (hasBaseScores || hasRetakeScores) ? GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, work.Tasks, workScores, true) : 0;
 
                     if (workRecord != null && workRecord.IsRetakeActive && hasRetakeScores && retakeSum > baseSum)
-                    {
-                        totalEarnedP += retakeSum; totalPossibleM += work.MaxFinalPoints;
-                    }
+                    { totalEarnedP += retakeSum; totalPossibleM += work.MaxFinalPoints; }
                     else if (hasBaseScores)
-                    {
-                        totalEarnedP += baseSum; totalPossibleM += work.MaxFinalPoints;
-                    }
+                    { totalEarnedP += baseSum; totalPossibleM += work.MaxFinalPoints; }
                 }
 
                 double average = totalPossibleM > 0 ? Math.Round((totalEarnedP / totalPossibleM) * 100, 0, MidpointRounding.AwayFromZero) : 0;
@@ -221,26 +195,72 @@ namespace GradebookApp.Services
                 .Select(s => s.StudentId).Distinct().Count();
         }
 
-        public List<PlannedRetake> GetUpcomingRetakes(int classId, DateTime fromDate)
+        // NOWOŚĆ: Błyskawiczne sprawdzenie, czy w ogóle są jakieś oceny z danej pracy
+        public bool HasWorkAnyScores(int workId)
         {
-            return _dbContext.PlannedRetakes.Include(r => r.WrittenWork).Include(r => r.Attendees).ThenInclude(a => a.Student)
-                .Where(r => r.WrittenWork.SchoolClassId == classId && r.Date >= fromDate).ToList();
+            return _dbContext.StudentTaskScores.Any(s => 
+                s.WrittenWorkTask.WrittenWorkId == workId && 
+                (s.PointsLevel1 != null || s.PointsLevel2 != null || s.PointsLevel3 != null || 
+                 s.RetakePointsLevel1 != null || s.RetakePointsLevel2 != null || s.RetakePointsLevel3 != null));
+        }
+
+        public List<PlannedRetake> GetCalendarRetakes(int classId, bool upcomingOnly)
+        {
+            _dbContext.ChangeTracker.Clear();
+            var query = _dbContext.PlannedRetakes.Include(r => r.WrittenWork).Include(r => r.Attendees).ThenInclude(a => a.Student)
+                .Where(r => r.WrittenWork.SchoolClassId == classId);
+            
+            if (upcomingOnly) query = query.Where(r => r.Date >= DateTime.Today);
+            return query.ToList();
         }
 
         public void DeletePlannedRetake(int retakeId)
         {
-            var retake = _dbContext.PlannedRetakes.Find(retakeId);
-            if (retake != null) { _dbContext.PlannedRetakes.Remove(retake); _dbContext.SaveChanges(); }
+            var retake = _dbContext.PlannedRetakes.Include(r => r.Attendees).FirstOrDefault(r => r.Id == retakeId);
+            if (retake != null) 
+            { 
+                _dbContext.PlannedRetakeStudents.RemoveRange(retake.Attendees);
+                _dbContext.PlannedRetakes.Remove(retake); 
+                _dbContext.SaveChanges(); 
+            }
         }
 
-        // ====================================================================
-        // ZARZĄDZANIE PRACAMI PISEMNYMI
-        // ====================================================================
+        public void RemoveStudentFromRetake(int retakeId, int studentId)
+        {
+            var attendee = _dbContext.PlannedRetakeStudents.FirstOrDefault(a => a.PlannedRetakeId == retakeId && a.StudentId == studentId);
+            if (attendee != null) { _dbContext.PlannedRetakeStudents.Remove(attendee); _dbContext.SaveChanges(); }
+        }
+
+        public List<RetakeStudentDetailViewModel> GetRetakeStudentDetails(int workId, List<int> attendeeIds)
+        {
+            var details = new List<RetakeStudentDetailViewModel>();
+            var students = _dbContext.Students.Where(s => attendeeIds.Contains(s.Id)).ToList();
+            var records = _dbContext.StudentWorkRecords.Where(r => r.WrittenWorkId == workId && attendeeIds.Contains(r.StudentId)).ToList();
+            var allScores = _dbContext.StudentTaskScores.Where(s => s.WrittenWorkTask.WrittenWorkId == workId && attendeeIds.Contains(s.StudentId)).ToList();
+
+            foreach (var student in students)
+            {
+                var record = records.FirstOrDefault(r => r.StudentId == student.Id);
+                var scores = allScores.Where(s => s.StudentId == student.Id).ToList();
+
+                string group = "-", eventType = "Pierwsze podejście";
+                if (record != null)
+                {
+                    if (record.IsAbsent) group = "NB";
+                    else group = string.IsNullOrEmpty(record.Group) ? "-" : record.Group;
+                }
+
+                bool hasBaseScores = scores.Any(s => s.PointsLevel1.HasValue || s.PointsLevel2.HasValue || s.PointsLevel3.HasValue);
+                if (hasBaseScores && (record == null || !record.IsAbsent)) eventType = "Poprawa";
+
+                details.Add(new RetakeStudentDetailViewModel { StudentId = student.Id, StudentName = student.FullName, OriginalGroup = group, EventType = eventType });
+            }
+            return details.OrderBy(d => d.StudentName).ToList();
+        }
+
         public WrittenWork AddWork(WrittenWork work)
         {
-            _dbContext.WrittenWorks.Add(work);
-            _dbContext.SaveChanges();
-            return work;
+            _dbContext.WrittenWorks.Add(work); _dbContext.SaveChanges(); return work;
         }
 
         public WrittenWork? GetWorkById(int workId) => _dbContext.WrittenWorks.Find(workId);
@@ -258,21 +278,49 @@ namespace GradebookApp.Services
 
             foreach (var oldTask in trackedWork.Tasks.ToList())
             {
-                var match = generatedTasks.FirstOrDefault(t => t.GroupName == oldTask.GroupName && t.TaskNumber == oldTask.TaskNumber);
+                string oldGrp = string.IsNullOrEmpty(oldTask.GroupName) ? "A" : oldTask.GroupName;
+                
+                var match = generatedTasks.FirstOrDefault(t => 
+                    (string.IsNullOrEmpty(t.GroupName) ? "A" : t.GroupName) == oldGrp && 
+                    t.TaskNumber == oldTask.TaskNumber);
+
                 if (match != null)
                 {
-                    oldTask.MaxPointsLevel1 = match.MaxPointsLevel1; oldTask.MaxPointsLevel2 = match.MaxPointsLevel2; oldTask.MaxPointsLevel3 = match.MaxPointsLevel3;
-                    generatedTasks.Remove(match);
+                    oldTask.MaxPointsLevel1 = match.MaxPointsLevel1; 
+                    oldTask.MaxPointsLevel2 = match.MaxPointsLevel2; 
+                    oldTask.MaxPointsLevel3 = match.MaxPointsLevel3;
+                    oldTask.GroupName = match.GroupName; 
+                    generatedTasks.Remove(match); 
                 }
-                else
+                else 
                 {
-                    _dbContext.WrittenWorkTasks.Remove(oldTask);
+                    _dbContext.WrittenWorkTasks.Remove(oldTask); 
                 }
             }
             
-            foreach (var newTask in generatedTasks) trackedWork.Tasks.Add(newTask);
-
+            foreach (var newTask in generatedTasks) 
+            {
+                trackedWork.Tasks.Add(newTask);
+            }
+            
             trackedWork.Title = newTitle; trackedWork.MaxFinalPoints = maxPoints; trackedWork.WorkType = type; trackedWork.HasGroups = hasGroups; trackedWork.DateWritten = dateWritten; trackedWork.DateEntered = dateEntered;
+
+            var allTaskIds = trackedWork.Tasks.Where(t => t.Id != 0).Select(t => t.Id).ToList();
+            if (allTaskIds.Any())
+            {
+                var allScores = _dbContext.StudentTaskScores.Where(s => allTaskIds.Contains(s.WrittenWorkTaskId)).ToList();
+                foreach(var t in trackedWork.Tasks.Where(t => t.Id != 0))
+                {
+                    var tScores = allScores.Where(s => s.WrittenWorkTaskId == t.Id).ToList();
+                    foreach(var s in tScores)
+                    {
+                        if (t.MaxPointsLevel1 == 0 || t.MaxPointsLevel1 == null) { s.PointsLevel1 = null; s.RetakePointsLevel1 = null; }
+                        if (t.MaxPointsLevel2 == 0 || t.MaxPointsLevel2 == null) { s.PointsLevel2 = null; s.RetakePointsLevel2 = null; }
+                        if (t.MaxPointsLevel3 == 0 || t.MaxPointsLevel3 == null) { s.PointsLevel3 = null; s.RetakePointsLevel3 = null; }
+                    }
+                }
+            }
+
             _dbContext.SaveChanges();
         }
 
@@ -282,9 +330,6 @@ namespace GradebookApp.Services
             if (tracked != null) { _dbContext.WrittenWorks.Remove(tracked); _dbContext.SaveChanges(); }
         }
 
-        // ====================================================================
-        // SZCZEGÓŁY UCZNIA I ZAPISYWANIE WYNIKÓW
-        // ====================================================================
         public Student? GetStudentById(int studentId)
         {
             _dbContext.ChangeTracker.Clear();
@@ -342,9 +387,7 @@ namespace GradebookApp.Services
         public WrittenWork AddIndividualWork(int studentId, int classId, string title, string type, double maxPoints, DateTime? written, DateTime? entered, List<WrittenWorkTask> tasks)
         {
             var newWork = new WrittenWork { Title = title, WorkType = type, MaxFinalPoints = maxPoints, DateWritten = written, DateEntered = entered, SchoolClassId = classId, Tasks = tasks, IsIndividual = true, IndividualStudentId = studentId };
-            _dbContext.WrittenWorks.Add(newWork);
-            _dbContext.SaveChanges();
-            return newWork;
+            _dbContext.WrittenWorks.Add(newWork); _dbContext.SaveChanges(); return newWork;
         }
 
         public void SaveActivityScore(int studentId, WrittenWork work)

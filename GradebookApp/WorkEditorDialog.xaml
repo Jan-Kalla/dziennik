@@ -16,7 +16,6 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <TextBlock Text="Kategoria oceny:" Margin="0,0,0,5" FontSize="14"/>
@@ -85,11 +84,8 @@
             </DataGrid.Columns>
         </DataGrid>
 
-        <!-- Ostrzeżenie przy edycji -->
-        <TextBlock x:Name="EditWarningText" Grid.Row="10" Text="Uwaga: Zmiana ilości punktów lub struktury zadań spowoduje usunięcie dotychczas wpisanych ocen uczniów u których wykryto konflikt." Foreground="#E57373" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,0,0,10" FontSize="12" FontStyle="Italic"/>
-
         <!-- Dolny pasek z nowym przyciskiem -->
-        <Grid Grid.Row="11" Margin="0,10,0,0">
+        <Grid Grid.Row="10" Margin="0,10,0,0">
             <Button x:Name="UseTemplateButton" Content="Użyj szablonu" HorizontalAlignment="Left" Width="120" Height="30" Click="UseTemplate_Click" Background="#333333" Foreground="#4DB6AC" FontWeight="Bold" BorderThickness="0" Cursor="Hand"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Content="Anuluj" Width="80" Height="30" Margin="0,0,10,0" Click="Cancel_Click"/>

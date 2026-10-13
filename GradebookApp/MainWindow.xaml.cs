@@ -46,13 +46,10 @@ namespace GradebookApp
             if (e.Key == System.Windows.Input.Key.Enter) AddNewClass();
         }
         
-        private void AddTemplateButton_Click(object sender, RoutedEventArgs e)
+        private void OpenTemplateManager_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new WorkEditorDialog(isTemplateMode: true) { Owner = this };
-            if (dialog.ShowDialog() == true)
-            {
-                MessageBox.Show("Szablon został pomyślnie zapisany.", "Sukces", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
+            var dialog = new TemplateManagerWindow() { Owner = this };
+            dialog.ShowDialog();
         }
 
         // --- SEKCJA KALENDARZA GLOBALNEGO ---
@@ -67,33 +64,53 @@ namespace GradebookApp
 
         private void RefreshGlobalCalendar()
         {
+            // Zabezpieczenie: XAML odpala to zdarzenie podczas rysowania okna (bo CheckBox ma IsChecked="True"),
+            // zanim _dataService zdąży się utworzyć w konstruktorze!
+            if (_dataService == null) return; 
+
+            bool upcomingOnly = ShowUpcomingGlobalOnlyCheckBox.IsChecked == true;
             bool includeAll = ShowAllGlobalWorksCheckBox.IsChecked == true;
-            GlobalCalendarDataGrid.ItemsSource = _dataService.GetGlobalCalendarEvents(System.DateTime.Today, includeAll);
+            GlobalCalendarDataGrid.ItemsSource = _dataService.GetGlobalCalendarEvents(upcomingOnly, includeAll);
         }
 
         private void ViewGlobalRetakeDetails_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button button && button.DataContext is CalendarEventViewModel vm)
             {
-                if (vm.IsRetake)
-                {
-                    new RetakeDetailsDialog(vm.WorkId, vm.Title, vm.AttendeeIds) { Owner = this }.ShowDialog();
+                if (vm.IsRetake) { 
+                    new RetakeDetailsDialog(vm.EventId, vm.WorkId, vm.Title, vm.AttendeeIds) { Owner = this }.ShowDialog(); 
+                    RefreshGlobalCalendar(); // Odświeża w razie usunięcia ucznia
                 }
-                else
+                else MessageBox.Show("To jest pierwszy termin. Piszą go wszyscy.", "Informacja", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+
+        private void EditGlobalRetake_Click(object sender, RoutedEventArgs e)
+        {
+            CalendarEventViewModel? vm = (sender as MenuItem)?.Parent is ContextMenu cm && cm.PlacementTarget is Button btn ? btn.DataContext as CalendarEventViewModel : GlobalCalendarDataGrid.SelectedItem as CalendarEventViewModel;
+            if (vm != null)
+            {
+                if (!vm.IsRetake) { MessageBox.Show("Możesz edytować tylko poprawy.", "Zablokowane", MessageBoxButton.OK, MessageBoxImage.Information); return; }
+                if (new PlanRetakeDialog(null, vm.EventId) { Owner = this }.ShowDialog() == true) RefreshGlobalCalendar();
+            }
+        }
+
+        private void DeleteGlobalRetake_Click(object sender, RoutedEventArgs e)
+        {
+            CalendarEventViewModel? vm = (sender as MenuItem)?.Parent is ContextMenu cm && cm.PlacementTarget is Button btn ? btn.DataContext as CalendarEventViewModel : GlobalCalendarDataGrid.SelectedItem as CalendarEventViewModel;
+            if (vm != null)
+            {
+                if (!vm.IsRetake) { MessageBox.Show("Tylko poprawy mogą być stąd usuwane.", "Zablokowane", MessageBoxButton.OK, MessageBoxImage.Information); return; }
+                if (MessageBox.Show($"Usunąć poprawę '{vm.Title}'?", "Potwierdzenie", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
                 {
-                    MessageBox.Show("To jest pierwszy termin dla całej klasy. Piszą go domyślnie wszyscy obecni uczniowie.", "Informacja", MessageBoxButton.OK, MessageBoxImage.Information);
+                    _dataService.DeletePlannedRetake(vm.EventId); RefreshGlobalCalendar();
                 }
             }
         }
 
         private void PlanGlobalRetake_Click(object sender, RoutedEventArgs e)
         {
-            // Otwiera dialog bez przypisania do konkretnej klasy (można wybrać klasę z ComboBoxa)
-            var dialog = new PlanRetakeDialog() { Owner = this };
-            if (dialog.ShowDialog() == true)
-            {
-                RefreshGlobalCalendar();
-            }
+            if (new PlanRetakeDialog() { Owner = this }.ShowDialog() == true) RefreshGlobalCalendar();
         }
         // ------------------------------------
 

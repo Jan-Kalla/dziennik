@@ -37,6 +37,7 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
+            <!-- TERMIN BAZOWY -->
             <Border Background="#2D2D30" BorderBrush="#434346" BorderThickness="1" CornerRadius="5" Grid.Column="0" Padding="10">
                 <StackPanel>
                     <Grid Margin="0,0,0,10">
@@ -46,6 +47,7 @@
                     
                     <Grid>
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
@@ -61,11 +63,16 @@
                             <ComboBox x:Name="GroupComboBox" Height="24" Width="60" Visibility="Collapsed" SelectionChanged="GroupComboBox_SelectionChanged"/>
                         </Grid>
 
-                        <TextBlock Grid.Column="0" Grid.Row="1" Margin="0,0,10,0" Text="Indyw. daty (Napis. / Wpis.):" VerticalAlignment="Center"/>
-                        <StackPanel Grid.Column="1" Grid.Row="1" Orientation="Horizontal">
+                        <TextBlock Grid.Column="0" Grid.Row="1" Margin="0,0,10,10" Text="Indyw. daty (Napis. / Wpis.):" VerticalAlignment="Center"/>
+                        <StackPanel Grid.Column="1" Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
                             <DatePicker Height="24" Margin="0,0,5,0" Width="105" x:Name="CustomDateWrittenPicker"/>
                             <DatePicker Height="24" SelectedDateChanged="CustomDateEnteredPicker_SelectedDateChanged" Width="105" x:Name="CustomDateEnteredPicker"/>
+                            <Button Content="Dzisiaj" Margin="5,0,0,0" Width="60" Height="24" Click="SetTodayBase_Click" Cursor="Hand" Background="#333333" Foreground="#E0E0E0" BorderThickness="0"/>
                         </StackPanel>
+
+                        <!-- ZMIENIONY TERMIN (DO) -->
+                        <TextBlock Grid.Column="0" Grid.Row="2" Margin="0,0,10,0" Text="Termin na poprawę (do):" VerticalAlignment="Center"/>
+                        <DatePicker Grid.Column="1" Grid.Row="2" Height="24" HorizontalAlignment="Left" Width="110" x:Name="RetakeDeadlinePicker"/>
                     </Grid>
                     <CheckBox Checked="AbsentCheckBox_Changed" Content="Uczeń nieobecny (NB)" FontWeight="Bold" Foreground="#E57373" Margin="0,10,0,0" Unchecked="AbsentCheckBox_Changed" x:Name="AbsentCheckBox"/>
                 </StackPanel>
@@ -76,6 +83,7 @@
                 <Button Click="ActivateRetakeButton_Click" Content="Dodaj poprawę" Height="30" Width="120"/>
             </StackPanel>
 
+            <!-- POPRAWA -->
             <Border Background="#1E2E1E" BorderBrush="#4CAF50" BorderThickness="1" CornerRadius="5" Grid.Column="2" Padding="10" Visibility="Collapsed" x:Name="RetakeEditPanel">
                 <StackPanel>
                     <Grid Margin="0,0,0,10">
@@ -88,7 +96,6 @@
                     
                     <Grid>
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
@@ -104,13 +111,11 @@
                             <ComboBox x:Name="RetakeGroupComboBox" Height="24" Width="60" Visibility="Collapsed" SelectionChanged="RetakeGroupComboBox_SelectionChanged"/>
                         </Grid>
 
-                        <TextBlock Grid.Column="0" Grid.Row="1" Margin="0,0,10,10" Text="Zmieniony termin (do):" VerticalAlignment="Center"/>
-                        <DatePicker Grid.Column="1" Grid.Row="1" Height="24" HorizontalAlignment="Left" Margin="0,0,0,10" Width="110" x:Name="RetakeDeadlinePicker"/>
-
-                        <TextBlock Grid.Column="0" Grid.Row="2" Margin="0,0,10,0" Text="Daty (Napis. / Wpis.):" VerticalAlignment="Center"/>
-                        <StackPanel Grid.Column="1" Grid.Row="2" Orientation="Horizontal">
+                        <TextBlock Grid.Column="0" Grid.Row="1" Margin="0,0,10,0" Text="Daty (Napis. / Wpis.):" VerticalAlignment="Center"/>
+                        <StackPanel Grid.Column="1" Grid.Row="1" Orientation="Horizontal">
                             <DatePicker Height="24" Margin="0,0,5,0" Width="105" x:Name="RetakeDateWrittenPicker"/>
-                            <DatePicker Height="24" Width="105" x:Name="RetakeDateEnteredPicker"/>
+                            <DatePicker Height="24" Margin="0,0,5,0" Width="105" x:Name="RetakeDateEnteredPicker"/>
+                            <Button Content="Dzisiaj" Width="60" Height="24" Click="SetTodayRetake_Click" Cursor="Hand" Background="#253525" Foreground="#81C784" BorderThickness="0"/>
                         </StackPanel>
                     </Grid>
                 </StackPanel>
@@ -168,7 +173,7 @@
                         <DataTemplate>
                             <Grid>
                                 <StackPanel Margin="5,0,0,0" Orientation="Horizontal" Visibility="{Binding BaseVisibility}">
-                                    <TextBox Margin="0,0,5,0" Text="{Binding ScoreL1, UpdateSourceTrigger=LostFocus}" Width="40">
+                                    <TextBox Margin="0,0,5,0" Text="{Binding ScoreL1, UpdateSourceTrigger=LostFocus, TargetNullValue=''}" Width="40">
                                         <TextBox.Style>
                                             <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
                                                 <Setter Property="IsEnabled" Value="True"/>
@@ -191,7 +196,7 @@
                         <DataTemplate>
                             <Grid>
                                 <StackPanel Margin="5,0,0,0" Orientation="Horizontal" Visibility="{Binding BaseVisibility}">
-                                    <TextBox Margin="0,0,5,0" Text="{Binding ScoreL2, UpdateSourceTrigger=LostFocus}" Width="40">
+                                    <TextBox Margin="0,0,5,0" Text="{Binding ScoreL2, UpdateSourceTrigger=LostFocus, TargetNullValue=''}" Width="40">
                                         <TextBox.Style>
                                             <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
                                                 <Setter Property="IsEnabled" Value="True"/>
@@ -214,7 +219,7 @@
                         <DataTemplate>
                             <Grid>
                                 <StackPanel Margin="5,0,0,0" Orientation="Horizontal" Visibility="{Binding BaseVisibility}">
-                                    <TextBox Margin="0,0,5,0" Text="{Binding ScoreL3, UpdateSourceTrigger=LostFocus}" Width="40">
+                                    <TextBox Margin="0,0,5,0" Text="{Binding ScoreL3, UpdateSourceTrigger=LostFocus, TargetNullValue=''}" Width="40">
                                         <TextBox.Style>
                                             <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
                                                 <Setter Property="IsEnabled" Value="True"/>
@@ -239,7 +244,7 @@
                             <Border Background="#1E2E1E" Padding="5,0,0,0">
                                 <Grid>
                                     <StackPanel Orientation="Horizontal" Visibility="{Binding RetakeVisibility}">
-                                        <TextBox Margin="0,0,5,0" Text="{Binding RetakeScoreL1, UpdateSourceTrigger=LostFocus}" Width="40">
+                                        <TextBox Margin="0,0,5,0" Text="{Binding RetakeScoreL1, UpdateSourceTrigger=LostFocus, TargetNullValue=''}" Width="40">
                                             <TextBox.Style>
                                                 <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
                                                     <Setter Property="IsEnabled" Value="True"/>
@@ -264,7 +269,7 @@
                             <Border Background="#1E2E1E" Padding="5,0,0,0">
                                 <Grid>
                                     <StackPanel Orientation="Horizontal" Visibility="{Binding RetakeVisibility}">
-                                        <TextBox Margin="0,0,5,0" Text="{Binding RetakeScoreL2, UpdateSourceTrigger=LostFocus}" Width="40">
+                                        <TextBox Margin="0,0,5,0" Text="{Binding RetakeScoreL2, UpdateSourceTrigger=LostFocus, TargetNullValue=''}" Width="40">
                                             <TextBox.Style>
                                                 <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
                                                     <Setter Property="IsEnabled" Value="True"/>
@@ -289,7 +294,7 @@
                             <Border Background="#1E2E1E" Padding="5,0,0,0">
                                 <Grid>
                                     <StackPanel Orientation="Horizontal" Visibility="{Binding RetakeVisibility}">
-                                        <TextBox Margin="0,0,5,0" Text="{Binding RetakeScoreL3, UpdateSourceTrigger=LostFocus}" Width="40">
+                                        <TextBox Margin="0,0,5,0" Text="{Binding RetakeScoreL3, UpdateSourceTrigger=LostFocus, TargetNullValue=''}" Width="40">
                                             <TextBox.Style>
                                                 <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
                                                     <Setter Property="IsEnabled" Value="True"/>

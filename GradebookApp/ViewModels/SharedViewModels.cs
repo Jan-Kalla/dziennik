@@ -1,13 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
 
 namespace GradebookApp.ViewModels
 {
-    // ---------------------------------------------------------
-    // Modele dla widoku wyników pracy (WorkResultsWindow)
-    // ---------------------------------------------------------
     public class WorkResultViewModel
     {
         public int StudentId { get; set; }
@@ -19,9 +17,6 @@ namespace GradebookApp.ViewModels
         public string GroupDisplay { get; set; } = string.Empty;
     }
 
-    // ---------------------------------------------------------
-    // Modele dla szczegółów klasy (ClassDetailsControl)
-    // ---------------------------------------------------------
     public class ClassWorkViewModel
     {
         public int WorkId { get; set; }
@@ -36,6 +31,7 @@ namespace GradebookApp.ViewModels
 
     public class RetakeStudentDetailViewModel
     {
+        public int StudentId { get; set; } 
         public string StudentName { get; set; } = string.Empty;
         public string OriginalGroup { get; set; } = string.Empty;
         public string EventType { get; set; } = string.Empty;
@@ -44,21 +40,18 @@ namespace GradebookApp.ViewModels
     public class CalendarEventViewModel
     {
         public int EventId { get; set; }
-        public int WorkId { get; set; } // Dodane: ID samej pracy pisemnej
+        public int WorkId { get; set; } 
         public bool IsRetake { get; set; }
         public DateTime SortDate { get; set; }
         public string DateDisplay { get; set; } = string.Empty;
         public string TimeDisplay { get; set; } = string.Empty;
         public string WorkType { get; set; } = string.Empty;
         public string Title { get; set; } = string.Empty;
-        public List<int> AttendeeIds { get; set; } = new List<int>(); // Dodane: lista ID uczniów
-        public string ClassName { get; set; } = string.Empty; // DODAJ TĘ LINIJKĘ
-
+        public List<int> AttendeeIds { get; set; } = new List<int>(); 
+        public string ClassName { get; set; } = string.Empty; 
+        public string AttendeesCountDisplay { get; set; } = string.Empty;
     }
 
-    // ---------------------------------------------------------
-    // Modele dla szczegółów ucznia (StudentDetailsControl)
-    // ---------------------------------------------------------
     public class StudentWorkViewModel
     {
         public int WorkId { get; set; }
@@ -69,9 +62,6 @@ namespace GradebookApp.ViewModels
         public string GroupDisplay { get; set; } = string.Empty; 
     }
 
-    // ---------------------------------------------------------
-    // Model dla globalnego dodawania ocen (AddGlobalWorkDialog)
-    // ---------------------------------------------------------
     public class ClassSelectionItem
     {
         public int ClassId { get; set; }
@@ -79,9 +69,6 @@ namespace GradebookApp.ViewModels
         public bool IsSelected { get; set; }
     }
 
-    // ---------------------------------------------------------
-    // Model z walidacją dla punktacji (StudentWorkDetailsWindow)
-    // ---------------------------------------------------------
     public class TaskScoreViewModel : INotifyPropertyChanged
     {
         public int? BaseTaskId { get; set; }
@@ -108,25 +95,26 @@ namespace GradebookApp.ViewModels
         private double? _retakeMaxL3;
         public double? RetakeMaxL3 { get => _retakeMaxL3; set { _retakeMaxL3 = value; OnPropertyChanged(); } }
 
+        // Modyfikacja zabezpieczająca nr 1: Ignorujemy zera i wpisujemy null (Brak punktów)
         private double? _scoreL1;
         public double? ScoreL1 
         { 
             get => _scoreL1; 
-            set { if (value.HasValue && value.Value > (MaxL1 ?? 0)) { _scoreL1 = null; } else { _scoreL1 = value; if(value != null) { _scoreL2 = null; _scoreL3 = null; OnBothChangedT1(); } } OnPropertyChanged(); } 
+            set { if (MaxL1 == 0 || (value.HasValue && value.Value > (MaxL1 ?? 0))) { _scoreL1 = null; } else { _scoreL1 = value; if(value != null) { _scoreL2 = null; _scoreL3 = null; OnBothChangedT1(); } } OnPropertyChanged(); } 
         }
         
         private double? _scoreL2;
         public double? ScoreL2 
         { 
             get => _scoreL2; 
-            set { if (value.HasValue && value.Value > (MaxL2 ?? 0)) { _scoreL2 = null; } else { _scoreL2 = value; if(value != null) { _scoreL1 = null; _scoreL3 = null; OnBothChangedT1(); } } OnPropertyChanged(); } 
+            set { if (MaxL2 == 0 || (value.HasValue && value.Value > (MaxL2 ?? 0))) { _scoreL2 = null; } else { _scoreL2 = value; if(value != null) { _scoreL1 = null; _scoreL3 = null; OnBothChangedT1(); } } OnPropertyChanged(); } 
         }
         
         private double? _scoreL3;
         public double? ScoreL3 
         { 
             get => _scoreL3; 
-            set { if (value.HasValue && value.Value > (MaxL3 ?? 0)) { _scoreL3 = null; } else { _scoreL3 = value; if(value != null) { _scoreL1 = null; _scoreL2 = null; OnBothChangedT1(); } } OnPropertyChanged(); } 
+            set { if (MaxL3 == 0 || (value.HasValue && value.Value > (MaxL3 ?? 0))) { _scoreL3 = null; } else { _scoreL3 = value; if(value != null) { _scoreL1 = null; _scoreL2 = null; OnBothChangedT1(); } } OnPropertyChanged(); } 
         }
 
         private void OnBothChangedT1() { OnPropertyChanged(nameof(ScoreL1)); OnPropertyChanged(nameof(ScoreL2)); OnPropertyChanged(nameof(ScoreL3)); }
@@ -135,21 +123,21 @@ namespace GradebookApp.ViewModels
         public double? RetakeScoreL1 
         { 
             get => _retakeScoreL1; 
-            set { if (value.HasValue && value.Value > (RetakeMaxL1 ?? 0)) { _retakeScoreL1 = null; } else { _retakeScoreL1 = value; if(value != null) { _retakeScoreL2 = null; _retakeScoreL3 = null; OnBothChangedRetake(); } } OnPropertyChanged(); } 
+            set { if (RetakeMaxL1 == 0 || (value.HasValue && value.Value > (RetakeMaxL1 ?? 0))) { _retakeScoreL1 = null; } else { _retakeScoreL1 = value; if(value != null) { _retakeScoreL2 = null; _retakeScoreL3 = null; OnBothChangedRetake(); } } OnPropertyChanged(); } 
         }
         
         private double? _retakeScoreL2;
         public double? RetakeScoreL2 
         { 
             get => _retakeScoreL2; 
-            set { if (value.HasValue && value.Value > (RetakeMaxL2 ?? 0)) { _retakeScoreL2 = null; } else { _retakeScoreL2 = value; if(value != null) { _retakeScoreL1 = null; _retakeScoreL3 = null; OnBothChangedRetake(); } } OnPropertyChanged(); } 
+            set { if (RetakeMaxL2 == 0 || (value.HasValue && value.Value > (RetakeMaxL2 ?? 0))) { _retakeScoreL2 = null; } else { _retakeScoreL2 = value; if(value != null) { _retakeScoreL1 = null; _retakeScoreL3 = null; OnBothChangedRetake(); } } OnPropertyChanged(); } 
         }
         
         private double? _retakeScoreL3;
         public double? RetakeScoreL3 
         { 
             get => _retakeScoreL3; 
-            set { if (value.HasValue && value.Value > (RetakeMaxL3 ?? 0)) { _retakeScoreL3 = null; } else { _retakeScoreL3 = value; if(value != null) { _retakeScoreL1 = null; _retakeScoreL2 = null; OnBothChangedRetake(); } } OnPropertyChanged(); } 
+            set { if (RetakeMaxL3 == 0 || (value.HasValue && value.Value > (RetakeMaxL3 ?? 0))) { _retakeScoreL3 = null; } else { _retakeScoreL3 = value; if(value != null) { _retakeScoreL1 = null; _retakeScoreL2 = null; OnBothChangedRetake(); } } OnPropertyChanged(); } 
         }
 
         private void OnBothChangedRetake() { OnPropertyChanged(nameof(RetakeScoreL1)); OnPropertyChanged(nameof(RetakeScoreL2)); OnPropertyChanged(nameof(RetakeScoreL3)); }

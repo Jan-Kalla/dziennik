@@ -18,7 +18,17 @@ namespace GradebookApp
         private bool _isRetakeActive = false, _isLoaded = false;
         
         private List<StudentTaskScore> _existingScores = new List<StudentTaskScore>();
-        private static string _lastUsedGroup = string.Empty, _lastUsedRetakeGroup = string.Empty;
+        
+        // Pamięć wybranej grupy
+        private static string _lastUsedGroup = string.Empty;
+        private static string _lastUsedRetakeGroup = string.Empty;
+        
+        // NOWOŚĆ: Niezależna pamięć WSZYSTKICH dat
+        private static DateTime? _lastUsedBaseWrittenDate = null;
+        private static DateTime? _lastUsedBaseEnteredDate = null;
+        private static DateTime? _lastUsedRetakeDeadline = null;
+        private static DateTime? _lastUsedRetakeWrittenDate = null;
+        private static DateTime? _lastUsedRetakeEnteredDate = null;
 
         public event EventHandler? DataSavedEvent;
         public ObservableCollection<TaskScoreViewModel> ScoresCollection { get; set; } = new ObservableCollection<TaskScoreViewModel>();
@@ -43,8 +53,23 @@ namespace GradebookApp
 
             if (workRecord != null)
             {
-                CustomDateWrittenPicker.SelectedDate = workRecord.CustomDateWritten; CustomDateEnteredPicker.SelectedDate = workRecord.CustomDateEntered; AbsentCheckBox.IsChecked = workRecord.IsAbsent;
-                RetakeDeadlinePicker.SelectedDate = workRecord.RetakeDeadline; RetakeDateWrittenPicker.SelectedDate = workRecord.RetakeDateWritten; RetakeDateEnteredPicker.SelectedDate = workRecord.RetakeDateEntered; _isRetakeActive = workRecord.IsRetakeActive;
+                // Jeśli rekord w bazie istnieje, nadpisujemy kontrolki jego zawartością (lub bezpiecznie wstawiamy pamięć statyczną z poprzedniego kroku, jeśli data w bazie była pusta)
+                CustomDateWrittenPicker.SelectedDate = workRecord.CustomDateWritten ?? _lastUsedBaseWrittenDate; 
+                CustomDateEnteredPicker.SelectedDate = workRecord.CustomDateEntered ?? _lastUsedBaseEnteredDate; 
+                AbsentCheckBox.IsChecked = workRecord.IsAbsent;
+                RetakeDeadlinePicker.SelectedDate = workRecord.RetakeDeadline ?? _lastUsedRetakeDeadline; 
+                RetakeDateWrittenPicker.SelectedDate = workRecord.RetakeDateWritten ?? _lastUsedRetakeWrittenDate; 
+                RetakeDateEnteredPicker.SelectedDate = workRecord.RetakeDateEntered ?? _lastUsedRetakeEnteredDate; 
+                _isRetakeActive = workRecord.IsRetakeActive;
+            }
+            else
+            {
+                // Uczeń jest całkowicie "czysty" - wczytujemy całą pamięć ze statycznych buforów
+                CustomDateWrittenPicker.SelectedDate = _lastUsedBaseWrittenDate;
+                CustomDateEnteredPicker.SelectedDate = _lastUsedBaseEnteredDate;
+                RetakeDeadlinePicker.SelectedDate = _lastUsedRetakeDeadline;
+                RetakeDateWrittenPicker.SelectedDate = _lastUsedRetakeWrittenDate;
+                RetakeDateEnteredPicker.SelectedDate = _lastUsedRetakeEnteredDate;
             }
 
             if (_currentWork.HasGroups)
@@ -133,11 +158,23 @@ namespace GradebookApp
         private void UpdateDeadlinePrompt()
         {
             DateTime? baseDate = CustomDateEnteredPicker.SelectedDate ?? _currentWork?.DateEntered;
-            if (baseDate.HasValue) { if (_isLoaded) RetakeDeadlinePicker.SelectedDate = baseDate.Value.AddDays(14); RetakeDeadlinePromptText.Text = $"Termin na poprawę: do {(RetakeDeadlinePicker.SelectedDate ?? baseDate.Value.AddDays(14)):dd.MM.yyyy}"; }
-            else { RetakeDeadlinePromptText.Text = "Termin na poprawę: (Brak daty wpisania)"; if (_isLoaded) RetakeDeadlinePicker.SelectedDate = null; }
+            if (baseDate.HasValue) 
+            { 
+                if (_isLoaded && RetakeDeadlinePicker.SelectedDate == null) 
+                    RetakeDeadlinePicker.SelectedDate = baseDate.Value.AddDays(14); 
+                
+                RetakeDeadlinePromptText.Text = $"Termin na poprawę: do {(RetakeDeadlinePicker.SelectedDate ?? baseDate.Value.AddDays(14)):dd.MM.yyyy}"; 
+            }
+            else 
+            { 
+                RetakeDeadlinePromptText.Text = "Termin na poprawę: (Brak daty wpisania)"; 
+            }
         }
 
         private void CustomDateEnteredPicker_SelectedDateChanged(object sender, SelectionChangedEventArgs e) => UpdateDeadlinePrompt();
+
+        private void SetTodayBase_Click(object sender, RoutedEventArgs e) { CustomDateEnteredPicker.SelectedDate = DateTime.Today; }
+        private void SetTodayRetake_Click(object sender, RoutedEventArgs e) { RetakeDateEnteredPicker.SelectedDate = DateTime.Today; }
 
         private void ActivateRetakeButton_Click(object sender, RoutedEventArgs e) { _isRetakeActive = true; ApplyRetakeVisibility(); RecalculateTotalScore(); }
         private void DeactivateRetakeButton_Click(object sender, RoutedEventArgs e)
@@ -200,7 +237,8 @@ namespace GradebookApp
 
             var record = new StudentWorkRecord
             {
-                StudentId = _studentId, WrittenWorkId = _workId, Group = _currentWork != null && _currentWork.HasGroups ? (GroupComboBox.SelectedItem as string ?? "") : GroupTextBox.Text.Trim(),
+                StudentId = _studentId, WrittenWorkId = _workId, 
+                Group = AbsentCheckBox.IsChecked == true ? "" : (_currentWork != null && _currentWork.HasGroups ? (GroupComboBox.SelectedItem as string ?? "") : GroupTextBox.Text.Trim()),
                 CustomDateWritten = CustomDateWrittenPicker.SelectedDate, CustomDateEntered = CustomDateEnteredPicker.SelectedDate, IsAbsent = AbsentCheckBox.IsChecked == true,
                 RetakeGroup = _isRetakeActive ? (_currentWork != null && _currentWork.HasGroups ? (RetakeGroupComboBox.SelectedItem as string ?? "") : RetakeGroupTextBox.Text.Trim()) : string.Empty,
                 IsRetakeActive = _isRetakeActive, RetakeDeadline = RetakeDeadlinePicker.SelectedDate, RetakeDateWritten = _isRetakeActive ? RetakeDateWrittenPicker.SelectedDate : null, RetakeDateEntered = _isRetakeActive ? RetakeDateEnteredPicker.SelectedDate : null
@@ -218,7 +256,19 @@ namespace GradebookApp
                 }
             }
 
-            _lastUsedGroup = record.Group; if (_isRetakeActive) _lastUsedRetakeGroup = record.RetakeGroup;
+            // NOWOŚĆ: Rejestrowanie w całości wszystkich 5 dat oddzielnie!
+            _lastUsedGroup = record.Group; 
+            _lastUsedBaseWrittenDate = record.CustomDateWritten;
+            _lastUsedBaseEnteredDate = record.CustomDateEntered;
+            _lastUsedRetakeDeadline = record.RetakeDeadline;
+
+            if (_isRetakeActive) 
+            {
+                _lastUsedRetakeGroup = record.RetakeGroup; 
+                _lastUsedRetakeWrittenDate = record.RetakeDateWritten;
+                _lastUsedRetakeEnteredDate = record.RetakeDateEntered;
+            }
+
             _dataService.SaveStudentWorkRecordAndScores(record, scoresToSave, _isRetakeActive);
             
             DataSavedEvent?.Invoke(this, EventArgs.Empty); Close();
@@ -231,7 +281,6 @@ namespace GradebookApp
             {
                 if (sender is TextBox textBox)
                 {
-                    // Omijamy konflikt, pozwalając na edycję tekstu wewnątrz komórki
                     if ((e.Key == Key.Left && textBox.CaretIndex > 0) || 
                         (e.Key == Key.Right && textBox.CaretIndex < textBox.Text.Length))
                         return;
@@ -240,10 +289,7 @@ namespace GradebookApp
                     FocusNavigationDirection direction = e.Key == Key.Up ? FocusNavigationDirection.Up : 
                                                         e.Key == Key.Down ? FocusNavigationDirection.Down : 
                                                         e.Key == Key.Left ? FocusNavigationDirection.Left : FocusNavigationDirection.Right;
-                    
                     var request = new TraversalRequest(direction);
-                    
-                    // System z góry szuka najbliższego pola tekstowego i wymusza na nim fokus
                     if (textBox.PredictFocus(direction) is TextBox predicted)
                     {
                         predicted.Focus();

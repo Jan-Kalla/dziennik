@@ -69,39 +69,31 @@ namespace GradebookApp
         {
             if (_currentClass == null) return;
             var events = new List<CalendarEventViewModel>();
-            var today = DateTime.Today;
-
-            var retakes = _dataService.GetUpcomingRetakes(_currentClass.Id, today);
+            
+            bool upcomingOnly = ShowUpcomingOnlyCheckBox.IsChecked == true;
+            var retakes = _dataService.GetCalendarRetakes(_currentClass.Id, upcomingOnly);
+            
             foreach (var r in retakes)
             {
-                events.Add(new CalendarEventViewModel 
-                { 
-                    EventId = r.Id, 
-                    WorkId = r.WrittenWorkId, // Przypisanie WorkId!
-                    IsRetake = true, 
-                    SortDate = r.Date, 
-                    DateDisplay = r.Date.ToString("dd.MM.yyyy"), 
-                    TimeDisplay = string.IsNullOrEmpty(r.Time) ? "-" : r.Time, 
-                    WorkType = r.WrittenWork.WorkType, 
-                    Title = r.WrittenWork.Title, 
-                    AttendeeIds = r.Attendees.Select(a => a.StudentId).ToList() 
+                events.Add(new CalendarEventViewModel { 
+                    EventId = r.Id, WorkId = r.WrittenWorkId, IsRetake = true, SortDate = r.Date, 
+                    DateDisplay = r.Date.ToString("dd.MM.yyyy"), TimeDisplay = string.IsNullOrEmpty(r.Time) ? "-" : r.Time, 
+                    WorkType = r.WrittenWork.WorkType, Title = r.WrittenWork.Title, AttendeeIds = r.Attendees.Select(a => a.StudentId).ToList(),
+                    AttendeesCountDisplay = r.Attendees.Count.ToString()
                 });
             }
 
             if (ShowAllWorksCheckBox.IsChecked == true)
             {
-                foreach (var w in _allWorks.Where(w => w.DateWritten >= today && !w.IsIndividual))
+                var worksQuery = _allWorks.Where(w => !w.IsIndividual);
+                if (upcomingOnly) worksQuery = worksQuery.Where(w => w.DateWritten >= DateTime.Today);
+
+                foreach (var w in worksQuery)
                 {
-                    events.Add(new CalendarEventViewModel 
-                    { 
-                        EventId = w.Id, 
-                        WorkId = w.Id, // Przypisanie WorkId!
-                        IsRetake = false, 
-                        SortDate = w.DateWritten!.Value, 
-                        DateDisplay = w.DateWritten.Value.ToString("dd.MM.yyyy"), 
-                        TimeDisplay = "-", 
-                        WorkType = w.WorkType, 
-                        Title = w.Title 
+                    events.Add(new CalendarEventViewModel { 
+                        EventId = w.Id, WorkId = w.Id, IsRetake = false, SortDate = w.DateWritten ?? DateTime.MinValue, 
+                        DateDisplay = w.DateWritten?.ToString("dd.MM.yyyy") ?? "Brak", TimeDisplay = "-", 
+                        WorkType = w.WorkType, Title = w.Title, AttendeesCountDisplay = "Cała klasa"
                     });
                 }
             }
@@ -113,21 +105,18 @@ namespace GradebookApp
         {
             if (sender is Button button && button.DataContext is CalendarEventViewModel vm)
             {
-                if (vm.IsRetake)
-                {
-                    new RetakeDetailsDialog(vm.WorkId, vm.Title, vm.AttendeeIds) { Owner = Window.GetWindow(this) }.ShowDialog();
+                if (vm.IsRetake) { 
+                    new RetakeDetailsDialog(vm.EventId, vm.WorkId, vm.Title, vm.AttendeeIds) { Owner = Window.GetWindow(this) }.ShowDialog(); 
+                    RefreshCalendar();
                 }
-                else
-                {
-                    MessageBox.Show("To jest pierwszy termin dla całej klasy. Piszą go domyślnie wszyscy obecni uczniowie.", "Informacja", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
+                else MessageBox.Show("To jest pierwszy termin dla całej klasy. Piszą go wszyscy obecni.", "Informacja", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
 
         private void EditRetake_Click(object sender, RoutedEventArgs e)
         {
-            // Bezpieczne wydobycie DataContext z ContextMenu
-            if ((sender as MenuItem)?.Parent is ContextMenu contextMenu && contextMenu.PlacementTarget is Button button && button.DataContext is CalendarEventViewModel vm)
+            CalendarEventViewModel? vm = (sender as MenuItem)?.Parent is ContextMenu cm && cm.PlacementTarget is Button btn ? btn.DataContext as CalendarEventViewModel : CalendarDataGrid.SelectedItem as CalendarEventViewModel;
+            if (vm != null)
             {
                 if (!vm.IsRetake) { MessageBox.Show("Możesz edytować tylko zaplanowane poprawy.", "Zablokowane", MessageBoxButton.OK, MessageBoxImage.Information); return; }
                 if (new PlanRetakeDialog(_currentClass.Id, vm.EventId) { Owner = Window.GetWindow(this) }.ShowDialog() == true) RefreshCalendar();
@@ -136,8 +125,8 @@ namespace GradebookApp
 
         private void DeleteRetake_Click(object sender, RoutedEventArgs e)
         {
-            // Bezpieczne wydobycie DataContext z ContextMenu
-            if ((sender as MenuItem)?.Parent is ContextMenu contextMenu && contextMenu.PlacementTarget is Button button && button.DataContext is CalendarEventViewModel vm)
+            CalendarEventViewModel? vm = (sender as MenuItem)?.Parent is ContextMenu cm && cm.PlacementTarget is Button btn ? btn.DataContext as CalendarEventViewModel : CalendarDataGrid.SelectedItem as CalendarEventViewModel;
+            if (vm != null)
             {
                 if (!vm.IsRetake) { MessageBox.Show("Z tego poziomu można usunąć tylko zaplanowane poprawy.", "Zablokowane", MessageBoxButton.OK, MessageBoxImage.Information); return; }
                 if (MessageBox.Show($"Usunąć poprawę '{vm.Title}'?", "Potwierdzenie", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
@@ -158,30 +147,24 @@ namespace GradebookApp
         {
             if (FirstNameCol != null && LastNameCol != null)
             {
-                // 1. Zamiana kolumn w głównej tabeli u góry
                 int tempIndex = FirstNameCol.DisplayIndex; 
                 FirstNameCol.DisplayIndex = LastNameCol.DisplayIndex; 
                 LastNameCol.DisplayIndex = tempIndex;
 
-                // 2. Zamiana układu pól szybkiego dodawania na dole
                 if (FirstNameStackPanel != null && LastNameStackPanel != null)
                 {
-                    // Zamiana przypisania do kolumny w siatce (Grid.Column)
                     int tempCol = Grid.GetColumn(FirstNameStackPanel);
                     Grid.SetColumn(FirstNameStackPanel, Grid.GetColumn(LastNameStackPanel));
                     Grid.SetColumn(LastNameStackPanel, tempCol);
 
-                    // Zamiana wyrównania na boki (Right <-> Left)
                     var tempAlign = FirstNameStackPanel.HorizontalAlignment;
                     FirstNameStackPanel.HorizontalAlignment = LastNameStackPanel.HorizontalAlignment;
                     LastNameStackPanel.HorizontalAlignment = tempAlign;
 
-                    // Zamiana marginesów, by zachować stały odstęp na samym środku
                     var tempMargin = FirstNameStackPanel.Margin;
                     FirstNameStackPanel.Margin = LastNameStackPanel.Margin;
                     LastNameStackPanel.Margin = tempMargin;
 
-                    // 3. NAPRAWA NAWIGACJI KLAWISZEM TAB (Logiczna kolejność)
                     int tempTab = QuickAddFirstNameTextBox.TabIndex;
                     QuickAddFirstNameTextBox.TabIndex = QuickAddLastNameTextBox.TabIndex;
                     QuickAddLastNameTextBox.TabIndex = tempTab;
@@ -280,6 +263,35 @@ namespace GradebookApp
             if (sender is MenuItem m && m.DataContext is ClassWorkViewModel vm && MessageBox.Show($"Usunąć ocenę '{vm.Title}'?", "Potwierdzenie", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
             {
                 _dataService.DeleteWork(vm.OriginalWork); _allWorks.Remove(vm.OriginalWork); RefreshDisplayedWorks(); RefreshCalendar();
+            }
+        }
+
+        // NOWA METODA: Tworzenie szablonu bezpośrednio z istniejącej oceny
+        private void SaveWorkAsTemplate_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is MenuItem m && m.DataContext is ClassWorkViewModel vm)
+            {
+                var work = vm.OriginalWork;
+                var templateTasks = work.Tasks.Select(task => new WorkTemplateTask
+                {
+                    TaskNumber = task.TaskNumber,
+                    MaxPointsLevel1 = task.MaxPointsLevel1,
+                    MaxPointsLevel2 = task.MaxPointsLevel2,
+                    MaxPointsLevel3 = task.MaxPointsLevel3,
+                    GroupName = task.GroupName
+                }).ToList();
+
+                var newTemplate = new WorkTemplate
+                {
+                    Title = work.Title,
+                    WorkType = work.WorkType,
+                    MaxFinalPoints = work.MaxFinalPoints,
+                    HasGroups = work.HasGroups,
+                    Tasks = templateTasks
+                };
+
+                _dataService.AddTemplate(newTemplate);
+                MessageBox.Show($"Struktura pracy '{work.Title}' została pomyślnie zapisana w bazie jako nowy szablon.", "Sukces", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
 
