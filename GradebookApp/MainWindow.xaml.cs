@@ -1,4 +1,5 @@
-﻿using System.Collections.ObjectModel;
+﻿using System;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls; 
@@ -64,8 +65,6 @@ namespace GradebookApp
 
         private void RefreshGlobalCalendar()
         {
-            // Zabezpieczenie: XAML odpala to zdarzenie podczas rysowania okna (bo CheckBox ma IsChecked="True"),
-            // zanim _dataService zdąży się utworzyć w konstruktorze!
             if (_dataService == null) return; 
 
             bool upcomingOnly = ShowUpcomingGlobalOnlyCheckBox.IsChecked == true;
@@ -79,7 +78,7 @@ namespace GradebookApp
             {
                 if (vm.IsRetake) { 
                     new RetakeDetailsDialog(vm.EventId, vm.WorkId, vm.Title, vm.AttendeeIds) { Owner = this }.ShowDialog(); 
-                    RefreshGlobalCalendar(); // Odświeża w razie usunięcia ucznia
+                    RefreshGlobalCalendar(); 
                 }
                 else MessageBox.Show("To jest pierwszy termin. Piszą go wszyscy.", "Informacja", MessageBoxButton.OK, MessageBoxImage.Information);
             }
@@ -111,6 +110,38 @@ namespace GradebookApp
         private void PlanGlobalRetake_Click(object sender, RoutedEventArgs e)
         {
             if (new PlanRetakeDialog() { Owner = this }.ShowDialog() == true) RefreshGlobalCalendar();
+        }
+        // ------------------------------------
+
+        // --- SEKCJA SYNCHRONIZACJI Z CHMURĄ ---
+        private async void SyncCloud_Click(object sender, RoutedEventArgs e)
+        {
+            var btn = sender as Button;
+            if (btn != null) 
+            { 
+                btn.IsEnabled = false; 
+                btn.Content = "Synchronizacja..."; 
+            }
+            
+            try
+            {
+                var syncService = new Services.CloudSyncService();
+                string result = await syncService.SynchronizeWithCloudAsync();
+                
+                MessageBox.Show(result, "Status synchronizacji", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Błąd podczas łączenia z chmurą: {ex.Message}", "Błąd sieci", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                if (btn != null) 
+                { 
+                    btn.IsEnabled = true; 
+                    btn.Content = "☁ Synchronizuj"; 
+                }
+            }
         }
         // ------------------------------------
 
