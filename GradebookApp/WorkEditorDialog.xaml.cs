@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Microsoft.EntityFrameworkCore;
 using GradebookApp.Services;
 
 namespace GradebookApp
@@ -255,65 +256,148 @@ namespace GradebookApp
             }
         }
 
+        // NOWA METODA: Sprawdza, czy zmiana Max punktów wywołuje konflikt z istniejącymi punktami ucznia
+        private void CheckLevelConflict(int level, double oldMax, double newMax, WrittenWorkTask oldTask, List<StudentTaskScore> existingScores, List<ConflictViewModel> conflicts)
+        {
+            if (oldMax != newMax)
+            {
+                var affected = existingScores.Where(s => s.WrittenWorkTaskId == oldTask.Id).ToList();
+                foreach (var score in affected)
+                {
+                    double? pts = level == 1 ? score.PointsLevel1 : (level == 2 ? score.PointsLevel2 : score.PointsLevel3);
+                    if (pts.HasValue)
+                    {
+                        conflicts.Add(new ConflictViewModel
+                        {
+                            ScoreId = score.Id,
+                            StudentName = score.Student?.FullName ?? "Uczeń",
+                            TaskInfo = $"Zad {oldTask.TaskNumber} Poz {level} (Grupa {oldTask.GroupName ?? "A"})",
+                            OldMax = oldMax,
+                            NewMax = newMax,
+                            CurrentPoints = pts.Value,
+                            NewPoints = pts.Value > newMax ? newMax : pts.Value, // Domyślnie proponuje obcięcie punktów do nowego Maksa
+                            Level = level,
+                            IsRetake = false
+                        });
+                    }
+
+                    double? rPts = level == 1 ? score.RetakePointsLevel1 : (level == 2 ? score.RetakePointsLevel2 : score.RetakePointsLevel3);
+                    if (rPts.HasValue)
+                    {
+                        conflicts.Add(new ConflictViewModel
+                        {
+                            ScoreId = score.Id,
+                            StudentName = score.Student?.FullName ?? "Uczeń",
+                            TaskInfo = $"[POPRAWA] Zad {oldTask.TaskNumber} Poz {level} (Grupa {oldTask.GroupName ?? "A"})",
+                            OldMax = oldMax,
+                            NewMax = newMax,
+                            CurrentPoints = rPts.Value,
+                            NewPoints = rPts.Value > newMax ? newMax : rPts.Value,
+                            Level = level,
+                            IsRetake = true
+                        });
+                    }
+                }
+            }
+        }
+
         private void Save_Click(object sender, RoutedEventArgs e)
         {
             TasksDataGrid.CommitEdit(DataGridEditingUnit.Row, true);
             string title = TitleTextBox.Text.Trim(); string type = (WorkTypeComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "inne";
             if (string.IsNullOrEmpty(title) || !double.TryParse(MaxPointsTextBox.Text.Trim(), out double m) || m <= 0) { MessageBox.Show("Sprawdź tytuł i poprawność punktów Max.", "Błąd", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
 
+            var generatedTasks = new List<WrittenWorkTask>();
+            if (type == "aktywność") generatedTasks.Add(new WrittenWorkTask { TaskNumber = 1, MaxPointsLevel3 = m });
+            else
+            {
+                foreach (var g in _groups)
+                {
+                    var sourceList = ApplyToAllCheckBox.IsChecked == true ? CurrentTasks : _divergedData[g];
+                    foreach (var row in sourceList)
+                    {
+                        double p1 = ParseScore(row.L1); double p2 = ParseScore(row.L2); double p3 = ParseScore(row.L3);
+                        if (p1 < 0 || p2 < 0 || p3 < 0) { MessageBox.Show($"Błędny format liczb w grupie {g}, zadanie {row.TaskNumber}.", "Błąd", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
+                        generatedTasks.Add(new WrittenWorkTask { TaskNumber = row.TaskNumber, GroupName = g, MaxPointsLevel1 = p1, MaxPointsLevel2 = p2, MaxPointsLevel3 = p3 });
+                    }
+                }
+            }
+
             if (_isTemplateMode)
             {
                 var templateTasks = new List<WorkTemplateTask>();
-                if (type == "aktywność") templateTasks.Add(new WorkTemplateTask { TaskNumber = 1, MaxPointsLevel3 = m });
-                else
-                {
-                    foreach (var g in _groups)
-                    {
-                        var sourceList = ApplyToAllCheckBox.IsChecked == true ? CurrentTasks : _divergedData[g];
-                        foreach (var row in sourceList)
-                        {
-                            double p1 = ParseScore(row.L1); double p2 = ParseScore(row.L2); double p3 = ParseScore(row.L3);
-                            if (p1 < 0 || p2 < 0 || p3 < 0) { MessageBox.Show($"Błędny format liczb w grupie {g}, zadanie {row.TaskNumber}.", "Błąd", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
-                            templateTasks.Add(new WorkTemplateTask { TaskNumber = row.TaskNumber, GroupName = g, MaxPointsLevel1 = p1, MaxPointsLevel2 = p2, MaxPointsLevel3 = p3 });
-                        }
-                    }
-                }
-                
+                foreach (var t in generatedTasks) templateTasks.Add(new WorkTemplateTask { TaskNumber = t.TaskNumber, GroupName = t.GroupName, MaxPointsLevel1 = t.MaxPointsLevel1, MaxPointsLevel2 = t.MaxPointsLevel2, MaxPointsLevel3 = t.MaxPointsLevel3 });
                 var newTemplate = new WorkTemplate { Title = title, WorkType = type, MaxFinalPoints = m, HasGroups = _groups.Count > 1, Tasks = templateTasks };
                 _dataService.AddTemplate(newTemplate);
             }
             else
             {
-                var generatedTasks = new List<WrittenWorkTask>();
-                if (type == "aktywność") generatedTasks.Add(new WrittenWorkTask { TaskNumber = 1, MaxPointsLevel3 = m });
-                else
-                {
-                    foreach (var g in _groups)
-                    {
-                        var sourceList = ApplyToAllCheckBox.IsChecked == true ? CurrentTasks : _divergedData[g];
-                        foreach (var row in sourceList)
-                        {
-                            double p1 = ParseScore(row.L1); double p2 = ParseScore(row.L2); double p3 = ParseScore(row.L3);
-                            if (p1 < 0 || p2 < 0 || p3 < 0) { MessageBox.Show($"Błędny format liczb w grupie {g}, zadanie {row.TaskNumber}.", "Błąd", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
-                            generatedTasks.Add(new WrittenWorkTask { TaskNumber = row.TaskNumber, GroupName = g, MaxPointsLevel1 = p1, MaxPointsLevel2 = p2, MaxPointsLevel3 = p3 });
-                        }
-                    }
-                }
-
                 if (_editingWork != null)
                 {
-                    // NOWOŚĆ: Blokada zapisu z inteligentnym ostrzeżeniem, jeśli praca ma już oceny
-                    if (_dataService.HasWorkAnyScores(_editingWork.Id))
+                    // NOWOŚĆ: Skomplikowane sprawdzanie konfliktów!
+                    var conflicts = new List<ConflictViewModel>();
+                    
+                    using (var db = new AppDbContext())
                     {
-                        var res = MessageBox.Show(
-                            "Ta praca posiada już wpisane punkty u co najmniej jednego ucznia. Jeżeli zdecydujesz się na zmianę jej struktury, to koniecznie upewnij się po tym, że w ocenach wszystko się zgadza.\n\nCzy jesteś pewien, że chcesz dokonać tych zmian i je zapisać?", 
-                            "Uwaga - praca została już oceniona", 
-                            MessageBoxButton.YesNo, 
-                            MessageBoxImage.Warning);
-                            
-                        if (res != MessageBoxResult.Yes) return;
+                        // Pobieramy absolutnie wszystkie wyniki z bazy dla aktualnie edytowanej pracy
+                        var existingScores = db.StudentTaskScores
+                            .Include(s => s.Student)
+                            .Include(s => s.WrittenWorkTask)
+                            .Where(s => s.WrittenWorkTask.WrittenWorkId == _editingWork.Id)
+                            .ToList();
+
+                        foreach (var oldTask in _editingWork.Tasks)
+                        {
+                            var newTask = generatedTasks.FirstOrDefault(t => t.TaskNumber == oldTask.TaskNumber && t.GroupName == oldTask.GroupName);
+                            if (newTask != null)
+                            {
+                                // Sprawdzamy czy zmiana Max punktów nie psuje czyjegoś wyniku
+                                CheckLevelConflict(1, oldTask.MaxPointsLevel1 ?? 0, newTask.MaxPointsLevel1 ?? 0, oldTask, existingScores, conflicts);
+                                CheckLevelConflict(2, oldTask.MaxPointsLevel2 ?? 0, newTask.MaxPointsLevel2 ?? 0, oldTask, existingScores, conflicts);
+                                CheckLevelConflict(3, oldTask.MaxPointsLevel3 ?? 0, newTask.MaxPointsLevel3 ?? 0, oldTask, existingScores, conflicts);
+                            }
+                        }
                     }
 
+                    // Jeśli są JAKIEKOLWIEK konflikty -> Wyświetlamy nowe okienko z tabelą uczniów!
+                    if (conflicts.Any())
+                    {
+                        var conflictDialog = new WorkEditConflictsWindow(conflicts) { Owner = this };
+                        if (conflictDialog.ShowDialog() == true)
+                        {
+                            // Użytkownik dopasował i zatwierdził punkty – nadpisujemy je w bazie
+                            using (var db = new AppDbContext())
+                            {
+                                foreach(var c in conflictDialog.Conflicts)
+                                {
+                                    var score = db.StudentTaskScores.Find(c.ScoreId);
+                                    if (score != null)
+                                    {
+                                        if (!c.IsRetake)
+                                        {
+                                            if (c.Level == 1) score.PointsLevel1 = c.NewPoints;
+                                            else if (c.Level == 2) score.PointsLevel2 = c.NewPoints;
+                                            else if (c.Level == 3) score.PointsLevel3 = c.NewPoints;
+                                        }
+                                        else
+                                        {
+                                            if (c.Level == 1) score.RetakePointsLevel1 = c.NewPoints;
+                                            else if (c.Level == 2) score.RetakePointsLevel2 = c.NewPoints;
+                                            else if (c.Level == 3) score.RetakePointsLevel3 = c.NewPoints;
+                                        }
+                                    }
+                                }
+                                db.SaveChanges();
+                            }
+                        }
+                        else
+                        {
+                            // Użytkownik zrezygnował z zapisu i zamknął ostrzeżenie
+                            return; 
+                        }
+                    }
+
+                    // Jeśli konfliktów nie było, albo użytkownik je poprawił, robimy standardowy update pracy
                     _dataService.UpdateWorkAndTasks(_editingWork, generatedTasks, title, m, type, _groups.Count > 1, DateWrittenPicker.SelectedDate, DateEnteredPicker.SelectedDate);
                     SavedWork = _editingWork;
                 }

@@ -18,6 +18,8 @@ namespace GradebookApp
         private List<WorkResultViewModel> _allResults = new List<WorkResultViewModel>();
         public ObservableCollection<WorkResultViewModel> DisplayedResults { get; set; } = new ObservableCollection<WorkResultViewModel>();
 
+        private bool _clearSearchOnNextFocus = false;
+
         public WorkResultsWindow(int workId, int classId)
         {
             InitializeComponent();
@@ -173,10 +175,19 @@ namespace GradebookApp
 
                 window.DataSavedEvent += (s, ev) => 
                 {
+                    _clearSearchOnNextFocus = true;
                     LoadData();
                 };
 
                 window.ShowDialog();
+            }
+        }
+        private void SearchTextBox_GotFocus(object sender, RoutedEventArgs e)
+        {
+            if (_clearSearchOnNextFocus)
+            {
+                SearchTextBox.Text = string.Empty;
+                _clearSearchOnNextFocus = false; // Resetujemy flagę po wyczyszczeniu
             }
         }
     }

@@ -226,6 +226,7 @@
                             <DataGridTextColumn Header="Data" Binding="{Binding DateDisplay}" Width="100"/>
                             <DataGridTextColumn Header="Godz." Binding="{Binding TimeDisplay}" Width="70"/>
                             <DataGridTextColumn Header="Rodzaj" Binding="{Binding WorkType}" Width="120"/>
+                            <DataGridTextColumn Header="Tytuł" Binding="{Binding Title}" Width="*"/>
                             
                             <DataGridTextColumn Binding="{Binding AttendeesCountDisplay}" Width="100">
                                 <DataGridTextColumn.Header>
@@ -235,8 +236,6 @@
                                     <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Center"/></Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-
-                            <DataGridTextColumn Header="Tytuł" Binding="{Binding Title}" Width="*"/>
                             
                             <DataGridTemplateColumn Width="100">
                                 <DataGridTemplateColumn.CellTemplate>

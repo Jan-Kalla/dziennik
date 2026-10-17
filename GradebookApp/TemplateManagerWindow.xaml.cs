@@ -20,6 +20,7 @@ namespace GradebookApp
         public ObservableCollection<TaskRow> CurrentTasks { get; set; } = new ObservableCollection<TaskRow>();
         
         private bool _isInitializing = true;
+        private bool _isUpdatingText = false; // Flaga blokująca pętle zdarzeń
 
         public TemplateManagerWindow()
         {
@@ -32,36 +33,58 @@ namespace GradebookApp
         private void LoadTemplates()
         {
             _allTemplates = _dataService.GetAllTemplates();
-            SearchTemplateTextBox_TextChanged(this, null!);
+            // Usunięto sztuczne wywoływanie SearchTemplateTextBox_TextChanged, 
+            // aby lista nie otwierała się bez powodu od razu po włączeniu okna.
         }
 
         private void SearchTemplateTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (SearchTemplateTextBox == null) return;
+            if (SearchTemplateTextBox == null || _isUpdatingText) return;
             string q = SearchTemplateTextBox.Text.Trim().ToLower();
+
+            // Zamykaj popup, gdy formularz wyszukiwania jest pusty
+            if (string.IsNullOrEmpty(q))
+            {
+                SearchResultsPopup.IsOpen = false;
+                return;
+            }
             
-            var filtered = string.IsNullOrEmpty(q) 
-                ? _allTemplates 
-                : _allTemplates.Where(t => t.Title.ToLower().Contains(q)).ToList();
-                
-            // NOWOŚĆ: Automatyczne sortowanie! 1. Po kategorii, 2. Alfabetycznie po tytule
-            TemplatesListBox.ItemsSource = filtered
+            var filtered = _allTemplates.Where(t => t.Title.ToLower().Contains(q))
                 .OrderBy(t => t.WorkType)
                 .ThenBy(t => t.Title)
                 .ToList();
+
+            if (filtered.Any())
+            {
+                PopupTemplatesListBox.ItemsSource = filtered;
+                SearchResultsPopup.IsOpen = true;
+            }
+            else
+            {
+                SearchResultsPopup.IsOpen = false;
+            }
         }
 
-        private void TemplatesListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void PopupTemplatesListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (_isInitializing) return;
+            if (_isInitializing || PopupTemplatesListBox.SelectedItem == null) return;
             
-            if (TemplatesListBox.SelectedItem is WorkTemplate t)
+            if (PopupTemplatesListBox.SelectedItem is WorkTemplate t)
             {
                 _selectedTemplate = t;
+                
+                // Przepisz tytuł do wyszukiwarki, ale nie odpalaj znowu wyszukiwania
+                _isUpdatingText = true;
+                SearchTemplateTextBox.Text = t.Title;
+                _isUpdatingText = false;
+
+                SearchResultsPopup.IsOpen = false;
+                PopupTemplatesListBox.SelectedItem = null; // Zresetuj selekcję dla kolejnych poszukiwań
+                
                 ApplyTemplateToForm(t);
                 
                 DeleteButton.Visibility = Visibility.Visible;
-                SaveAsCopyButton.Visibility = Visibility.Visible; // Pokazujemy przycisk "Zapisz jako kopię"
+                SaveAsCopyButton.Visibility = Visibility.Visible;
                 
                 FormTitleTextBlock.Text = "Edycja szablonu:";
                 FormTitleTextBlock.Foreground = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#FFB74D"));
@@ -70,7 +93,11 @@ namespace GradebookApp
 
         private void AddNewTemplate_Click(object sender, RoutedEventArgs e)
         {
-            TemplatesListBox.SelectedItem = null;
+            _isUpdatingText = true;
+            SearchTemplateTextBox.Clear();
+            _isUpdatingText = false;
+            SearchResultsPopup.IsOpen = false;
+            
             ClearForm();
         }
 
@@ -80,7 +107,7 @@ namespace GradebookApp
             _selectedTemplate = null;
             
             DeleteButton.Visibility = Visibility.Collapsed;
-            if (SaveAsCopyButton != null) SaveAsCopyButton.Visibility = Visibility.Collapsed; // Chowamy przy tworzeniu nowego
+            if (SaveAsCopyButton != null) SaveAsCopyButton.Visibility = Visibility.Collapsed;
             
             FormTitleTextBlock.Text = "Nowy szablon:";
             FormTitleTextBlock.Foreground = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#4DB6AC"));
@@ -274,11 +301,10 @@ namespace GradebookApp
             ClearForm();
         }
 
-        // NOWOŚĆ: Sprytne wykorzystanie istniejącego kodu do klonowania!
         private void SaveAsCopy_Click(object sender, RoutedEventArgs e)
         {
-            _selectedTemplate = null; // Tracimy referencję do edytowanego szablonu
-            Save_Click(sender, e);    // Logika zapisu potraktuje to jako zupełnie nowy wpis w bazie!
+            _selectedTemplate = null; 
+            Save_Click(sender, e);    
         }
 
         private void Delete_Click(object sender, RoutedEventArgs e)

@@ -88,6 +88,7 @@
                     <DataGridTextColumn Header="Godz." Binding="{Binding TimeDisplay}" Width="70"/>
                     <DataGridTextColumn Header="Klasa" Binding="{Binding ClassName}" Width="80"/>
                     <DataGridTextColumn Header="Rodzaj" Binding="{Binding WorkType}" Width="100"/>
+                    <DataGridTextColumn Header="Tytuł" Binding="{Binding Title}" Width="*"/>
                     
                     <DataGridTextColumn Binding="{Binding AttendeesCountDisplay}" Width="70">
                         <DataGridTextColumn.Header>
@@ -100,8 +101,6 @@
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
 
-                    <DataGridTextColumn Header="Tytuł" Binding="{Binding Title}" Width="*"/>
-                    
                     <DataGridTemplateColumn Width="100">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
