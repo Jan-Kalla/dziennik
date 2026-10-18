@@ -12,31 +12,31 @@ namespace GradebookApp
 {
     public partial class PlanRetakeDialog : Window
     {
-        private AppDbContext _dbContext;
+    private AppDbContext _dbContext;
         private int? _classId;
         private int? _editRetakeId;
+        private int? _preselectedWorkId;
+        private List<int>? _preselectedStudentIds;
         private List<Student> _allClassStudents = new List<Student>();
         private bool _isInitializing = true;
 
         public ObservableCollection<Student> AvailableStudents { get; set; } = new ObservableCollection<Student>();
         public ObservableCollection<Student> SelectedStudents { get; set; } = new ObservableCollection<Student>();
 
-        // Konstruktor obsługujący zarówno widok klasy (sztywne classId) jak i globalny (classId = null)
-        public PlanRetakeDialog(int? classId = null, int? editRetakeId = null)
+        // Konstruktor obsługujący wszystko (edycję, otwieranie z klasy oraz bezpośrednie zlecenia z oczekujących zgłoszeń)
+        public PlanRetakeDialog(int? classId = null, int? editRetakeId = null, int? preselectedWorkId = null, List<int>? preselectedStudentIds = null)
         {
             InitializeComponent();
             _dbContext = new AppDbContext();
             _classId = classId;
             _editRetakeId = editRetakeId;
+            _preselectedWorkId = preselectedWorkId;
+            _preselectedStudentIds = preselectedStudentIds;
 
-            if (_editRetakeId.HasValue)
+            if (_editRetakeId.HasValue || _classId.HasValue)
             {
-                this.Title = "Edytuj zaplanowaną poprawę";
-                ClassComboBox.IsEnabled = false; // Blokujemy zmianę klasy podczas edycji
-            }
-            else if (_classId.HasValue)
-            {
-                ClassComboBox.IsEnabled = false; // Blokujemy zmianę klasy, bo otworzono okno z widoku konkretnej klasy
+                if (_editRetakeId.HasValue) this.Title = "Edytuj zaplanowaną poprawę";
+                ClassComboBox.IsEnabled = false; // Blokujemy zmianę klasy
             }
 
             LoadInitialData();
@@ -107,16 +107,23 @@ namespace GradebookApp
             WorkComboBox.ItemsSource = works;
             
             if (works.Any() && !_editRetakeId.HasValue) 
-                WorkComboBox.SelectedIndex = 0;
+            {
+                if (_preselectedWorkId.HasValue)
+                    WorkComboBox.SelectedItem = works.FirstOrDefault(w => w.Id == _preselectedWorkId.Value);
+                else
+                    WorkComboBox.SelectedIndex = 0;
+            }
 
             _allClassStudents = _dbContext.Students.Where(s => s.SchoolClassId == _classId.Value).OrderBy(s => s.JournalNumber).ToList();
 
             AvailableStudents.Clear();
             SelectedStudents.Clear();
 
-            foreach (var s in _allClassStudents)
+            // Zrzucanie od razu zaznaczonych uczniów z pamięci okna (jeżeli dostaliśmy jakieś IDs od zewnętrznego okna zgłoszeń)
+            if (_preselectedStudentIds != null && !_editRetakeId.HasValue)
             {
-                AvailableStudents.Add(s);
+                var toSelect = _allClassStudents.Where(s => _preselectedStudentIds.Contains(s.Id)).ToList();
+                foreach (var s in toSelect) SelectedStudents.Add(s);
             }
 
             SearchTextBox.Text = string.Empty;

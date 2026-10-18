@@ -95,6 +95,7 @@ namespace GradebookApp
         public DateTime? RetakeDeadline { get; set; }
         public DateTime? RetakeDateWritten { get; set; }
         public DateTime? RetakeDateEntered { get; set; }
+        public bool WantsToRetake { get; set; }
     }
 
     public class StudentTaskScore

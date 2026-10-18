@@ -118,7 +118,13 @@
                 </DataGrid.Columns>
             </DataGrid>
 
-            <Button Grid.Row="3" Content="Zaplanuj poprawę" Width="150" Height="35" HorizontalAlignment="Center" Margin="0,10,0,0" Click="PlanGlobalRetake_Click"/>
+            <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
+                <Button Content="Zaplanuj poprawę" Width="150" Height="35" Margin="0,0,20,0" Click="PlanGlobalRetake_Click"/>
+                
+                <Button Background="#2E4A2E" BorderThickness="0" Click="ViewRetakeRequests_Click" Content="Wyświetl chętnych" Cursor="Hand" Foreground="White" Height="35" Margin="0,0,20,0" ToolTip="Pokazuje listę uczniów ze wszystkich klas zgłoszonych do poprawek" Width="150"/>
+                
+                <Button Background="#00838F" BorderThickness="0" Click="SyncRetakes_Click" Content="Pobierz zapisy na poprawy (z chmury)" Cursor="Hand" Foreground="White" Height="35" Padding="20,0" ToolTip="Pobiera z chmury uczniów, którzy zapisali się na poprawę przez kalkulator"/>
+            </StackPanel>
         </Grid>
 
         <!-- WIDOK 2: SZCZEGÓŁY KLASY -->

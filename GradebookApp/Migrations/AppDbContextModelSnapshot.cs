@@ -181,6 +181,9 @@ namespace GradebookApp.Migrations
                     b.Property<int>("StudentId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("WantsToRetake")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("WrittenWorkId")
                         .HasColumnType("INTEGER");
 

@@ -107,10 +107,117 @@ namespace GradebookApp
             }
         }
 
+        // ... (poprzedni kod)
         private void PlanGlobalRetake_Click(object sender, RoutedEventArgs e)
         {
             if (new PlanRetakeDialog() { Owner = this }.ShowDialog() == true) RefreshGlobalCalendar();
         }
+        private void ViewRetakeRequests_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new RetakeRequestsWindow() { Owner = this };
+            window.ShowDialog();
+        }
+
+        // =========================================================================
+        // NOWOŚĆ: POBIERANIE ZAPISÓW UCZNIÓW BEZPOŚREDNIO Z KALKULATORA WEBOWEGO
+        // =========================================================================
+        private async void SyncRetakes_Click(object sender, RoutedEventArgs e)
+        {
+            var btn = sender as Button;
+            if (btn != null) { btn.IsEnabled = false; btn.Content = "Pobieranie..."; }
+
+            try
+            {
+                // TODO: Skopiuj swoje prawdziwe klucze z pliku CloudSyncService.cs
+                string supabaseUrl = "https://pnrnuwwneqoqfzcamauw.supabase.co";
+                string supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBucm51d3duZXFvcWZ6Y2FtYXV3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTk3MTk5NSwiZXhwIjoyMTA3NTQ3OTk1fQ.tRhMlOH9jJfAJNODbWnJpW1xFBvp3wPl3vzKXo9DKRc";
+
+                using (var client = new System.Net.Http.HttpClient())
+                {
+                    client.DefaultRequestHeaders.Add("apikey", supabaseKey);
+                    client.DefaultRequestHeaders.Add("Authorization", $"Bearer {supabaseKey}");
+                    
+                    // 1. Pobieranie danych z Supabase (z nowej tabeli retake_signups)
+                    var response = await client.GetAsync($"{supabaseUrl}/rest/v1/retake_signups?select=*");
+                    response.EnsureSuccessStatusCode();
+                    
+                    var jsonString = await response.Content.ReadAsStringAsync();
+                    var signups = System.Text.Json.JsonSerializer.Deserialize<List<RetakeSignupDto>>(
+                        jsonString, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                    if (signups == null || !signups.Any())
+                    {
+                        MessageBox.Show("Skrzynka podawcza w chmurze jest pusta. Żaden uczeń nie zapisał się na poprawę od czasu ostatniej synchronizacji.", "Aktualizacja", MessageBoxButton.OK, MessageBoxImage.Information);
+                        return;
+                    }
+
+                    int addedCount = 0;
+
+                    // 2. Mieszanie chmury z lokalną bazą danych
+                    using (var db = new AppDbContext())
+                    {
+                        // Grupujemy zgłoszenia po pracy pisemnej i klasie dla wydajności
+                        var groupedSignups = signups.GroupBy(s => new { s.work_id, s.class_name });
+
+                        foreach (var group in groupedSignups)
+                        {
+                            var schoolClass = db.Classes.FirstOrDefault(c => c.Name == group.Key.class_name);
+                            if (schoolClass == null) continue;
+
+                            var students = db.Students.Where(s => s.SchoolClassId == schoolClass.Id).ToList();
+                            var work = db.WrittenWorks.FirstOrDefault(w => w.Id == group.Key.work_id);
+                            if (work == null) continue;
+
+                            foreach (var signup in group)
+                            {
+                                // Namierzamy ucznia po jego numerku
+                                var student = students.FirstOrDefault(s => s.JournalNumber == signup.journal_number);
+                                if (student != null)
+                                {
+                                    // Zapisujemy chęć poprawy w Twojej lokalnej tabeli StudentWorkRecords
+                                    var record = db.StudentWorkRecords.FirstOrDefault(r => r.StudentId == student.Id && r.WrittenWorkId == work.Id);
+                                    if (record == null)
+                                    {
+                                        record = new StudentWorkRecord { StudentId = student.Id, WrittenWorkId = work.Id, WantsToRetake = true };
+                                        db.StudentWorkRecords.Add(record);
+                                    }
+                                    else
+                                    {
+                                        record.WantsToRetake = true;
+                                    }
+                                    addedCount++;
+                                }
+                            }
+                        }
+                        db.SaveChanges(); // Zapis w lokalnym SQLite
+                    }
+
+                    // 3. Czyszczenie skrzynki podawczej w chmurze (żeby nie pobierać tych samych zgłoszeń podwójnie)
+                    string idsToDelete = string.Join(",", signups.Select(s => s.id));
+                    await client.DeleteAsync($"{supabaseUrl}/rest/v1/retake_signups?id=in.({idsToDelete})");
+
+                    MessageBox.Show($"Pomyślnie pobrano zgłoszenia. Zaktualizowano listę chętnych o {addedCount} uczniów.", "Sukces", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Wystąpił błąd podczas pobierania zgłoszeń: {ex.Message}", "Błąd sieci", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                if (btn != null) { btn.IsEnabled = true; btn.Content = "Pobierz zapisy na poprawy (z chmury)"; }
+            }
+        }
+        
+        // Klasa pomocnicza używana przez system JSON do odczytu danych z Supabase
+        public class RetakeSignupDto
+        {
+            public long id { get; set; }
+            public long work_id { get; set; }
+            public string class_name { get; set; } = "";
+            public int journal_number { get; set; }
+        }
+        // =========================================================================
         // ------------------------------------
 
         // --- SEKCJA SYNCHRONIZACJI Z CHMURĄ ---
