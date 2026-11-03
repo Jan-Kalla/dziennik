@@ -93,7 +93,7 @@ namespace GradebookApp
                     events.Add(new CalendarEventViewModel { 
                         EventId = w.Id, WorkId = w.Id, IsRetake = false, SortDate = w.DateWritten ?? DateTime.MinValue, 
                         DateDisplay = w.DateWritten?.ToString("dd.MM.yyyy") ?? "Brak", TimeDisplay = "-", 
-                        WorkType = w.WorkType, Title = w.Title, AttendeesCountDisplay = "Cała klasa"
+                        WorkType = w.WorkType, Title = w.Title, AttendeesCountDisplay = _allStudents.Count.ToString()
                     });
                 }
             }

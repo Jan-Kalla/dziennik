@@ -190,5 +190,27 @@ namespace GradebookApp
                 _clearSearchOnNextFocus = false; // Resetujemy flagę po wyczyszczeniu
             }
         }
+        private void ShiftDeadlines_Click(object sender, RoutedEventArgs e)
+        {
+            if (int.TryParse(ShiftDaysTextBox?.Text.Trim(), out int days))
+            {
+                if (MessageBox.Show($"Czy na pewno chcesz przesunąć terminy na poprawę dla wszystkich uczniów w tej klasie o {days} dni?\n\nDodatnie wartości opóźniają termin, a ujemne go przyspieszają.", 
+                    "Potwierdzenie globalnej zmiany", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+                {
+                    using (var service = new Services.GradebookDataService())
+                    {
+                        int updated = service.ShiftRetakeDeadlines(_workId, _classId, days);
+                        MessageBox.Show($"Zaktualizowano terminy dla {updated} uczniów.", "Sukces", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    
+                    // Odświeżenie tabeli, by pokazać nowe daty w kolumnie "Termin do"
+                    LoadData();
+                }
+            }
+            else
+            {
+                MessageBox.Show("Wpisz poprawną liczbę całkowitą (np. 7, 14 lub -3).", "Błąd formatu", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
     }
 }

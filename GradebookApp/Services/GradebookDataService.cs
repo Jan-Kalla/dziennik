@@ -14,6 +14,111 @@ namespace GradebookApp.Services
         {
             _dbContext = new AppDbContext();
         }
+        
+        public WorkStatisticsResult CalculateStatistics(int? classId, List<int>? workIds, bool includeFailedRetakes = false, bool includeStillFailedRetakes = false)
+        {
+            var result = new WorkStatisticsResult();
+            
+            var recordsQuery = _dbContext.StudentWorkRecords
+                                  .Include(r => r.Student)
+                                  .Where(r => r.IsRetakeActive);
+
+            if (classId.HasValue) recordsQuery = recordsQuery.Where(r => r.Student.SchoolClassId == classId.Value);
+            if (workIds != null && workIds.Any()) recordsQuery = recordsQuery.Where(r => workIds.Contains(r.WrittenWorkId));
+
+            var records = recordsQuery.ToList();
+            if (!records.Any()) return result;
+
+            var fetchedWorkIds = records.Select(r => r.WrittenWorkId).Distinct().ToList();
+            var works = _dbContext.WrittenWorks.Include(w => w.Tasks).Where(w => fetchedWorkIds.Contains(w.Id)).ToDictionary(w => w.Id);
+
+            var studentIds = records.Select(r => r.StudentId).Distinct().ToList();
+            var scoresQuery = _dbContext.StudentTaskScores.Include(s => s.WrittenWorkTask).AsQueryable();
+            
+            if (classId.HasValue) scoresQuery = scoresQuery.Where(s => s.Student.SchoolClassId == classId.Value);
+            else scoresQuery = scoresQuery.Where(s => studentIds.Contains(s.StudentId));
+
+            if (workIds != null && workIds.Any()) scoresQuery = scoresQuery.Where(s => workIds.Contains(s.WrittenWorkTask.WrittenWorkId));
+
+            var scores = scoresQuery.ToList();
+
+            double totalPercentagePointsGain = 0, gainFrom1 = 0, gainFrom2 = 0;
+            int studentsWithValidRetakeScores = 0, studentsGainFrom1 = 0, studentsGainFrom2 = 0;
+            int actualGradedRetakesCount = 0; // Poprawiony licznik prac
+
+            foreach (var record in records)
+            {
+                if (!works.TryGetValue(record.WrittenWorkId, out var work) || work.MaxFinalPoints <= 0) continue;
+
+                var studentScores = scores.Where(s => s.StudentId == record.StudentId && s.WrittenWorkTask.WrittenWorkId == work.Id).ToList();
+                
+                // Ignorujemy tych, którzy nie dostali jeszcze ocen (naprawia licznik 28->20)
+                bool hasRetakeScores = studentScores.Any(s => s.RetakePointsLevel1.HasValue || s.RetakePointsLevel2.HasValue || s.RetakePointsLevel3.HasValue);
+                if (!hasRetakeScores) continue;
+
+                actualGradedRetakesCount++;
+
+                var baseTasks = work.Tasks.AsEnumerable();
+                var retakeTasks = work.Tasks.AsEnumerable();
+
+                if (work.HasGroups)
+                {
+                    if (!string.IsNullOrEmpty(record.Group)) baseTasks = work.Tasks.Where(t => t.GroupName == record.Group);
+                    
+                    if (!string.IsNullOrEmpty(record.RetakeGroup)) retakeTasks = work.Tasks.Where(t => t.GroupName == record.RetakeGroup);
+                    else if (!string.IsNullOrEmpty(record.Group)) retakeTasks = work.Tasks.Where(t => t.GroupName == record.Group);
+                }
+
+                double baseScore = GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, baseTasks, studentScores, false);
+                double retakeScore = GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, retakeTasks, studentScores, true);
+
+                double basePercentage = (baseScore / work.MaxFinalPoints) * 100.0;
+                double retakePercentage = (retakeScore / work.MaxFinalPoints) * 100.0;
+                
+                double pointGain = retakeScore > baseScore ? retakeScore - baseScore : 0;
+                double pctGain = (pointGain / work.MaxFinalPoints) * 100.0;
+
+                bool isBase1 = basePercentage < 40.0; 
+                bool isSuccess = retakeScore > baseScore; 
+                bool isStillFailed = retakePercentage < 40.0;
+
+                if (isBase1)
+                {
+                    if (isSuccess && !isStillFailed) result.SuccessfulRetakesFrom1To2Plus++;
+                    else if (isSuccess && isStillFailed) result.SuccessfulRetakesFrom1To1++;
+                    else result.FailedRetakesFrom1++;
+
+                    bool includeInAverage = false;
+                    if (isSuccess && !isStillFailed) includeInAverage = true; 
+                    if (isSuccess && isStillFailed && includeStillFailedRetakes) includeInAverage = true; 
+                    if (!isSuccess && includeFailedRetakes) includeInAverage = true; 
+
+                    if (includeInAverage)
+                    {
+                        gainFrom1 += pctGain; studentsGainFrom1++; 
+                        totalPercentagePointsGain += pctGain; studentsWithValidRetakeScores++;
+                    }
+                }
+                else
+                {
+                    if (isSuccess) result.SuccessfulRetakesFrom2Plus++; 
+                    else result.FailedRetakesFrom2Plus++;
+                    
+                    if (isSuccess || (!isSuccess && includeFailedRetakes))
+                    {
+                        gainFrom2 += pctGain; studentsGainFrom2++; 
+                        totalPercentagePointsGain += pctGain; studentsWithValidRetakeScores++;
+                    }
+                }
+            }
+
+            result.TotalRetakes = actualGradedRetakesCount; 
+            if (studentsWithValidRetakeScores > 0) result.AveragePercentagePointGain = totalPercentagePointsGain / studentsWithValidRetakeScores;
+            if (studentsGainFrom1 > 0) result.AveragePercentagePointGainFrom1 = gainFrom1 / studentsGainFrom1;
+            if (studentsGainFrom2 > 0) result.AveragePercentagePointGainFrom2Plus = gainFrom2 / studentsGainFrom2;
+
+            return result;
+        }
 
         public void ApplyMigrations() => _dbContext.Database.Migrate();
         public void Dispose() => _dbContext.Dispose();
@@ -95,19 +200,22 @@ namespace GradebookApp.Services
 
             if (includeAllWorks)
             {
-                var worksQuery = _dbContext.WrittenWorks.Include(w => w.SchoolClass).Where(w => !w.IsIndividual).AsQueryable();
+                var worksQuery = _dbContext.WrittenWorks.Include(w => w.SchoolClass).ThenInclude(c => c.Students).Where(w => !w.IsIndividual).AsQueryable();
                 if (upcomingOnly) worksQuery = worksQuery.Where(w => w.DateWritten >= today);
 
                 foreach(var w in worksQuery.ToList()) {
                     events.Add(new CalendarEventViewModel {
                         EventId = w.Id, WorkId = w.Id, IsRetake = false, SortDate = w.DateWritten ?? DateTime.MinValue,
                         DateDisplay = w.DateWritten?.ToString("dd.MM.yyyy") ?? "Brak", TimeDisplay = "-",
-                        WorkType = w.WorkType, Title = w.Title, ClassName = w.SchoolClass.Name, AttendeesCountDisplay = "Cała klasa"
+                        WorkType = w.WorkType, Title = w.Title, ClassName = w.SchoolClass.Name, 
+                        AttendeesCountDisplay = w.SchoolClass.Students.Count.ToString() // <--- ZLICZA PRAWDZIWĄ ILOŚĆ
                     });
                 }
             }
             return events.OrderBy(e => e.SortDate).ToList();
         }
+
+        
 
         public List<Student> GetStudentsByClass(int classId)
         {
@@ -167,8 +275,23 @@ namespace GradebookApp.Services
 
                     if (workRecord != null && workRecord.IsAbsent) continue;
 
-                    double baseSum = (hasBaseScores || hasRetakeScores) ? GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, work.Tasks, workScores, false) : 0;
-                    double retakeSum = (hasBaseScores || hasRetakeScores) ? GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, work.Tasks, workScores, true) : 0;
+                    // NOWOŚĆ: To samo filtrowanie dla ogólnego przeliczania klasy
+                    var baseTasks = work.Tasks;
+                    var retakeTasks = work.Tasks;
+
+                    if (work.HasGroups && workRecord != null)
+                    {
+                        if (!string.IsNullOrEmpty(workRecord.Group))
+                            baseTasks = work.Tasks.Where(t => t.GroupName == workRecord.Group).ToList();
+                        
+                        if (!string.IsNullOrEmpty(workRecord.RetakeGroup))
+                            retakeTasks = work.Tasks.Where(t => t.GroupName == workRecord.RetakeGroup).ToList();
+                        else if (!string.IsNullOrEmpty(workRecord.Group))
+                            retakeTasks = work.Tasks.Where(t => t.GroupName == workRecord.Group).ToList();
+                    }
+
+                    double baseSum = (hasBaseScores || hasRetakeScores) ? GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, baseTasks, workScores, false) : 0;
+                    double retakeSum = (hasBaseScores || hasRetakeScores) ? GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, retakeTasks, workScores, true) : 0;
 
                     if (workRecord != null && workRecord.IsRetakeActive && hasRetakeScores && retakeSum > baseSum)
                     { totalEarnedP += retakeSum; totalPossibleM += work.MaxFinalPoints; }
@@ -243,17 +366,14 @@ namespace GradebookApp.Services
                 var record = records.FirstOrDefault(r => r.StudentId == student.Id);
                 var scores = allScores.Where(s => s.StudentId == student.Id).ToList();
 
-                string group = "-", eventType = "Pierwsze podejście";
+                string group = "-";
                 if (record != null)
                 {
                     if (record.IsAbsent) group = "NB";
                     else group = string.IsNullOrEmpty(record.Group) ? "-" : record.Group;
                 }
 
-                bool hasBaseScores = scores.Any(s => s.PointsLevel1.HasValue || s.PointsLevel2.HasValue || s.PointsLevel3.HasValue);
-                if (hasBaseScores && (record == null || !record.IsAbsent)) eventType = "Poprawa";
-
-                details.Add(new RetakeStudentDetailViewModel { StudentId = student.Id, StudentName = student.FullName, OriginalGroup = group, EventType = eventType });
+                details.Add(new RetakeStudentDetailViewModel { StudentId = student.Id, StudentName = student.FullName, OriginalGroup = group });
             }
             return details.OrderBy(d => d.StudentName).ToList();
         }
@@ -355,11 +475,31 @@ namespace GradebookApp.Services
                 string scoreText = "Brak ocen", groupText = "-"; 
                 bool useRetake = false;
                 
-                if (workRecord != null && workRecord.IsAbsent) scoreText = "NB"; 
+                if (workRecord != null && workRecord.IsAbsent) 
+                {
+                    scoreText = "NB"; 
+                }
                 else 
                 {
-                    double baseSum = (hasBase || hasRetake) ? GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, work.Tasks, workScores, false) : 0;
-                    double retakeSum = (hasBase || hasRetake) ? GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, work.Tasks, workScores, true) : 0;
+                    // NOWOŚĆ: Filtrowanie zadań po przypisanej grupie ucznia (A, B, itd.)
+                    var baseTasks = work.Tasks;
+                    var retakeTasks = work.Tasks;
+
+                    if (work.HasGroups && workRecord != null)
+                    {
+                        if (!string.IsNullOrEmpty(workRecord.Group))
+                            baseTasks = work.Tasks.Where(t => t.GroupName == workRecord.Group).ToList();
+                        
+                        if (!string.IsNullOrEmpty(workRecord.RetakeGroup))
+                            retakeTasks = work.Tasks.Where(t => t.GroupName == workRecord.RetakeGroup).ToList();
+                        else if (!string.IsNullOrEmpty(workRecord.Group))
+                            retakeTasks = work.Tasks.Where(t => t.GroupName == workRecord.Group).ToList();
+                    }
+
+                    // Obliczenia używają teraz przefiltrowanej liczby zadań!
+                    double baseSum = (hasBase || hasRetake) ? GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, baseTasks, workScores, false) : 0;
+                    double retakeSum = (hasBase || hasRetake) ? GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, retakeTasks, workScores, true) : 0;
+                    
                     useRetake = workRecord != null && workRecord.IsRetakeActive && hasRetake && retakeSum > baseSum;
 
                     if (useRetake) { scoreText = $"{retakeSum:0} / {work.MaxFinalPoints:0} pkt (popr.)"; totalEarnedP += retakeSum; totalPossibleM += work.MaxFinalPoints; }
@@ -434,5 +574,42 @@ namespace GradebookApp.Services
             }
             _dbContext.SaveChanges();
         }
+        // NOWOŚĆ: Masowe przesuwanie terminów popraw
+        public int ShiftRetakeDeadlines(int workId, int classId, int days)
+        {
+            var work = _dbContext.WrittenWorks.Find(workId);
+            if (work == null) return 0;
+
+            var students = _dbContext.Students.Where(s => s.SchoolClassId == classId).ToList();
+            var records = _dbContext.StudentWorkRecords.Where(r => r.WrittenWorkId == workId).ToList();
+            int updatedCount = 0;
+
+            foreach (var student in students)
+            {
+                var record = records.FirstOrDefault(r => r.StudentId == student.Id);
+                
+                // Odczytujemy bazową datę wpisania (indywidualną lub globalną)
+                DateTime? baseEntered = record?.CustomDateEntered ?? work.DateEntered;
+                if (!baseEntered.HasValue) continue; // Jeśli ocena nie została jeszcze w ogóle wpisana, nie ma z czego liczyć terminu
+
+                // Jeśli uczeń nie ma jeszcze rekordu, tworzymy go, by móc wymusić nową datę
+                if (record == null)
+                {
+                    record = new StudentWorkRecord { StudentId = student.Id, WrittenWorkId = workId };
+                    _dbContext.StudentWorkRecords.Add(record);
+                }
+
+                // Pobieramy obecny termin poprawy (z bazy) lub wyliczamy domyślne 14 dni
+                DateTime currentDeadline = record.RetakeDeadline ?? baseEntered.Value.AddDays(14);
+                
+                // Nadpisujemy nową datę do bazy danych
+                record.RetakeDeadline = currentDeadline.AddDays(days);
+                updatedCount++;
+            }
+            
+            _dbContext.SaveChanges();
+            return updatedCount;
+        }
     }
+    
 }

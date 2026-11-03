@@ -3,7 +3,15 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:GradebookApp"
         Title="Dziennik" Height="720" Width="1080" WindowStartupLocation="CenterScreen"
-        Background="#1E1E1E" Foreground="#E0E0E0">
+        Background="#1E1E1E" Foreground="#E0E0E0"
+        Icon="icon2.ico">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <Style x:Key="WatermarkTextBoxStyle" TargetType="{x:Type TextBox}">
+           
+        </Style>
+    </Window.Resources>
     <Grid Margin="15">
         <!-- WIDOK 1: LISTA KLAS -->
         <Grid x:Name="ClassesListView">
@@ -38,7 +46,33 @@
                 </ListBox.ContextMenu>
             </ListBox>
 
-            <TextBox x:Name="NewClassNameTextBox" Grid.Row="2" Margin="0,0,0,15" Height="35" FontSize="16" VerticalContentAlignment="Center" KeyDown="NewClassNameTextBox_KeyDown" ToolTip="Wpisz nazwę nowej klasy..." />
+            <Grid Grid.Row="2" Margin="0,0,0,15">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                
+                <!-- Pole tekstowe (bez atrybutu Style) -->
+                <TextBox x:Name="NewClassNameTextBox" Height="35" FontSize="16" VerticalContentAlignment="Center" KeyDown="NewClassNameTextBox_KeyDown" TextChanged="NewClassNameTextBox_TextChanged" ToolTip="Wpisz nazwę nowej klasy..." />
+                
+                <!-- Nakładka tekstowa (Watermark) działająca niezależnie -->
+                <TextBlock IsHitTestVisible="False" Text="Wpisz nazwę klasy..." VerticalAlignment="Center" HorizontalAlignment="Left" Margin="7,0,0,0" FontSize="16" Foreground="DarkGray">
+                    <TextBlock.Style>
+                        <Style TargetType="{x:Type TextBlock}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <!-- Pokazuje napis tylko, gdy TextBox jest pusty -->
+                                <DataTrigger Binding="{Binding Text, ElementName=NewClassNameTextBox}" Value="">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <!-- Przycisk bazowo ukryty, pojawia się po prawej stronie pola -->
+                <Button x:Name="AddClassButton" Grid.Column="1" Content="Dodaj" Height="35" FontSize="16" Margin="10,0,0,0" Padding="15,0" Visibility="Collapsed" Click="AddClassButton_Click"/>
+            </Grid>
             
             <Grid Grid.Row="3">
                 <Grid.ColumnDefinitions>
@@ -50,11 +84,11 @@
                     <ColumnDefinition Width="10" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <Button Grid.Column="0" Content="Dodaj nową klasę" Height="45" FontSize="16" Click="AddClassButton_Click"/>
+                <!-- Nowy przycisk statystyk w miejscu starego dodawania -->
+                <Button Grid.Column="0" Content="Statystyki" Height="45" FontSize="16" Click="OpenStatisticsWindow_Click"/>
                 <Button Grid.Column="2" Content="Szablony" Height="45" FontSize="16" Click="OpenTemplateManager_Click" Background="#2E4A2E" BorderBrush="#4CAF50"/>
                 <Button Grid.Column="4" Content="Kalendarz (Globalny)" Height="45" FontSize="16" Click="GlobalCalendarButton_Click" Background="#007ACC" BorderBrush="#005A9E"/>
                 
-                <!-- NOWY PRZYCISK: Synchronizacja -->
                 <Button Grid.Column="6" Content="☁ Synchronizuj" Height="45" FontSize="16" Click="SyncCloud_Click" Background="#512DA8" Foreground="White" BorderThickness="0" Cursor="Hand" ToolTip="Wypycha zaktualizowaną listę prac pisemnych do bazy chmurowej"/>
             </Grid>
         </Grid>
@@ -101,17 +135,31 @@
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
 
-                    <DataGridTemplateColumn Width="100">
+                    <DataGridTemplateColumn Width="120">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <Button Content="Szczegóły" Margin="2" Click="ViewGlobalRetakeDetails_Click" Cursor="Hand">
-                                    <Button.ContextMenu>
-                                        <ContextMenu>
-                                            <MenuItem Header="Edytuj" Click="EditGlobalRetake_Click"/>
-                                            <MenuItem Header="Usuń" Click="DeleteGlobalRetake_Click" Foreground="#E57373" FontWeight="Bold"/>
-                                        </ContextMenu>
-                                    </Button.ContextMenu>
-                                </Button>
+                                <Grid>
+                                    <Button Content="Szczegóły" Margin="2" Click="ViewGlobalRetakeDetails_Click" Cursor="Hand" Visibility="{Binding IsRetake, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <Button.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Edytuj" Click="EditGlobalRetake_Click"/>
+                                                <MenuItem Header="Usuń" Click="DeleteGlobalRetake_Click" Foreground="#E57373" FontWeight="Bold"/>
+                                            </ContextMenu>
+                                        </Button.ContextMenu>
+                                    </Button>
+                                    <TextBlock Text="Pierwszy termin" Foreground="#777777" HorizontalAlignment="Center" VerticalAlignment="Center" FontStyle="Italic">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsRetake}" Value="False">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>

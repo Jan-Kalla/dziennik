@@ -13,27 +13,39 @@
         <TextBlock x:Name="TitleText" Grid.Row="0" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,20"/>
 
         <!-- WYSZUKIWARKA -->
-        <TextBox x:Name="SearchTextBox" Grid.Row="1" Margin="0,0,0,15" Height="30" VerticalContentAlignment="Center" 
-                 ToolTip="Wpisz imię lub nazwisko ucznia..." TextChanged="SearchTextBox_TextChanged"
-                 GotFocus="SearchTextBox_GotFocus">
-            <TextBox.Style>
-                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
-                    <Style.Triggers>
-                        <Trigger Property="Text" Value="">
-                            <Setter Property="Background">
-                                <Setter.Value>
-                                    <VisualBrush Stretch="None" AlignmentX="Left" AlignmentY="Center">
-                                        <VisualBrush.Visual>
-                                            <TextBlock Text="Szukaj ucznia..." Foreground="#888888" Margin="5,0,0,0" FontStyle="Italic"/>
-                                        </VisualBrush.Visual>
-                                    </VisualBrush>
-                                </Setter.Value>
-                            </Setter>
-                        </Trigger>
-                    </Style.Triggers>
-                </Style>
-            </TextBox.Style>
-        </TextBox>
+        <!-- WYSZUKIWARKA -->
+        <Grid Grid.Row="1" Margin="0,0,0,15">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            
+            <TextBox x:Name="SearchTextBox" Grid.Column="0" HorizontalAlignment="Left" Width="300" Height="30" VerticalContentAlignment="Center" TextChanged="SearchTextBox_TextChanged" GotFocus="SearchTextBox_GotFocus">
+                <TextBox.Style>
+                    <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                        <Style.Triggers>
+                            <Trigger Property="Text" Value="">
+                                <Setter Property="Background">
+                                    <Setter.Value>
+                                        <VisualBrush Stretch="None" AlignmentX="Left" AlignmentY="Center">
+                                            <VisualBrush.Visual>
+                                                <TextBlock Text="Szukaj ucznia..." Foreground="#888888" Margin="5,0,0,0" FontStyle="Italic"/>
+                                            </VisualBrush.Visual>
+                                        </VisualBrush>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBox.Style>
+            </TextBox>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Przesuń terminy o (dni):" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="#4DB6AC" FontWeight="Bold"/>
+                <TextBox x:Name="ShiftDaysTextBox" Width="45" Height="30" Margin="0,0,10,0" Text="7" TextAlignment="Center" VerticalContentAlignment="Center" FontSize="15" FontWeight="Bold"/>
+                <Button Content="Zastosuj" Width="80" Height="30" Click="ShiftDeadlines_Click" Background="#007ACC" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+            </StackPanel>
+        </Grid>
 
         <DataGrid x:Name="ResultsDataGrid" Grid.Row="2" FontSize="16" 
                   AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" IsReadOnly="True"

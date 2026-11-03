@@ -25,23 +25,9 @@
 
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Uczeń" Binding="{Binding StudentName}" Width="*"/>
-                <DataGridTextColumn Header="Grupa bazowa" Binding="{Binding OriginalGroup}" Width="Auto">
+                <DataGridTextColumn Header="Grupa bazowa" Binding="{Binding OriginalGroup}" Width="150">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Center"/><Setter Property="Margin" Value="10,0"/></Style>
-                    </DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
-                <DataGridTextColumn Header="Rodzaj" Binding="{Binding EventType}" Width="Auto">
-                    <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="HorizontalAlignment" Value="Center"/>
-                            <Setter Property="Margin" Value="10,0"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding EventType}" Value="Poprawa">
-                                    <Setter Property="Foreground" Value="#FFB74D"/>
-                                    <Setter Property="FontWeight" Value="Bold"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
             </DataGrid.Columns>

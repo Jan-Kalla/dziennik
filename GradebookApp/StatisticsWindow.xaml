@@ -1,0 +1,92 @@
+<Window x:Class="GradebookApp.StatisticsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Statystyki Popraw" Height="720" Width="1080" WindowStartupLocation="CenterOwner"
+        Background="#1E1E1E" Foreground="#E0E0E0"
+        Icon="icon2.ico">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        
+        <TextBlock Text="Analiza Skuteczności Popraw" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,25"/>
+        
+        <Grid Grid.Row="1" Margin="0,0,0,20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            
+            <TextBlock Text="Klasa:" VerticalAlignment="Center" FontSize="16" Margin="0,0,10,0"/>
+            <ComboBox x:Name="ClassComboBox" Grid.Column="1" Height="30" FontSize="16" SelectionChanged="ClassComboBox_SelectionChanged" DisplayMemberPath="Name" SelectedValuePath="Id"/>
+            
+            <TextBlock Text="Praca pisemna:" Grid.Column="2" VerticalAlignment="Center" FontSize="16" Margin="20,0,10,0"/>
+            <ComboBox x:Name="WorkComboBox" Grid.Column="3" Height="30" FontSize="16" SelectionChanged="WorkComboBox_SelectionChanged" DisplayMemberPath="Title" SelectedValuePath="Id"/>
+        </Grid>
+        
+        <Border Grid.Row="2" Background="#2D2D30" CornerRadius="5" Padding="20">
+            <StackPanel>
+                <TextBlock x:Name="TotalRetakesText" Text="Liczba poprawionych prac: -" FontSize="18" FontWeight="Bold" Margin="0,0,0,15" Foreground="#4CAF50"/>
+                
+                <!-- Sekcja: Oceny 1 -->
+                <TextBlock Text="Poprawy z oceny 1 (poniżej 40%):" FontSize="16" Foreground="#AAAAAA" Margin="0,0,0,5"/>
+                <Grid Margin="10,0,0,15">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <!-- ZWIĘKSZONA SZEROKOŚĆ KOLUMNY -->
+                        <ColumnDefinition Width="340"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <TextBlock x:Name="SuccessFrom1To2Text" Grid.Row="0" Grid.Column="0" Text="• Udane : -" FontSize="16"/>
+                    <Rectangle x:Name="SuccessFrom1To2Bar" Grid.Row="0" Grid.Column="1" Height="15" Fill="#4CAF50" HorizontalAlignment="Left" Width="0" RadiusX="3" RadiusY="3"/>
+                    
+                    <TextBlock x:Name="SuccessFrom1To1Text" Grid.Row="1" Grid.Column="0" Text="• Częściowo udane (nadal 1): -" FontSize="16" Margin="0,5,0,0"/>
+                    <Rectangle x:Name="SuccessFrom1To1Bar" Grid.Row="1" Grid.Column="1" Height="15" Fill="#FFA000" HorizontalAlignment="Left" Width="0" RadiusX="3" RadiusY="3" Margin="0,5,0,0"/>
+
+                    <TextBlock x:Name="FailFrom1Text" Grid.Row="2" Grid.Column="0" Text="• Nieudane (brak poprawy): -" FontSize="16" Margin="0,5,0,0"/>
+                    <Rectangle x:Name="FailFrom1Bar" Grid.Row="2" Grid.Column="1" Height="15" Fill="#E53935" HorizontalAlignment="Left" Width="0" RadiusX="3" RadiusY="3" Margin="0,5,0,0"/>
+                </Grid>
+                
+                <!-- Sekcja: Oceny 2+ -->
+                <TextBlock Text="Poprawy z oceny 2 lub wyższej:" FontSize="16" Foreground="#AAAAAA" Margin="0,0,0,5"/>
+                <Grid Margin="10,0,0,20">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <!-- ZWIĘKSZONA SZEROKOŚĆ KOLUMNY -->
+                        <ColumnDefinition Width="340"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <TextBlock x:Name="SuccessFrom2Text" Grid.Row="0" Grid.Column="0" Text="• Udane: -" FontSize="16"/>
+                    <Rectangle x:Name="SuccessFrom2Bar" Grid.Row="0" Grid.Column="1" Height="15" Fill="#4CAF50" HorizontalAlignment="Left" Width="0" RadiusX="3" RadiusY="3"/>
+                    
+                    <TextBlock x:Name="FailFrom2Text" Grid.Row="1" Grid.Column="0" Text="• Nieudane (brak poprawy): -" FontSize="16" Margin="0,5,0,0"/>
+                    <Rectangle x:Name="FailFrom2Bar" Grid.Row="1" Grid.Column="1" Height="15" Fill="#E53935" HorizontalAlignment="Left" Width="0" RadiusX="3" RadiusY="3" Margin="0,5,0,0"/>
+                </Grid>
+                
+                <Separator Background="#444444" Margin="0,0,0,15"/>
+                
+                <!-- Sekcja: Zmiany p.p. (BRAKOWAŁO TEGO) -->
+                <TextBlock Text="Faktyczne zmiany wyników:" FontSize="16" FontWeight="Bold" Margin="0,0,0,5"/>
+                <CheckBox x:Name="IncludeFailedCheckBox" Content="Uwzględniaj zera (wliczaj nieudane poprawy do średniej przyrostu)" Foreground="#AAAAAA" Margin="0,0,0,5" Checked="OptionsCheckBox_Changed" Unchecked="OptionsCheckBox_Changed"/>
+                <CheckBox x:Name="IncludeStillFailedCheckBox" Content="Uwzględniaj poprawy częściowo udane (wliczaj poprawy z 1 na 1 do średniej przyrostu)" Foreground="#AAAAAA" Margin="0,0,0,10" Checked="OptionsCheckBox_Changed" Unchecked="OptionsCheckBox_Changed"/>
+                
+                <TextBlock x:Name="AvgGainText" Text="Średni całkowity przyrost: - p.p." FontSize="18" Foreground="#007ACC" FontWeight="Bold" Margin="0,0,0,5"/>
+                <TextBlock x:Name="AvgGain1Text" Text="• w grupie ocen niedostatecznych (1): - p.p." FontSize="14" Foreground="#888888" Margin="10,0,0,2"/>
+                <TextBlock x:Name="AvgGain2Text" Text="• w grupie ocen pozytywnych (2+): - p.p." FontSize="14" Foreground="#888888" Margin="10,0,0,0"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

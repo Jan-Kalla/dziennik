@@ -26,6 +26,13 @@ namespace GradebookApp
             SharedClassControl.StudentDetailsRequested += SharedClassControl_StudentDetailsRequested;
         }
 
+        // 1. Zdarzenie ukrywające/pokazujące przycisk dynamicznie
+        private void NewClassNameTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            AddClassButton.Visibility = string.IsNullOrWhiteSpace(NewClassNameTextBox.Text) ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        // 2. Aktualizacja: ukryj przycisk po zatwierdzeniu
         private void AddNewClass()
         {
             string newName = NewClassNameTextBox.Text.Trim();
@@ -34,6 +41,7 @@ namespace GradebookApp
                 var newClass = _dataService.AddClass(newName);
                 ClassesList.Add(newClass);
                 NewClassNameTextBox.Clear();
+                AddClassButton.Visibility = Visibility.Collapsed; // <-- Ukrycie
                 ClassesList = new ObservableCollection<SchoolClass>(ClassesList.OrderBy(c => c.Name));
                 ClassesListBox.ItemsSource = ClassesList;
             }
@@ -45,6 +53,13 @@ namespace GradebookApp
         private void NewClassNameTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
             if (e.Key == System.Windows.Input.Key.Enter) AddNewClass();
+        }
+
+        // 3. Przygotówka pod nasz nowy moduł, która spina się z XAML-em
+        private void OpenStatisticsWindow_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new StatisticsWindow() { Owner = this };
+            window.ShowDialog();
         }
         
         private void OpenTemplateManager_Click(object sender, RoutedEventArgs e)
