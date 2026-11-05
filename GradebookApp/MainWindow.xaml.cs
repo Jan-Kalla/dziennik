@@ -26,13 +26,11 @@ namespace GradebookApp
             SharedClassControl.StudentDetailsRequested += SharedClassControl_StudentDetailsRequested;
         }
 
-        // 1. Zdarzenie ukrywające/pokazujące przycisk dynamicznie
         private void NewClassNameTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             AddClassButton.Visibility = string.IsNullOrWhiteSpace(NewClassNameTextBox.Text) ? Visibility.Collapsed : Visibility.Visible;
         }
 
-        // 2. Aktualizacja: ukryj przycisk po zatwierdzeniu
         private void AddNewClass()
         {
             string newName = NewClassNameTextBox.Text.Trim();
@@ -41,7 +39,7 @@ namespace GradebookApp
                 var newClass = _dataService.AddClass(newName);
                 ClassesList.Add(newClass);
                 NewClassNameTextBox.Clear();
-                AddClassButton.Visibility = Visibility.Collapsed; // <-- Ukrycie
+                AddClassButton.Visibility = Visibility.Collapsed;
                 ClassesList = new ObservableCollection<SchoolClass>(ClassesList.OrderBy(c => c.Name));
                 ClassesListBox.ItemsSource = ClassesList;
             }
@@ -55,11 +53,34 @@ namespace GradebookApp
             if (e.Key == System.Windows.Input.Key.Enter) AddNewClass();
         }
 
-        // 3. Przygotówka pod nasz nowy moduł, która spina się z XAML-em
+        // --- ZDARZENIE PRZEŁĄCZANIA ZAKŁADEK (Ładuje kalendarz tylko gdy do niego wejdziemy) ---
+        private void MainTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (e.Source is TabControl tabControl && tabControl.SelectedItem is TabItem selectedTab)
+            {
+                if (selectedTab.Header.ToString() == "Kalendarz")
+                {
+                    RefreshGlobalCalendar();
+                }
+            }
+        }
+
+        // --- NARZĘDZIA W ZAKŁADCE "INNE" ---
         private void OpenStatisticsWindow_Click(object sender, RoutedEventArgs e)
         {
             var window = new StatisticsWindow() { Owner = this };
             window.ShowDialog();
+        }
+
+        // Zdarzenie wywołujące menu dropdown dla zakładki Inne i blokujące zmianę karty
+        private void OtherTab_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (sender is TabItem tabItem && tabItem.ContextMenu != null)
+            {
+                tabItem.ContextMenu.PlacementTarget = tabItem;
+                tabItem.ContextMenu.IsOpen = true;
+                e.Handled = true; // Ta linijka to magia - anuluje wybór "pustej" zakładki. Tło z klasami/kalendarzem zostaje aktywne!
+            }
         }
         
         private void OpenTemplateManager_Click(object sender, RoutedEventArgs e)
@@ -68,20 +89,11 @@ namespace GradebookApp
             dialog.ShowDialog();
         }
 
-        // --- SEKCJA KALENDARZA GLOBALNEGO ---
-        private void GlobalCalendarButton_Click(object sender, RoutedEventArgs e)
-        {
-            ClassesListView.Visibility = Visibility.Collapsed;
-            GlobalCalendarView.Visibility = Visibility.Visible;
-            RefreshGlobalCalendar();
-        }
-
         private void RefreshGlobalCalendar_Click(object sender, RoutedEventArgs e) => RefreshGlobalCalendar();
 
         private void RefreshGlobalCalendar()
         {
             if (_dataService == null) return; 
-
             bool upcomingOnly = ShowUpcomingGlobalOnlyCheckBox.IsChecked == true;
             bool includeAll = ShowAllGlobalWorksCheckBox.IsChecked == true;
             GlobalCalendarDataGrid.ItemsSource = _dataService.GetGlobalCalendarEvents(upcomingOnly, includeAll);
@@ -122,11 +134,11 @@ namespace GradebookApp
             }
         }
 
-        // ... (poprzedni kod)
         private void PlanGlobalRetake_Click(object sender, RoutedEventArgs e)
         {
             if (new PlanRetakeDialog() { Owner = this }.ShowDialog() == true) RefreshGlobalCalendar();
         }
+        
         private void ViewRetakeRequests_Click(object sender, RoutedEventArgs e)
         {
             var window = new RetakeRequestsWindow() { Owner = this };
@@ -134,7 +146,7 @@ namespace GradebookApp
         }
 
         // =========================================================================
-        // NOWOŚĆ: POBIERANIE ZAPISÓW UCZNIÓW BEZPOŚREDNIO Z KALKULATORA WEBOWEGO
+        // POBIERANIE ZAPISÓW UCZNIÓW BEZPOŚREDNIO Z KALKULATORA WEBOWEGO
         // =========================================================================
         private async void SyncRetakes_Click(object sender, RoutedEventArgs e)
         {
@@ -143,7 +155,6 @@ namespace GradebookApp
 
             try
             {
-                // TODO: Skopiuj swoje prawdziwe klucze z pliku CloudSyncService.cs
                 string supabaseUrl = "https://pnrnuwwneqoqfzcamauw.supabase.co";
                 string supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBucm51d3duZXFvcWZ6Y2FtYXV3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTk3MTk5NSwiZXhwIjoyMTA3NTQ3OTk1fQ.tRhMlOH9jJfAJNODbWnJpW1xFBvp3wPl3vzKXo9DKRc";
 
@@ -152,7 +163,6 @@ namespace GradebookApp
                     client.DefaultRequestHeaders.Add("apikey", supabaseKey);
                     client.DefaultRequestHeaders.Add("Authorization", $"Bearer {supabaseKey}");
                     
-                    // 1. Pobieranie danych z Supabase (z nowej tabeli retake_signups)
                     var response = await client.GetAsync($"{supabaseUrl}/rest/v1/retake_signups?select=*");
                     response.EnsureSuccessStatusCode();
                     
@@ -168,10 +178,8 @@ namespace GradebookApp
 
                     int addedCount = 0;
 
-                    // 2. Mieszanie chmury z lokalną bazą danych
                     using (var db = new AppDbContext())
                     {
-                        // Grupujemy zgłoszenia po pracy pisemnej i klasie dla wydajności
                         var groupedSignups = signups.GroupBy(s => new { s.work_id, s.class_name });
 
                         foreach (var group in groupedSignups)
@@ -185,29 +193,23 @@ namespace GradebookApp
 
                             foreach (var signup in group)
                             {
-                                // Namierzamy ucznia po jego numerku
                                 var student = students.FirstOrDefault(s => s.JournalNumber == signup.journal_number);
                                 if (student != null)
                                 {
-                                    // Zapisujemy chęć poprawy w Twojej lokalnej tabeli StudentWorkRecords
                                     var record = db.StudentWorkRecords.FirstOrDefault(r => r.StudentId == student.Id && r.WrittenWorkId == work.Id);
                                     if (record == null)
                                     {
                                         record = new StudentWorkRecord { StudentId = student.Id, WrittenWorkId = work.Id, WantsToRetake = true };
                                         db.StudentWorkRecords.Add(record);
                                     }
-                                    else
-                                    {
-                                        record.WantsToRetake = true;
-                                    }
+                                    else record.WantsToRetake = true;
                                     addedCount++;
                                 }
                             }
                         }
-                        db.SaveChanges(); // Zapis w lokalnym SQLite
+                        db.SaveChanges(); 
                     }
 
-                    // 3. Czyszczenie skrzynki podawczej w chmurze (żeby nie pobierać tych samych zgłoszeń podwójnie)
                     string idsToDelete = string.Join(",", signups.Select(s => s.id));
                     await client.DeleteAsync($"{supabaseUrl}/rest/v1/retake_signups?id=in.({idsToDelete})");
 
@@ -224,7 +226,6 @@ namespace GradebookApp
             }
         }
         
-        // Klasa pomocnicza używana przez system JSON do odczytu danych z Supabase
         public class RetakeSignupDto
         {
             public long id { get; set; }
@@ -232,24 +233,17 @@ namespace GradebookApp
             public string class_name { get; set; } = "";
             public int journal_number { get; set; }
         }
-        // =========================================================================
-        // ------------------------------------
 
-        // --- SEKCJA SYNCHRONIZACJI Z CHMURĄ ---
+        // --- SYNCHRONIZACJA Z CHMURĄ ---
         private async void SyncCloud_Click(object sender, RoutedEventArgs e)
         {
             var btn = sender as Button;
-            if (btn != null) 
-            { 
-                btn.IsEnabled = false; 
-                btn.Content = "Synchronizacja..."; 
-            }
+            if (btn != null) { btn.IsEnabled = false; btn.Content = "Synchronizacja..."; }
             
             try
             {
                 var syncService = new Services.CloudSyncService();
                 string result = await syncService.SynchronizeWithCloudAsync();
-                
                 MessageBox.Show(result, "Status synchronizacji", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
@@ -258,22 +252,34 @@ namespace GradebookApp
             }
             finally
             {
-                if (btn != null) 
-                { 
-                    btn.IsEnabled = true; 
-                    btn.Content = "☁ Synchronizuj"; 
-                }
+                if (btn != null) { btn.IsEnabled = true; btn.Content = "☁ Synchronizuj z chmurą"; }
             }
         }
-        // ------------------------------------
 
+        // --- NAWIGACJA OKIEN/NAKŁADEK ---
         private void ClassItem_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             if (sender is System.Windows.Controls.ListBoxItem item && item.DataContext is SchoolClass selectedClass)
             {
-                ClassesListView.Visibility = Visibility.Collapsed;
+                MainTabContainer.Visibility = Visibility.Collapsed;
                 ClassDetailsView.Visibility = Visibility.Visible;
                 SharedClassControl.LoadClassData(selectedClass);
+            }
+        }
+
+        private void BackButton_Click(object sender, RoutedEventArgs e)
+        {
+            ClassDetailsView.Visibility = Visibility.Collapsed;
+            StudentDetailsView.Visibility = Visibility.Collapsed;
+            MainTabContainer.Visibility = Visibility.Visible;
+        }
+
+        private void OpenClassNewWindow_Click(object sender, RoutedEventArgs e)
+        {
+            if (ClassesListBox.SelectedItem is SchoolClass selectedClass)
+            {
+                var newWindow = new ClassDetailsWindow(selectedClass) { Owner = this };
+                newWindow.ShowDialog();
             }
         }
 
@@ -303,22 +309,6 @@ namespace GradebookApp
                     ClassesList = new ObservableCollection<SchoolClass>(_dataService.GetAllClasses().OrderBy(c => c.Name));
                     ClassesListBox.ItemsSource = ClassesList;
                 }
-            }
-        }
-
-        private void BackButton_Click(object sender, RoutedEventArgs e)
-        {
-            ClassDetailsView.Visibility = Visibility.Collapsed;
-            GlobalCalendarView.Visibility = Visibility.Collapsed;
-            ClassesListView.Visibility = Visibility.Visible;
-        }
-
-        private void OpenClassNewWindow_Click(object sender, RoutedEventArgs e)
-        {
-            if (ClassesListBox.SelectedItem is SchoolClass selectedClass)
-            {
-                var newWindow = new ClassDetailsWindow(selectedClass) { Owner = this };
-                newWindow.ShowDialog();
             }
         }
 
