@@ -123,6 +123,22 @@ namespace GradebookApp.Services
         public void ApplyMigrations() => _dbContext.Database.Migrate();
         public void Dispose() => _dbContext.Dispose();
 
+        // --- NOWOŚĆ: LOGIKA PLANU ZAJĘĆ (WIDOK DZIENNY/TYGODNIOWY) ---
+
+        public List<LessonScheduleItem> GetFullSchedule()
+        {
+            _dbContext.ChangeTracker.Clear();
+            return _dbContext.LessonScheduleItems.ToList();
+        }
+
+        // Atomowy zapis całego planu (eliminuje problemy z pustymi polami i zmianami godzin)
+        public void SaveFullSchedule(List<LessonScheduleItem> items)
+        {
+            _dbContext.LessonScheduleItems.RemoveRange(_dbContext.LessonScheduleItems);
+            _dbContext.LessonScheduleItems.AddRange(items);
+            _dbContext.SaveChanges(); // Wykonywane jako pojedyncza, bezpieczna transakcja
+        }
+
         public List<SchoolClass> GetAllClasses() => _dbContext.Classes.ToList();
 
         public SchoolClass AddClass(string className)

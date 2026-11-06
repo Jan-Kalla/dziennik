@@ -3,33 +3,112 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="Transparent" Foreground="#E0E0E0">
     <UserControl.Resources>
-        <!-- Styl przezroczystych, wyciszonych TextBoxów, idealnych do klikania w tabeli -->
+        
+        <Style TargetType="DataGrid">
+            <Setter Property="ClipToBounds" Value="False"/>
+            <Setter Property="SelectionMode" Value="Single"/>
+            <Setter Property="SelectionUnit" Value="Cell"/>
+        </Style>
+        
+        <Style TargetType="ToolTip">
+            <Setter Property="Background" Value="#2D2D30"/>
+            <Setter Property="Foreground" Value="#E0E0E0"/>
+            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="Padding" Value="5,3"/>
+        </Style>
+
         <Style x:Key="CellTextBoxStyle" TargetType="TextBox">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="#E0E0E0"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="5"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <!-- Wyłącza domyślny podwójny skok TABa (teraz kontrolę przejmie kod C#) -->
+            <Setter Property="KeyboardNavigation.TabNavigation" Value="None"/>
+            <Style.Triggers>
+                <Trigger Property="IsKeyboardFocused" Value="True">
+                    <Setter Property="Background" Value="#333337"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
-        <!-- Template kolumny Godzina z ukrytym przyciskiem '+' na dole komórki -->
-        <DataTemplate x:Key="TimeSlotTemplate">
-            <Grid Background="Transparent">
-                <TextBox Text="{Binding TimeSlot, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}" Margin="0,0,0,12"/>
-                <Button Content="+" Height="15" Width="50" FontSize="11" Background="#007ACC" Foreground="White" BorderThickness="0" Cursor="Hand" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,1" Click="AddRow_Click" ToolTip="Dodaj nowy wiersz poniżej">
-                    <Button.Style>
-                        <Style TargetType="Button">
-                            <Setter Property="Opacity" Value="0"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=DataGridCell}}" Value="True">
-                                    <Setter Property="Opacity" Value="1"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                </Button>
-            </Grid>
-        </DataTemplate>
+        <Style TargetType="DataGridCellsPresenter">
+            <Setter Property="ClipToBounds" Value="False" />
+        </Style>
+
+        <Style x:Key="NoClipCellStyle" TargetType="DataGridCell">
+            <Setter Property="ClipToBounds" Value="False"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <EventSetter Event="GotFocus" Handler="DataGridCell_GotFocus"/> 
+            <!-- Ukrycie niebieskiego zaznaczania -->
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="Foreground" Value="#E0E0E0"/>
+                    <Setter Property="BorderBrush" Value="Transparent"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="RowAddButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#007ACC"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Opacity" Value="0"/>
+            <Setter Property="ToolTip" Value="Wstaw nowy wiersz"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="10">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-2,0,0"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Opacity" Value="1"/>
+                    <Setter Property="Background" Value="#005A9E"/>
+                </Trigger>
+                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
+                    <Setter Property="Opacity" Value="1"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="HeaderAddButtonStyle" TargetType="Button" BasedOn="{StaticResource RowAddButtonStyle}">
+            <Setter Property="Opacity" Value="1"/>
+            <Setter Property="Background" Value="#333333"/>
+            <Setter Property="Foreground" Value="#888888"/>
+            <Setter Property="ToolTip" Value="Wstaw wiersz na samej górze"/>
+        </Style>
+
+        <ContextMenu x:Key="RowMenu" x:Shared="False" DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+            <MenuItem Header="Usuń ten wiersz" Click="DeleteRow_Click" Foreground="#E53935" FontWeight="Bold"/>
+        </ContextMenu>
+
+        <Style x:Key="RowStyleWithMenu" TargetType="DataGridRow">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="ClipToBounds" Value="False"/>
+            <Setter Property="ContextMenu" Value="{StaticResource RowMenu}"/>
+            <Style.Triggers>
+                <!-- Ukrycie niebieskiego wiersza -->
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="BorderBrush" Value="Transparent"/>
+                </Trigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Panel.ZIndex" Value="9999"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
 
     <Grid Margin="15">
@@ -38,7 +117,6 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         
-        <!-- Pasek górny (Nawigacja Data i Przełącznik widoków) -->
         <Grid Grid.Row="0" Margin="0,0,0,15">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
@@ -46,78 +124,113 @@
             </Grid.ColumnDefinitions>
             
             <StackPanel x:Name="DateNavigationPanel" Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
-                <Button Content="◀" Width="30" Height="30" Background="#3E3E42" Foreground="#E0E0E0" BorderThickness="0" Cursor="Hand" Click="PrevDay_Click" ToolTip="Poprzedni dzień"/>
-                <TextBlock x:Name="LessonDateText" Text="Dzisiaj: -" FontSize="20" FontWeight="Bold" Foreground="#E0E0E0" VerticalAlignment="Center" Margin="15,0"/>
-                <Button Content="▶" Width="30" Height="30" Background="#3E3E42" Foreground="#E0E0E0" BorderThickness="0" Cursor="Hand" Click="NextDay_Click" ToolTip="Następny dzień"/>
+                <!-- Zablokowanie szerokości tekstu, by strzałki nie latały -->
+                <Button Content="◀" Width="32" Height="32" Background="#3E3E42" Foreground="#E0E0E0" BorderThickness="0" Cursor="Hand" Click="PrevDay_Click" ToolTip="Poprzedni dzień" Margin="0,0,10,0" Focusable="False"/>
+                <TextBlock x:Name="LessonDateText" Text="Dzisiaj: -" FontSize="20" FontWeight="Bold" Foreground="#E0E0E0" VerticalAlignment="Center" Width="300" TextAlignment="Center"/>
+                <Button Content="▶" Width="32" Height="32" Background="#3E3E42" Foreground="#E0E0E0" BorderThickness="0" Cursor="Hand" Click="NextDay_Click" ToolTip="Następny dzień" Margin="10,0,0,0" Focusable="False"/>
             </StackPanel>
 
             <TextBlock x:Name="WeeklyTitleText" Grid.Column="0" Text="Rozkład tygodniowy" FontSize="20" FontWeight="Bold" Foreground="#E0E0E0" VerticalAlignment="Center" HorizontalAlignment="Left" Visibility="Collapsed"/>
             
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button x:Name="DailyViewBtn" Content="Widok dzienny" Width="140" Height="32" Background="#3E3E42" Foreground="White" BorderThickness="0" Click="DailyViewBtn_Click" Cursor="Hand" FontWeight="Bold" FontSize="15"/>
-                <Button x:Name="WeeklyViewBtn" Content="Widok tygodniowy" Width="150" Height="32" Background="#2D2D30" Foreground="#AAAAAA" BorderThickness="0" Click="WeeklyViewBtn_Click" Cursor="Hand" Margin="5,0,0,0" FontSize="15"/>
+                <Button x:Name="DailyViewBtn" Content="Widok dzienny" Width="140" Height="32" Background="#3E3E42" Foreground="White" BorderThickness="0" Click="DailyViewBtn_Click" Cursor="Hand" FontWeight="Bold" FontSize="15" Focusable="False"/>
+                <Button x:Name="WeeklyViewBtn" Content="Widok tygodniowy" Width="160" Height="32" Background="#2D2D30" Foreground="#AAAAAA" BorderThickness="0" Click="WeeklyViewBtn_Click" Cursor="Hand" Margin="5,0,0,0" FontSize="15" Focusable="False"/>
             </StackPanel>
         </Grid>
 
-        <!-- Tabela 1: Widok Dzienny (Edytowalny na pojedyncze kliknięcie) -->
-        <DataGrid x:Name="DailyScheduleGrid" Grid.Row="1" FontSize="16" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" HeadersVisibility="Column" Background="#1E1E1E" RowBackground="#252526" AlternatingRowBackground="#2D2D30" Foreground="#E0E0E0" BorderBrush="#3E3E42" GridLinesVisibility="Horizontal">
+        <!-- WIDOK DZIENNY -->
+        <!-- Dodano zdarzenie PreviewKeyDown od podglądania klikniętych klawiszy -->
+        <DataGrid x:Name="DailyScheduleGrid" Grid.Row="1" FontSize="16" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" EnableRowVirtualization="False" HeadersVisibility="Column" Background="#1E1E1E" RowBackground="#252526" AlternatingRowBackground="#2D2D30" Foreground="#E0E0E0" BorderBrush="#3E3E42" GridLinesVisibility="All" RowStyle="{StaticResource RowStyleWithMenu}" PreviewKeyDown="TasksDataGrid_PreviewKeyDown">
             <DataGrid.Columns>
-                <DataGridTemplateColumn Header="Godz." Width="120" CellTemplate="{StaticResource TimeSlotTemplate}"/>
-                
-                <DataGridTemplateColumn Header="Klasa (dyżur)" Width="150">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><TextBox Text="{Binding ClassName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}"/></DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-                
-                <DataGridTemplateColumn Header="Zrealizowany materiał" Width="*">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><TextBox Text="{Binding Material, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}"/></DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-                
-                <DataGridTemplateColumn Width="60">
+                <DataGridTemplateColumn Width="30" CellStyle="{StaticResource NoClipCellStyle}">
+                    <DataGridTemplateColumn.HeaderTemplate>
+                        <DataTemplate>
+                            <Grid ClipToBounds="False" Background="Transparent" Height="25">
+                                <Button Content="+" Style="{StaticResource HeaderAddButtonStyle}" Click="AddRowAtTop_Click" Height="20" Width="20" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,-10" Panel.ZIndex="100"/>
+                            </Grid>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.HeaderTemplate>
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <Button Content="→" Margin="2" Click="GoToLessonInfo_Click" Cursor="Hand" Background="#007ACC" Foreground="White" FontSize="18" FontWeight="Bold" ToolTip="Przejdź do okna informacji (Zdj 3)"/>
+                            <Grid ClipToBounds="False" Background="Transparent" MinHeight="35">
+                                <Button Content="+" Style="{StaticResource RowAddButtonStyle}" Click="AddRowBelow_Click" Height="20" Width="20" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,-10" Panel.ZIndex="100"/>
+                            </Grid>
                         </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <DataGridTemplateColumn Header="Godz." Width="120" CellStyle="{StaticResource NoClipCellStyle}">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate><Grid Background="Transparent"><TextBox Text="{Binding TimeSlot, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}" Margin="0,5"/></Grid></DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Klasa (dyżur)" Width="150" CellStyle="{StaticResource NoClipCellStyle}">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate><Grid Background="Transparent"><TextBox Text="{Binding ClassName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}"/></Grid></DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Zrealizowany materiał" Width="*" CellStyle="{StaticResource NoClipCellStyle}">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate><Grid Background="Transparent"><TextBox Text="{Binding Material, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}"/></Grid></DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Width="60" CellStyle="{StaticResource NoClipCellStyle}">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate><Grid Background="Transparent"><Button Content="→" Margin="2" Click="GoToLessonInfo_Click" Cursor="Hand" Background="#007ACC" Foreground="White" FontSize="18" FontWeight="Bold" ToolTip="Przejdź do okna informacji" Focusable="False"/></Grid></DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
             </DataGrid.Columns>
         </DataGrid>
 
-        <!-- Tabela 2: Widok Tygodniowy (Pełna edycja) -->
-        <DataGrid x:Name="WeeklyScheduleGrid" Grid.Row="1" FontSize="16" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" HeadersVisibility="Column" Background="#1E1E1E" RowBackground="#252526" AlternatingRowBackground="#2D2D30" Foreground="#E0E0E0" BorderBrush="#3E3E42" GridLinesVisibility="All" Visibility="Collapsed">
+        <!-- WIDOK TYGODNIOWY -->
+        <!-- Dodano zdarzenie PreviewKeyDown -->
+        <DataGrid x:Name="WeeklyScheduleGrid" Grid.Row="1" FontSize="16" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" EnableRowVirtualization="False" HeadersVisibility="Column" Background="#1E1E1E" RowBackground="#252526" AlternatingRowBackground="#2D2D30" Foreground="#E0E0E0" BorderBrush="#3E3E42" GridLinesVisibility="All" Visibility="Collapsed" RowStyle="{StaticResource RowStyleWithMenu}" PreviewKeyDown="TasksDataGrid_PreviewKeyDown">
             <DataGrid.Columns>
-                <DataGridTemplateColumn Header="Godz." Width="120" CellTemplate="{StaticResource TimeSlotTemplate}"/>
-                
-                <DataGridTemplateColumn Header="Pon." Width="*">
+                <DataGridTemplateColumn Width="30" CellStyle="{StaticResource NoClipCellStyle}">
+                    <DataGridTemplateColumn.HeaderTemplate>
+                        <DataTemplate>
+                            <Grid ClipToBounds="False" Background="Transparent" Height="25">
+                                <Button Content="+" Style="{StaticResource HeaderAddButtonStyle}" Click="AddRowAtTop_Click" Height="20" Width="20" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,-10" Panel.ZIndex="100"/>
+                            </Grid>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.HeaderTemplate>
                     <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><TextBox Text="{Binding MonClass, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}"/></DataTemplate>
+                        <DataTemplate>
+                            <Grid ClipToBounds="False" Background="Transparent" MinHeight="35">
+                                <Button Content="+" Style="{StaticResource RowAddButtonStyle}" Click="AddRowBelow_Click" Height="20" Width="20" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,-10" Panel.ZIndex="100"/>
+                            </Grid>
+                        </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                
-                <DataGridTemplateColumn Header="Wt." Width="*">
+
+                <DataGridTemplateColumn Header="Godz." Width="120" CellStyle="{StaticResource NoClipCellStyle}">
                     <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><TextBox Text="{Binding TueClass, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}"/></DataTemplate>
+                        <DataTemplate><Grid Background="Transparent"><TextBox Text="{Binding TimeSlot, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}" Margin="0,5"/></Grid></DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                
-                <DataGridTemplateColumn Header="Śr." Width="*">
+                <DataGridTemplateColumn Header="Pon." Width="*" CellStyle="{StaticResource NoClipCellStyle}">
                     <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><TextBox Text="{Binding WedClass, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}"/></DataTemplate>
+                        <DataTemplate><Grid Background="Transparent"><TextBox Text="{Binding MonClass, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}"/></Grid></DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                
-                <DataGridTemplateColumn Header="Czw." Width="*">
+                <DataGridTemplateColumn Header="Wt." Width="*" CellStyle="{StaticResource NoClipCellStyle}">
                     <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><TextBox Text="{Binding ThuClass, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}"/></DataTemplate>
+                        <DataTemplate><Grid Background="Transparent"><TextBox Text="{Binding TueClass, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}"/></Grid></DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                
-                <DataGridTemplateColumn Header="Pt." Width="*">
+                <DataGridTemplateColumn Header="Śr." Width="*" CellStyle="{StaticResource NoClipCellStyle}">
                     <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><TextBox Text="{Binding FriClass, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}"/></DataTemplate>
+                        <DataTemplate><Grid Background="Transparent"><TextBox Text="{Binding WedClass, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}"/></Grid></DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Czw." Width="*" CellStyle="{StaticResource NoClipCellStyle}">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate><Grid Background="Transparent"><TextBox Text="{Binding ThuClass, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}"/></Grid></DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Pt." Width="*" CellStyle="{StaticResource NoClipCellStyle}">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate><Grid Background="Transparent"><TextBox Text="{Binding FriClass, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}"/></Grid></DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
             </DataGrid.Columns>

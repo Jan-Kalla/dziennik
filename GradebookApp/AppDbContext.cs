@@ -158,6 +158,16 @@ namespace GradebookApp
         public WorkTemplate WorkTemplate { get; set; } = null!;
     }
 
+    public class LessonScheduleItem
+    {
+        public int Id { get; set; }
+        public string TimeSlot { get; set; } = string.Empty;
+        public DayOfWeek DayOfWeek { get; set; }
+        
+        public string ClassName { get; set; } = string.Empty;
+        public string Material { get; set; } = string.Empty;
+    }
+
     public class AppDbContext : DbContext
     {
         public DbSet<SchoolClass> Classes { get; set; }
@@ -171,6 +181,7 @@ namespace GradebookApp
         
         public DbSet<WorkTemplate> WorkTemplates { get; set; }
         public DbSet<WorkTemplateTask> WorkTemplateTasks { get; set; }
+        public DbSet<LessonScheduleItem> LessonScheduleItems { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {

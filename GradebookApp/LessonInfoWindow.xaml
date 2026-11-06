@@ -1,0 +1,68 @@
+<Window x:Class="GradebookApp.LessonInfoWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Informacje o lekcji" Height="450" Width="550" 
+        WindowStartupLocation="CenterOwner"
+        Background="#1E1E1E" Foreground="#E0E0E0">
+    
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#E0E0E0"/>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="#333337"/>
+            <Setter Property="Foreground" Value="Black"/> <!-- Tekst w rozwiniętej liście -->
+            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="Padding" Value="5"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#333337"/>
+            <Setter Property="Foreground" Value="#E0E0E0"/>
+            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="Padding" Value="5"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" /> <!-- Nagłówek -->
+            <RowDefinition Height="Auto" /> <!-- Temat -->
+            <RowDefinition Height="Auto" /> <!-- Materiał -->
+            <RowDefinition Height="*" />    <!-- Uwagi -->
+            <RowDefinition Height="Auto" /> <!-- Przyciski -->
+        </Grid.RowDefinitions>
+
+        <!-- Nagłówek INFORMACJE -->
+        <TextBlock x:Name="InfoHeader" Grid.Row="0" Text="INFORMACJE" FontSize="20" FontWeight="Bold" Margin="0,0,0,20" Foreground="#007ACC"/>
+
+        <!-- Temat (Do wyboru z rozkładu lub wpisania ręcznego) -->
+        <StackPanel Grid.Row="1" Margin="0,0,0,15">
+            <TextBlock Text="Temat:" FontSize="14" Foreground="#AAAAAA" Margin="0,0,0,5" />
+            <ComboBox x:Name="TopicComboBox" IsEditable="True" ToolTip="Wybierz z rozkładu materiału lub wpisz własny temat" />
+        </StackPanel>
+
+        <!-- Realizowany materiał (Do wyboru z rozkładu lub wpisania ręcznego) -->
+        <StackPanel Grid.Row="2" Margin="0,0,0,15">
+            <TextBlock Text="Realizowany materiał:" FontSize="14" Foreground="#AAAAAA" Margin="0,0,0,5" />
+            <ComboBox x:Name="MaterialComboBox" IsEditable="True" ToolTip="Wybierz z rozkładu materiału lub wpisz własny" />
+        </StackPanel>
+
+        <!-- Uwagi (Wpisanie ręczne) -->
+        <StackPanel Grid.Row="3" Margin="0,0,0,15">
+            <TextBlock Text="Uwagi:" FontSize="14" Foreground="#AAAAAA" Margin="0,0,0,5" />
+            <TextBox x:Name="NotesTextBox" AcceptsReturn="True" TextWrapping="Wrap" Height="100" VerticalScrollBarVisibility="Auto" ToolTip="Dodatkowe informacje (np. zachowanie uczniów, trudności sprzętowe)"/>
+        </StackPanel>
+
+        <!-- Dolne Przyciski -->
+        <Grid Grid.Row="4" Margin="0,10,0,0">
+            <Button Content="Zaplanuj kartkówkę" HorizontalAlignment="Left" Background="#4A2E2E" Foreground="White" BorderThickness="0" Padding="15,8" Cursor="Hand" Click="PlanQuiz_Click" ToolTip="Przejście do okna planowania dla danej klasy" FontWeight="Bold"/>
+            
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Anuluj" Background="#3E3E42" Foreground="White" BorderThickness="0" Padding="15,8" Margin="0,0,10,0" Cursor="Hand" Click="Cancel_Click" />
+                <Button Content="Zapisz" Background="#2E4A2E" Foreground="White" BorderThickness="0" Padding="15,8" Cursor="Hand" Click="Save_Click" FontWeight="Bold" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>
