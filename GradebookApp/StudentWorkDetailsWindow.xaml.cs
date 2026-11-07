@@ -23,7 +23,7 @@ namespace GradebookApp
         private static string _lastUsedGroup = string.Empty;
         private static string _lastUsedRetakeGroup = string.Empty;
         
-        // NOWOŚĆ: Niezależna pamięć WSZYSTKICH dat
+        // Niezależna pamięć WSZYSTKICH dat
         private static DateTime? _lastUsedBaseWrittenDate = null;
         private static DateTime? _lastUsedBaseEnteredDate = null;
         private static DateTime? _lastUsedRetakeDeadline = null;
@@ -51,20 +51,25 @@ namespace GradebookApp
             if (student == null || _currentWork == null) return;
             ScoresDataGrid.ItemsSource = ScoresCollection;
 
+            // Sprawdzamy, czy uczeń ma już przypisane JAKIEKOLWIEK punkty, żeby nie nadpisywać mu danych z pamięci autouzupełniania
+            bool hasBaseScores = _existingScores.Any(s => s.PointsLevel1.HasValue || s.PointsLevel2.HasValue || s.PointsLevel3.HasValue);
+            bool hasRetakeScores = _existingScores.Any(s => s.RetakePointsLevel1.HasValue || s.RetakePointsLevel2.HasValue || s.RetakePointsLevel3.HasValue);
+
             if (workRecord != null)
             {
-                // Jeśli rekord w bazie istnieje, nadpisujemy kontrolki jego zawartością (lub bezpiecznie wstawiamy pamięć statyczną z poprzedniego kroku, jeśli data w bazie była pusta)
-                CustomDateWrittenPicker.SelectedDate = workRecord.CustomDateWritten ?? _lastUsedBaseWrittenDate; 
-                CustomDateEnteredPicker.SelectedDate = workRecord.CustomDateEntered ?? _lastUsedBaseEnteredDate; 
+                // Jeśli rekord w bazie istnieje, nadpisujemy kontrolki jego zawartością. 
+                // ZABEZPIECZENIE: Używamy zapamiętanej daty tylko wtedy, gdy uczeń NIE MA JESZCZE OCEN!
+                CustomDateWrittenPicker.SelectedDate = workRecord.CustomDateWritten ?? (hasBaseScores ? null : _lastUsedBaseWrittenDate); 
+                CustomDateEnteredPicker.SelectedDate = workRecord.CustomDateEntered ?? (hasBaseScores ? null : _lastUsedBaseEnteredDate); 
                 AbsentCheckBox.IsChecked = workRecord.IsAbsent;
-                RetakeDeadlinePicker.SelectedDate = workRecord.RetakeDeadline ?? _lastUsedRetakeDeadline; 
-                RetakeDateWrittenPicker.SelectedDate = workRecord.RetakeDateWritten ?? _lastUsedRetakeWrittenDate; 
-                RetakeDateEnteredPicker.SelectedDate = workRecord.RetakeDateEntered ?? _lastUsedRetakeEnteredDate; 
+                RetakeDeadlinePicker.SelectedDate = workRecord.RetakeDeadline ?? (hasBaseScores ? null : _lastUsedRetakeDeadline); 
+                RetakeDateWrittenPicker.SelectedDate = workRecord.RetakeDateWritten ?? (hasRetakeScores ? null : _lastUsedRetakeWrittenDate); 
+                RetakeDateEnteredPicker.SelectedDate = workRecord.RetakeDateEntered ?? (hasRetakeScores ? null : _lastUsedRetakeEnteredDate); 
                 _isRetakeActive = workRecord.IsRetakeActive;
             }
             else
             {
-                // Uczeń jest całkowicie "czysty" - wczytujemy całą pamięć ze statycznych buforów
+                // Uczeń jest całkowicie "czysty" (nie ma w ogóle rekordu) - wczytujemy całą pamięć ze statycznych buforów
                 CustomDateWrittenPicker.SelectedDate = _lastUsedBaseWrittenDate;
                 CustomDateEnteredPicker.SelectedDate = _lastUsedBaseEnteredDate;
                 RetakeDeadlinePicker.SelectedDate = _lastUsedRetakeDeadline;
@@ -78,7 +83,10 @@ namespace GradebookApp
                 var groups = _currentWork.Tasks.Where(t => !string.IsNullOrEmpty(t.GroupName)).Select(t => t.GroupName!).Distinct().OrderBy(g => g).ToList();
                 GroupComboBox.ItemsSource = RetakeGroupComboBox.ItemsSource = groups;
 
-                string targetGroup = workRecord != null && groups.Contains(workRecord.Group ?? "") ? workRecord.Group! : (groups.Contains(_lastUsedGroup) ? _lastUsedGroup : groups.FirstOrDefault() ?? "");
+                // ZABEZPIECZENIE: Zapożyczamy grupę tylko, jeśli uczeń nie ma ocen
+                string targetGroup = workRecord != null && groups.Contains(workRecord.Group ?? "") 
+                    ? workRecord.Group! 
+                    : ((!hasBaseScores && groups.Contains(_lastUsedGroup)) ? _lastUsedGroup : groups.FirstOrDefault() ?? "");
                 GroupComboBox.SelectedItem = targetGroup;
                 
                 if (workRecord != null && groups.Contains(workRecord.RetakeGroup ?? "")) RetakeGroupComboBox.SelectedItem = workRecord.RetakeGroup;
@@ -87,7 +95,9 @@ namespace GradebookApp
             else
             {
                 GroupTextBox.Visibility = RetakeGroupTextBox.Visibility = Visibility.Visible; GroupComboBox.Visibility = RetakeGroupComboBox.Visibility = Visibility.Collapsed;
-                GroupTextBox.Text = string.IsNullOrEmpty(workRecord?.Group) ? _lastUsedGroup : workRecord.Group; RetakeGroupTextBox.Text = string.IsNullOrEmpty(workRecord?.RetakeGroup) ? _lastUsedRetakeGroup : workRecord.RetakeGroup;
+                // ZABEZPIECZENIE: Zapożyczamy tekst grupy z pamięci tylko jeśli uczeń nie ma ocen
+                GroupTextBox.Text = string.IsNullOrEmpty(workRecord?.Group) ? (hasBaseScores ? "" : _lastUsedGroup) : workRecord.Group; 
+                RetakeGroupTextBox.Text = string.IsNullOrEmpty(workRecord?.RetakeGroup) ? (hasRetakeScores ? "" : _lastUsedRetakeGroup) : workRecord.RetakeGroup;
             }
 
             RebuildScoresCollection(); UpdateDeadlinePrompt(); ApplyRetakeVisibility(); 
@@ -160,9 +170,6 @@ namespace GradebookApp
             DateTime? baseDate = CustomDateEnteredPicker.SelectedDate ?? _currentWork?.DateEntered;
             if (baseDate.HasValue) 
             { 
-                if (_isLoaded && RetakeDeadlinePicker.SelectedDate == null) 
-                    RetakeDeadlinePicker.SelectedDate = baseDate.Value.AddDays(14); 
-                
                 RetakeDeadlinePromptText.Text = $"Termin na poprawę: do {(RetakeDeadlinePicker.SelectedDate ?? baseDate.Value.AddDays(14)):dd.MM.yyyy}"; 
             }
             else 
@@ -171,7 +178,15 @@ namespace GradebookApp
             }
         }
 
-        private void CustomDateEnteredPicker_SelectedDateChanged(object sender, SelectionChangedEventArgs e) => UpdateDeadlinePrompt();
+        private void CustomDateEnteredPicker_SelectedDateChanged(object sender, SelectionChangedEventArgs e) 
+        { 
+            // Wymuszamy aktualizację daty poprawy o 14 dni, jeśli użytkownik zmienił datę "Wpisania" po załadowaniu okna
+            if (_isLoaded && CustomDateEnteredPicker.SelectedDate.HasValue)
+            {
+                RetakeDeadlinePicker.SelectedDate = CustomDateEnteredPicker.SelectedDate.Value.AddDays(14);
+            }
+            UpdateDeadlinePrompt(); 
+        }
 
         private void SetTodayBase_Click(object sender, RoutedEventArgs e) { CustomDateEnteredPicker.SelectedDate = DateTime.Today; }
         private void SetTodayRetake_Click(object sender, RoutedEventArgs e) { RetakeDateEnteredPicker.SelectedDate = DateTime.Today; }
@@ -256,7 +271,7 @@ namespace GradebookApp
                 }
             }
 
-            // NOWOŚĆ: Rejestrowanie w całości wszystkich 5 dat oddzielnie!
+            // Zapisanie w całości wszystkich 5 dat oddzielnie do pamięci podręcznej dla kolejnych wpisów
             _lastUsedGroup = record.Group; 
             _lastUsedBaseWrittenDate = record.CustomDateWritten;
             _lastUsedBaseEnteredDate = record.CustomDateEntered;

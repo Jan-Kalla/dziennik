@@ -161,12 +161,36 @@
 
                 <DataGridTemplateColumn Header="Godz." Width="120" CellStyle="{StaticResource NoClipCellStyle}">
                     <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><Grid Background="Transparent"><TextBox Text="{Binding TimeSlot, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}" Margin="0,5"/></Grid></DataTemplate>
+                        <DataTemplate>
+                            <Grid Background="Transparent">
+                                <!-- Zmienione na LostFocus, żeby parser nie wariował podczas pisania -->
+                                <TextBox Text="{Binding TimeSlot, UpdateSourceTrigger=LostFocus}" Style="{StaticResource CellTextBoxStyle}" Margin="0,5"/>
+                            </Grid>
+                        </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
                 <DataGridTemplateColumn Header="Klasa (dyżur)" Width="150" CellStyle="{StaticResource NoClipCellStyle}">
                     <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><Grid Background="Transparent"><TextBox Text="{Binding ClassName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}"/></Grid></DataTemplate>
+                        <DataTemplate>
+                            <Grid Background="Transparent">
+                                <ComboBox IsEditable="True" 
+                                        Text="{Binding ClassName, UpdateSourceTrigger=PropertyChanged}" 
+                                        ItemsSource="{Binding DataContext.ClassNames, RelativeSource={RelativeSource AncestorType=UserControl}}" 
+                                        IsTextSearchEnabled="False"
+                                        StaysOpenOnEdit="True"
+                                        KeyUp="ClassComboBox_KeyUp"
+                                        Background="Transparent"
+                                        Foreground="#E0E0E0"
+                                        BorderThickness="0"
+                                        Padding="5">
+                                    <ComboBox.Resources>
+                                        <Style TargetType="ToggleButton">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </Style>
+                                    </ComboBox.Resources>
+                                </ComboBox>
+                            </Grid>
+                        </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
                 <DataGridTemplateColumn Header="Zrealizowany materiał" Width="*" CellStyle="{StaticResource NoClipCellStyle}">

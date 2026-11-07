@@ -17,6 +17,9 @@ namespace GradebookApp
         private ObservableCollection<ScheduleRow> _scheduleRows = new ObservableCollection<ScheduleRow>();
         private ObservableCollection<DailyRowWrapper> _dailyRows = new ObservableCollection<DailyRowWrapper>();
         
+        // Dodana kolekcja, z którą zbindowany jest ComboBox sugestii klas
+        public ObservableCollection<string> ClassNames { get; set; } = new ObservableCollection<string>();
+
         private DateTime _currentDate = DateTime.Today;
         private readonly GradebookDataService _dataService;
         private bool _isInitializingData = true;
@@ -24,8 +27,20 @@ namespace GradebookApp
         public LessonTabControl()
         {
             InitializeComponent();
+            this.DataContext = this; // Ustawiamy DataContext UserControl na samego siebie, żeby Binding działał
             _dataService = new GradebookDataService();
+            
+            LoadClassNames();
             SetupData();
+        }
+
+        private void LoadClassNames()
+        {
+            var classes = _dataService.GetAllClasses();
+            foreach (var c in classes.OrderBy(c => c.Name))
+            {
+                ClassNames.Add(c.Name);
+            }
         }
 
         private void SetupData()
@@ -219,17 +234,39 @@ namespace GradebookApp
 
         private void GoToLessonInfo_Click(object sender, RoutedEventArgs e)
         {
-            // Odczytujemy kontekst wiersza, z którego kliknięto przycisk "→"
             if (sender is Button btn && btn.DataContext is DailyRowWrapper row)
             {
-                // Przekazujemy kontekst wiersza i aktualną datę wyświetlaną nad tabelą
-                var window = new LessonInfoWindow(row, LessonDateText.Text) 
+                // Przekazujemy _currentDate jako trzeci argument!
+                var window = new LessonInfoWindow(row, LessonDateText.Text, _currentDate) 
                 { 
                     Owner = Window.GetWindow(this) 
                 };
                 window.ShowDialog();
             }
         }
+
+        // DODAJ TĘ METODĘ DO KLASY LessonTabControl DLA OBSŁUGI WYSZUKIWANA KLAS:
+        private void ClassComboBox_KeyUp(object sender, KeyEventArgs e)
+        {
+            // Ignoruj klawisze nawigacyjne i Enter
+            if (e.Key == Key.Up || e.Key == Key.Down || e.Key == Key.Enter || e.Key == Key.Escape || e.Key == Key.Tab) 
+                return;
+
+            if (sender is ComboBox cmb)
+            {
+                string search = cmb.Text.ToLower();
+                var filtered = ClassNames.Where(c => c.ToLower().Contains(search)).ToList();
+                cmb.ItemsSource = filtered;
+                
+                // Otwieramy listę podpowiedzi pod spodem tylko, gdy wpisano tekst
+                if (filtered.Any() && !string.IsNullOrWhiteSpace(search))
+                    cmb.IsDropDownOpen = true;
+                else
+                    cmb.IsDropDownOpen = false;
+            }
+        }
+
+        
 
         // ==============================
         // LOGIKA NAWIGACJI KLAWIATURĄ
@@ -400,7 +437,30 @@ namespace GradebookApp
         protected void OnPropertyChanged([CallerMemberName] string name = null!) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
         private string _timeSlot = "";
-        public string TimeSlot { get => _timeSlot; set { _timeSlot = value; OnPropertyChanged(); } }
+        public string TimeSlot 
+        { 
+            get => _timeSlot; 
+            set 
+            { 
+                if (_timeSlot == value) return;
+
+                if (SmartTimeParser.TryParse(value, out string parsedTime))
+                {
+                    _timeSlot = parsedTime;
+                }
+                else
+                {
+                    // Wyrzucamy błąd i NIE nadpisujemy _timeSlot (dzięki OnPropertyChanged() na dole tabelka z powrotem pokaże starą wartość)
+                    MessageBox.Show(
+                        $"Wprowadzona wartość '{value}' nie jest poprawną godziną.\n\n" +
+                        $"Użyj formatu np. 9:30, 0930, 1450 lub przedziału 8:00-8:45.\n" +
+                        $"Godziny muszą mieścić się w zakresie 00-23, a minuty 00-59.", 
+                        "Nieprawidłowy format czasu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+                
+                OnPropertyChanged(); 
+            } 
+        }
 
         private string _monClass = "";
         public string MonClass { get => _monClass; set { _monClass = value; OnPropertyChanged(); } }
@@ -426,6 +486,100 @@ namespace GradebookApp
         public string FriClass { get => _friClass; set { _friClass = value; OnPropertyChanged(); } }
         private string _friMat = "";
         public string FriMat { get => _friMat; set { _friMat = value; OnPropertyChanged(); } }
+    }
+
+    public static class SmartTimeParser
+    {
+        public static bool TryParse(string input, out string result)
+        {
+            result = input;
+            
+            // Jeśli użytkownik czyści komórkę, pozwalamy na to bez błędu
+            if (string.IsNullOrWhiteSpace(input))
+            {
+                result = "";
+                return true;
+            }
+
+            // Czyszczenie znaków
+            input = input.Trim().Replace(" ", "").Replace(";", ":").Replace(",", ":").Replace(".", ":").ToLower();
+
+            // Jeśli to przedział (np. 8:00-9:45)
+            if (input.Contains("-"))
+            {
+                var parts = input.Split(new[] { '-' }, 2);
+                if (TryParseSingle(parts[0], out string t1) && TryParseSingle(parts[1], out string t2))
+                {
+                    result = $"{t1} - {t2}";
+                    return true;
+                }
+                return false; // Jeśli któryś człon jest zły (np. zła godzina) - odrzucamy całość
+            }
+
+            // Pojedyncza godzina
+            if (TryParseSingle(input, out string singleTime))
+            {
+                result = singleTime;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryParseSingle(string val, out string parsed)
+        {
+            parsed = val;
+            if (string.IsNullOrWhiteSpace(val)) return false;
+
+            // Zabezpieczenie przed literami - akceptujemy tylko cyfry i dwukropek
+            if (!System.Text.RegularExpressions.Regex.IsMatch(val, @"^[\d:]+$")) return false;
+
+            int hours = 0;
+            int minutes = 0;
+
+            if (val.Contains(":"))
+            {
+                var parts = val.Split(new[] { ':' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length > 2) return false;
+                
+                if (!int.TryParse(parts[0], out hours)) return false;
+                if (parts.Length == 2)
+                {
+                    string minStr = parts[1];
+                    // Jak ktoś wpisze "9:3" to robimy z tego "09:30"
+                    if (minStr.Length == 1) minStr += "0"; 
+                    if (minStr.Length > 2 || !int.TryParse(minStr, out minutes)) return false;
+                }
+            }
+            else
+            {
+                if (val.Length > 4 || val.Length == 0) return false;
+                
+                if (val.Length <= 2)
+                {
+                    hours = int.Parse(val);
+                }
+                else if (val.Length == 3) // np. 930 -> h=9, m=30
+                {
+                    hours = int.Parse(val.Substring(0, 1));
+                    minutes = int.Parse(val.Substring(1, 2));
+                }
+                else if (val.Length == 4) // np. 0930 -> h=9, m=30
+                {
+                    hours = int.Parse(val.Substring(0, 2));
+                    minutes = int.Parse(val.Substring(2, 2));
+                }
+            }
+
+            // FINALNA WALIDACJA MATEMATYCZNA CZASU
+            if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59)
+            {
+                parsed = $"{hours:D2}:{minutes:D2}";
+                return true;
+            }
+
+            return false;
+        }
     }
 
     public class DailyRowWrapper : INotifyPropertyChanged
@@ -455,5 +609,7 @@ namespace GradebookApp
             get => Day switch { DayOfWeek.Monday => Row.MonMat, DayOfWeek.Tuesday => Row.TueMat, DayOfWeek.Wednesday => Row.WedMat, DayOfWeek.Thursday => Row.ThuMat, DayOfWeek.Friday => Row.FriMat, _ => "" };
             set { switch (Day) { case DayOfWeek.Monday: Row.MonMat = value; break; case DayOfWeek.Tuesday: Row.TueMat = value; break; case DayOfWeek.Wednesday: Row.WedMat = value; break; case DayOfWeek.Thursday: Row.ThuMat = value; break; case DayOfWeek.Friday: Row.FriMat = value; break; } OnPropertyChanged(); }
         }
+    
     }
+    
 }

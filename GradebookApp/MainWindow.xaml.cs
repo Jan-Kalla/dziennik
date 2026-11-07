@@ -15,10 +15,12 @@ namespace GradebookApp
 
         public MainWindow()
         {
-            InitializeComponent();
-
+            // 1. NAJPIERW przygotowujemy serwis i aktualizujemy starą bazę do nowej struktury
             _dataService = new GradebookDataService();
             _dataService.ApplyMigrations(); 
+
+            // 2. DOPIERO POTEM ładujemy interfejs XAML (dzięki temu LessonTabControl bezpiecznie pobierze klasy)
+            InitializeComponent();
             
             ClassesList = new ObservableCollection<SchoolClass>(_dataService.GetAllClasses().OrderBy(c => c.Name));
             ClassesListBox.ItemsSource = ClassesList;
@@ -28,7 +30,11 @@ namespace GradebookApp
 
         private void NewClassNameTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            AddClassButton.Visibility = string.IsNullOrWhiteSpace(NewClassNameTextBox.Text) ? Visibility.Collapsed : Visibility.Visible;
+            // Zabezpieczenie: Sprawdzamy, czy przycisk zdążył się załadować z pliku XAML
+            if (AddClassButton != null)
+            {
+                AddClassButton.Visibility = string.IsNullOrWhiteSpace(NewClassNameTextBox.Text) ? Visibility.Collapsed : Visibility.Visible;
+            }
         }
 
         private void AddNewClass()
@@ -72,6 +78,12 @@ namespace GradebookApp
             window.ShowDialog();
         }
 
+        private void OpenCurriculumWindow_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new CurriculumWindow() { Owner = this };
+            window.ShowDialog();
+        }
+
         // Zdarzenie wywołujące menu dropdown dla zakładki Inne i blokujące zmianę karty
         private void OtherTab_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
@@ -93,7 +105,10 @@ namespace GradebookApp
 
         private void RefreshGlobalCalendar()
         {
-            if (_dataService == null) return; 
+            // Zabezpieczenie: Przerywamy, jeśli kluczowe kontrolki nie zostały jeszcze wyrenderowane
+            if (_dataService == null || ShowUpcomingGlobalOnlyCheckBox == null || ShowAllGlobalWorksCheckBox == null || GlobalCalendarDataGrid == null) 
+                return; 
+
             bool upcomingOnly = ShowUpcomingGlobalOnlyCheckBox.IsChecked == true;
             bool includeAll = ShowAllGlobalWorksCheckBox.IsChecked == true;
             GlobalCalendarDataGrid.ItemsSource = _dataService.GetGlobalCalendarEvents(upcomingOnly, includeAll);

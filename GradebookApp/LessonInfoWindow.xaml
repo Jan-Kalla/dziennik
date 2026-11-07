@@ -1,7 +1,7 @@
 <Window x:Class="GradebookApp.LessonInfoWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Informacje o lekcji" Height="450" Width="550" 
+        Title="Informacje o lekcji" Height="450" Width="600" 
         WindowStartupLocation="CenterOwner"
         Background="#1E1E1E" Foreground="#E0E0E0">
     
@@ -11,7 +11,7 @@
         </Style>
         <Style TargetType="ComboBox">
             <Setter Property="Background" Value="#333337"/>
-            <Setter Property="Foreground" Value="Black"/> <!-- Tekst w rozwiniętej liście -->
+            <Setter Property="Foreground" Value="Black"/>
             <Setter Property="BorderBrush" Value="#555555"/>
             <Setter Property="Padding" Value="5"/>
             <Setter Property="Height" Value="32"/>
@@ -27,29 +27,25 @@
 
     <Grid Margin="20">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" /> <!-- Nagłówek -->
-            <RowDefinition Height="Auto" /> <!-- Temat -->
-            <RowDefinition Height="Auto" /> <!-- Materiał -->
-            <RowDefinition Height="*" />    <!-- Uwagi -->
-            <RowDefinition Height="Auto" /> <!-- Przyciski -->
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Nagłówek INFORMACJE -->
-        <TextBlock x:Name="InfoHeader" Grid.Row="0" Text="INFORMACJE" FontSize="20" FontWeight="Bold" Margin="0,0,0,20" Foreground="#007ACC"/>
+        <TextBlock x:Name="InfoHeader" Grid.Row="0" Text="INFORMACJE" FontSize="20" FontWeight="Bold" Margin="0,0,0,20" Foreground="#007ACC" TextWrapping="Wrap"/>
 
-        <!-- Temat (Do wyboru z rozkładu lub wpisania ręcznego) -->
         <StackPanel Grid.Row="1" Margin="0,0,0,15">
             <TextBlock Text="Temat:" FontSize="14" Foreground="#AAAAAA" Margin="0,0,0,5" />
             <ComboBox x:Name="TopicComboBox" IsEditable="True" ToolTip="Wybierz z rozkładu materiału lub wpisz własny temat" />
         </StackPanel>
 
-        <!-- Realizowany materiał (Do wyboru z rozkładu lub wpisania ręcznego) -->
         <StackPanel Grid.Row="2" Margin="0,0,0,15">
             <TextBlock Text="Realizowany materiał:" FontSize="14" Foreground="#AAAAAA" Margin="0,0,0,5" />
             <ComboBox x:Name="MaterialComboBox" IsEditable="True" ToolTip="Wybierz z rozkładu materiału lub wpisz własny" />
         </StackPanel>
 
-        <!-- Uwagi (Wpisanie ręczne) -->
         <StackPanel Grid.Row="3" Margin="0,0,0,15">
             <TextBlock Text="Uwagi:" FontSize="14" Foreground="#AAAAAA" Margin="0,0,0,5" />
             <TextBox x:Name="NotesTextBox" AcceptsReturn="True" TextWrapping="Wrap" Height="100" VerticalScrollBarVisibility="Auto" ToolTip="Dodatkowe informacje (np. zachowanie uczniów, trudności sprzętowe)"/>
@@ -57,7 +53,10 @@
 
         <!-- Dolne Przyciski -->
         <Grid Grid.Row="4" Margin="0,10,0,0">
-            <Button Content="Zaplanuj kartkówkę" HorizontalAlignment="Left" Background="#4A2E2E" Foreground="White" BorderThickness="0" Padding="15,8" Cursor="Hand" Click="PlanQuiz_Click" ToolTip="Przejście do okna planowania dla danej klasy" FontWeight="Bold"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                <Button Content="Dodaj ocenę" Background="#4A2E2E" Foreground="White" BorderThickness="0" Padding="15,8" Margin="0,0,10,0" Cursor="Hand" Click="PlanWork_Click" ToolTip="Otwórz kreator pracy pisemnej" FontWeight="Bold"/>
+                <Button Content="Zaplanuj poprawę" Background="#825a2c" Foreground="White" BorderThickness="0" Padding="15,8" Cursor="Hand" Click="PlanRetake_Click" ToolTip="Zaplanuj poprawę do wybranej pracy dla wybranej klasy" FontWeight="Bold"/>
+            </StackPanel>
             
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Content="Anuluj" Background="#3E3E42" Foreground="White" BorderThickness="0" Padding="15,8" Margin="0,0,10,0" Cursor="Hand" Click="Cancel_Click" />

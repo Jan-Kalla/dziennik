@@ -164,6 +164,7 @@
                     <TabItem.ContextMenu>
                         <!-- Menu otwierające się idealnie pod nagłówkiem -->
                         <ContextMenu x:Name="OtherMenu" Placement="Bottom" PlacementTarget="{Binding RelativeSource={RelativeSource AncestorType=TabItem}}">
+                            <MenuItem Header="Rozkład materiału" Click="OpenCurriculumWindow_Click" FontWeight="Bold" Foreground="#4DB6AC"/>
                             <MenuItem Header="Statystyki popraw" Click="OpenStatisticsWindow_Click"/>
                             <MenuItem Header="Menadżer szablonów" Click="OpenTemplateManager_Click"/>
                             <Separator/>
