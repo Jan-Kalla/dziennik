@@ -296,5 +296,87 @@ namespace GradebookApp
         }
 
         private void RefreshTable_Click(object sender, RoutedEventArgs e) { if (_currentClass != null) LoadClassData(_currentClass); }
+        private void GoToLesson_Click(object sender, RoutedEventArgs e)
+        {
+            var currentWindow = Window.GetWindow(this);
+            bool isMainWindow = currentWindow != null && currentWindow.GetType().Name == "MainWindow";
+
+            if (isMainWindow)
+            {
+                // PRZYPADEK 1: Kontrolka jest w głównym oknie (nakładka Grid)
+                var mainWindow = currentWindow as MainWindow;
+                if (mainWindow != null)
+                {
+                    // Odnajdujemy TabControl w strukturze głównego okna i przełączamy na 0 (Lekcja)
+                    var tabControl = FindVisualChild<TabControl>(mainWindow);
+                    if (tabControl != null) tabControl.SelectedIndex = 0;
+                    
+                    // Najważniejsze! Ręcznie symulujemy "BackButton", by schować nakładkę klasy
+                    mainWindow.ClassDetailsView.Visibility = Visibility.Collapsed;
+                    mainWindow.StudentDetailsView.Visibility = Visibility.Collapsed;
+                    mainWindow.MainTabContainer.Visibility = Visibility.Visible;
+                }
+                
+                return; // Bezwzględnie przerywamy, by nie zamknąć aplikacji!
+            }
+            
+            // PRZYPADEK 2: Jesteśmy w osobnym, małym oknie (ClassDetailsWindow)
+            bool isLessonInfoOpen = System.Windows.Application.Current.Windows.OfType<LessonInfoWindow>().Any();
+            
+            if (isLessonInfoOpen)
+            {
+                // Okno "Informacje o lekcji" czeka pod spodem otwarte – zamykamy bieżące okienko
+                currentWindow?.Close();
+            }
+            else
+            {
+                // Szukamy ukrytego głównego okna aplikacji
+                var mainWindow = System.Windows.Application.Current.Windows.Cast<Window>().FirstOrDefault(w => w.GetType().Name == "MainWindow") as MainWindow;
+                
+                if (mainWindow != null)
+                {
+                    // Ustawiamy odpowiednią zakładkę i włączamy tryb kalendarza 
+                    var mainTabControl = FindVisualChild<TabControl>(mainWindow);
+                    if (mainTabControl != null) mainTabControl.SelectedIndex = 0;
+
+                    // Na wypadek, gdyby mainWindow z jakiegoś powodu miało włączoną nakładkę klasy - wyłączamy ją
+                    mainWindow.ClassDetailsView.Visibility = Visibility.Collapsed;
+                    mainWindow.StudentDetailsView.Visibility = Visibility.Collapsed;
+                    mainWindow.MainTabContainer.Visibility = Visibility.Visible;
+                    
+                    mainWindow.Show();
+                    if (mainWindow.WindowState == WindowState.Minimized) mainWindow.WindowState = WindowState.Normal;
+                    mainWindow.Activate();
+                }
+                
+                // Zamykamy bieżące okienko ze szczegółami klasy
+                currentWindow?.Close();
+            }
+        }
+
+        // Metoda pomocnicza wędrująca w górę drzewa kontrolek (rozpoznaje, w czym osadzony jest widok)
+        private static T? GetParent<T>(DependencyObject? child) where T : DependencyObject
+        {
+            if (child == null) return null;
+            DependencyObject parentObject = System.Windows.Media.VisualTreeHelper.GetParent(child);
+            if (parentObject == null) return null;
+            if (parentObject is T parent) return parent;
+            return GetParent<T>(parentObject);
+        }
+
+        // NOWOŚĆ: Metoda pomocnicza wędrująca w DÓŁ drzewa kontrolek (do wyszukania zakładek w MainWindow)
+        private static T? FindVisualChild<T>(DependencyObject? parent) where T : DependencyObject
+        {
+            if (parent == null) return null;
+            for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                DependencyObject child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+                if (child is T t) return t;
+                
+                T? childOfChild = FindVisualChild<T>(child);
+                if (childOfChild != null) return childOfChild;
+            }
+            return null;
+        }
     }
 }

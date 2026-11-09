@@ -1,69 +1,229 @@
+using System;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Windows;
+using GradebookApp.Services;
 
 namespace GradebookApp
 {
     public partial class CurriculumWindow : Window
     {
-        public ObservableCollection<CurriculumItem> CurriculumItems { get; set; }
+        private readonly GradebookDataService _dataService;
+        public ObservableCollection<CurriculumItem> CurriculumItems { get; set; } = new ObservableCollection<CurriculumItem>();
+        private bool _isEditMode = false;
+        private CurriculumItem? _selectedItem;
 
         public CurriculumWindow()
         {
             InitializeComponent();
-            CurriculumItems = new ObservableCollection<CurriculumItem>();
-            
-            LoadMockData();
-
+            _dataService = new GradebookDataService();
             CurriculumTreeView.ItemsSource = CurriculumItems;
+            
+            LoadFromDatabase();
         }
 
-        private void LoadMockData()
+        private void LoadFromDatabase()
         {
-            // Odwzorowanie struktury z Twoich notatek (Zdjęcie 2)
-            var dzial1 = new CurriculumItem { Name = "Dział 1", Hours = 6, Level = 0 };
+            CurriculumItems.Clear();
+            var allNodes = _dataService.GetAllCurriculumNodes();
+
+            var roots = allNodes.Where(n => n.ParentId == null).OrderBy(n => n.Id).ToList();
+            foreach (var root in roots)
+            {
+                CurriculumItems.Add(BuildTree(root, allNodes));
+            }
+        }
+
+        private CurriculumItem BuildTree(CurriculumNode node, System.Collections.Generic.List<CurriculumNode> allNodes)
+        {
+            var item = new CurriculumItem
+            {
+                Id = node.Id,
+                Name = node.Name,
+                Hours = node.Hours,
+                Level = node.Level,
+                ParentId = node.ParentId,
+                IsTopic = node.Level == 2,
+                TasksPdfPath = node.TasksPdfPath,
+                AnswersPdfPath = node.AnswersPdfPath,
+                QuizzesPdfPath = node.QuizzesPdfPath
+            };
+
+            var children = allNodes.Where(n => n.ParentId == node.Id).OrderBy(n => n.Id).ToList();
+            foreach (var child in children)
+            {
+                item.Children.Add(BuildTree(child, allNodes));
+            }
+            return item;
+        }
+
+        private void ToggleEditMode_Click(object sender, RoutedEventArgs e)
+        {
+            _isEditMode = !_isEditMode;
             
-            var rozdzial1 = new CurriculumItem { Name = "Rozdział 1", Hours = 5, Level = 1 };
-            rozdzial1.Children.Add(new CurriculumItem { Name = "Temat 1", IsTopic = true, Level = 2 });
-            rozdzial1.Children.Add(new CurriculumItem { Name = "Temat 2", IsTopic = true, Level = 2 });
+            if (_isEditMode)
+            {
+                EditToggleBtn.Content = "Wyjdź z trybu edycji";
+                EditToggleBtn.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(161, 59, 59));
+                EditPanel.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                EditToggleBtn.Content = "Edytuj";
+                EditToggleBtn.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0, 122, 204));
+                EditPanel.Visibility = Visibility.Collapsed;
+                CurriculumTreeView.SelectedItemChanged -= CurriculumTreeView_SelectedItemChanged; 
+                LoadFromDatabase(); 
+                CurriculumTreeView.SelectedItemChanged += CurriculumTreeView_SelectedItemChanged;
+            }
+        }
+
+        private void CurriculumTreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+        {
+            _selectedItem = e.NewValue as CurriculumItem;
             
-            dzial1.Children.Add(rozdzial1);
+            if (_selectedItem != null)
+            {
+                EditNameTextBox.Text = _selectedItem.Name;
+                EditHoursTextBox.Text = _selectedItem.Hours?.ToString() ?? "";
+                
+                AddChildBtn.IsEnabled = _selectedItem.Level < 2; 
+                AddSiblingBtn.IsEnabled = true;
+                DeleteNodeBtn.IsEnabled = true;
+            }
+            else
+            {
+                EditNameTextBox.Text = "";
+                EditHoursTextBox.Text = "";
+                AddChildBtn.IsEnabled = false;
+                AddSiblingBtn.IsEnabled = false;
+                DeleteNodeBtn.IsEnabled = false;
+            }
+        }
 
-            var dzial2 = new CurriculumItem { Name = "Dział 2", Level = 0 };
-            dzial2.Children.Add(new CurriculumItem { Name = "Rozdział 2", Hours = 4, Level = 1 });
-            dzial2.Children.Add(new CurriculumItem { Name = "Rozdział 3", Level = 1 });
+        private void SaveNodeEdit_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedItem == null) return;
+            string newName = string.IsNullOrWhiteSpace(EditNameTextBox.Text) ? "Nowy element" : EditNameTextBox.Text;
+            int? newHours = int.TryParse(EditHoursTextBox.Text, out int h) ? h : null;
 
-            var dzial3 = new CurriculumItem { Name = "Dział 3", Level = 0 };
+            _dataService.UpdateCurriculumNode(_selectedItem.Id, newName, newHours);
+            LoadFromDatabase(); 
+        }
 
-            CurriculumItems.Add(dzial1);
-            CurriculumItems.Add(dzial2);
-            CurriculumItems.Add(dzial3);
+        private void AddRoot_Click(object sender, RoutedEventArgs e)
+        {
+            _dataService.AddCurriculumNode("Nowy Dział", null, 0, null);
+            LoadFromDatabase();
+        }
+
+        private void AddChild_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedItem == null || _selectedItem.Level >= 2) return;
+            string prefix = _selectedItem.Level == 0 ? "Rozdział" : "Temat";
+            _dataService.AddCurriculumNode($"Nowy {prefix}", null, _selectedItem.Level + 1, _selectedItem.Id);
+            LoadFromDatabase();
+        }
+
+        private void AddSibling_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedItem == null) return;
+            string prefix = _selectedItem.Level == 0 ? "Dział" : (_selectedItem.Level == 1 ? "Rozdział" : "Temat");
+            _dataService.AddCurriculumNode($"Nowy {prefix}", null, _selectedItem.Level, _selectedItem.ParentId);
+            LoadFromDatabase();
+        }
+
+        private void DeleteNode_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedItem == null) return;
+            if (MessageBox.Show($"Czy na pewno usunąć '{_selectedItem.Name}' oraz całą jego zawartość?", "Usuwanie", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+            {
+                _dataService.DeleteCurriculumNode(_selectedItem.Id);
+                LoadFromDatabase();
+            }
         }
 
         private void PdfButton_Click(object sender, RoutedEventArgs e)
         {
-            // Tu w przyszłości: Przejście do pliku .pdf z zadaniami do danego tematu lub kartkówki.
-            // w przypadku kilku plików: nowe okno z możliwością wyboru danego pliku.
-            MessageBox.Show("Otwieranie przypisanego pliku PDF lub okna wyboru (jeśli jest ich więcej).", "Podgląd PDF", MessageBoxButton.OK, MessageBoxImage.Information);
+            if (sender is System.Windows.Controls.Button btn && btn.DataContext is CurriculumItem item)
+            {
+                string pdfType = btn.CommandParameter?.ToString() ?? "";
+                string? currentPath = pdfType == "Task" ? item.TasksPdfPath : (pdfType == "Answer" ? item.AnswersPdfPath : item.QuizzesPdfPath);
+
+                if (_isEditMode)
+                {
+                    // 1. TRYB EDYCJI: Wgrywanie pliku
+                    var openFileDialog = new Microsoft.Win32.OpenFileDialog
+                    {
+                        Filter = "Pliki PDF (*.pdf)|*.pdf",
+                        Title = "Wybierz plik PDF z komputera"
+                    };
+
+                    if (openFileDialog.ShowDialog() == true)
+                    {
+                        try
+                        {
+                            string targetFolder = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Pdfs");
+                            System.IO.Directory.CreateDirectory(targetFolder);
+                            string fileName = $"{Guid.NewGuid()}_{System.IO.Path.GetFileName(openFileDialog.FileName)}";
+                            string destPath = System.IO.Path.Combine(targetFolder, fileName);
+                            
+                            System.IO.File.Copy(openFileDialog.FileName, destPath);
+                            _dataService.UpdateCurriculumNodePdf(item.Id, pdfType, destPath);
+                            LoadFromDatabase(); // Odświeża kolory
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show($"Błąd podczas kopiowania pliku: {ex.Message}", "Błąd", MessageBoxButton.OK, MessageBoxImage.Error);
+                        }
+                    }
+                }
+                else
+                {
+                    // 2. TRYB PODGLĄDU: Otwieranie pliku
+                    if (!string.IsNullOrEmpty(currentPath) && System.IO.File.Exists(currentPath))
+                    {
+                        try
+                        {
+                            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(currentPath) { UseShellExecute = true });
+                        }
+                        catch { MessageBox.Show("Nie można otworzyć pliku. Brak domyślnego programu PDF w systemie.", "Błąd", MessageBoxButton.OK, MessageBoxImage.Warning); }
+                    }
+                    else
+                    {
+                        MessageBox.Show("Do tego pola nie przypisano jeszcze żadnego pliku (lub został usunięty z dysku). Wejdź w tryb Edycji, by go dodać.", "Brak pliku", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                }
+            }
         }
 
-        private void EditCurriculum_Click(object sender, RoutedEventArgs e)
+        protected override void OnClosed(EventArgs e)
         {
-            // Tu w przyszłości: Tworzenie / Edycja rozkładu (np. otwieranie nowego okna edytora)
-            MessageBox.Show("Tu pojawi się kreator dodawania/edycji struktury rozkładu materiału.", "Tworzenie rozkładu", MessageBoxButton.OK, MessageBoxImage.Information);
+            _dataService.Dispose();
+            base.OnClosed(e);
         }
     }
 
-    // Model danych dla struktury drzewiastej
     public class CurriculumItem
     {
-        public string Name { get; set; } = string.Empty;
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
         public int? Hours { get; set; }
         public bool IsTopic { get; set; }
-        public int Level { get; set; } // 0 = Dział, 1 = Rozdział, 2 = Temat
+        public int Level { get; set; } 
+        public int? ParentId { get; set; }
+        
+        public string? TasksPdfPath { get; set; }
+        public string? AnswersPdfPath { get; set; }
+        public string? QuizzesPdfPath { get; set; }
 
         public ObservableCollection<CurriculumItem> Children { get; set; } = new ObservableCollection<CurriculumItem>();
 
-        // Właściwość automatycznie doklejająca liczbę godzin w nawiasie " (x)", jeśli zostały podane
         public string DisplayText => Hours.HasValue ? $"{Name} ({Hours})" : Name;
+        
+        // Dynamiczne kolorowanie przycisków
+        public string TasksColor => !string.IsNullOrEmpty(TasksPdfPath) ? "#2E4A2E" : "#3E3E42";
+        public string AnswersColor => !string.IsNullOrEmpty(AnswersPdfPath) ? "#2E4A2E" : "#3E3E42";
+        public string QuizzesColor => !string.IsNullOrEmpty(QuizzesPdfPath) ? "#2E4A2E" : "#4A2E2E";
     }
 }

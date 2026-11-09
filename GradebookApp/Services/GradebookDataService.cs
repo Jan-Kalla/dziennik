@@ -120,7 +120,141 @@ namespace GradebookApp.Services
             return result;
         }
 
-        public void ApplyMigrations() => _dbContext.Database.Migrate();
+        // Zaktualizowana metoda ApplyMigrations (tworzy tabelę w locie)
+        public void ApplyMigrations() 
+        {
+            _dbContext.Database.Migrate();
+
+            // Pozostawiamy bez zmian dla rozkładu materiału
+            _dbContext.Database.ExecuteSqlRaw(@"
+                CREATE TABLE IF NOT EXISTS ""CurriculumNodes"" (
+                    ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_CurriculumNodes"" PRIMARY KEY AUTOINCREMENT,
+                    ""Name"" TEXT NOT NULL,
+                    ""Hours"" INTEGER NULL,
+                    ""Level"" INTEGER NOT NULL,
+                    ""ParentId"" INTEGER NULL
+                );
+            ");
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"CurriculumNodes\" ADD COLUMN \"TasksPdfPath\" TEXT NULL;"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"CurriculumNodes\" ADD COLUMN \"AnswersPdfPath\" TEXT NULL;"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"CurriculumNodes\" ADD COLUMN \"QuizzesPdfPath\" TEXT NULL;"); } catch { }
+
+            // Tworzenie nowej tabeli szablonów planu lekcji
+            _dbContext.Database.ExecuteSqlRaw(@"
+                CREATE TABLE IF NOT EXISTS ""LessonTemplateItems"" (
+                    ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_LessonTemplateItems"" PRIMARY KEY AUTOINCREMENT,
+                    ""TimeSlot"" TEXT NOT NULL,
+                    ""DayOfWeek"" INTEGER NOT NULL,
+                    ""ClassName"" TEXT NOT NULL
+                );
+            ");
+
+            // Aktualizacja tabeli zrealizowanych materiałów - usunięcie DayOfWeek i dodanie Date
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"LessonScheduleItems\" ADD COLUMN \"Date\" TEXT NOT NULL DEFAULT '0001-01-01 00:00:00';"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"LessonScheduleItems\" DROP COLUMN \"ClassName\";"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"LessonScheduleItems\" DROP COLUMN \"DayOfWeek\";"); } catch { }
+        }
+
+        // POBIERANIE SZABLONU (Dni Tygodnia)
+        public List<LessonTemplateItem> GetLessonTemplates()
+        {
+            _dbContext.ChangeTracker.Clear();
+            return _dbContext.LessonTemplateItems.ToList();
+        }
+
+        // ZAPISYWANIE SZABLONU (Gdy użytkownik edytuje klasy/godziny)
+        public void SaveLessonTemplates(List<LessonTemplateItem> templates)
+        {
+            _dbContext.LessonTemplateItems.RemoveRange(_dbContext.LessonTemplateItems);
+            _dbContext.LessonTemplateItems.AddRange(templates);
+            _dbContext.SaveChanges();
+        }
+
+        // POBIERANIE ZREALIZOWANYCH MATERIAŁÓW DLA DANEGO TYGODNIA
+        public List<LessonScheduleItem> GetScheduleForWeek(DateTime mondayDate)
+        {
+            _dbContext.ChangeTracker.Clear();
+            DateTime sundayDate = mondayDate.AddDays(6);
+            return _dbContext.LessonScheduleItems
+                             .Where(i => i.Date >= mondayDate && i.Date <= sundayDate)
+                             .ToList();
+        }
+
+        // ZAPISYWANIE ZREALIZOWANYCH MATERIAŁÓW
+        public void SaveScheduleMaterials(List<LessonScheduleItem> items)
+        {
+            if (!items.Any()) return;
+            
+            // Określamy zakres dat do nadpisania
+            var dates = items.Select(i => i.Date).Distinct().ToList();
+            var existing = _dbContext.LessonScheduleItems.Where(i => dates.Contains(i.Date)).ToList();
+            
+            _dbContext.LessonScheduleItems.RemoveRange(existing);
+            _dbContext.LessonScheduleItems.AddRange(items.Where(i => !string.IsNullOrWhiteSpace(i.Material)));
+            _dbContext.SaveChanges();
+        }
+
+        // POBIERANIE CAŁEJ HISTORII DLA ZNAKÓW WODNYCH
+        public List<LessonScheduleItem> GetAllScheduleMaterials()
+        {
+            _dbContext.ChangeTracker.Clear();
+            return _dbContext.LessonScheduleItems.Where(i => i.Material != "").ToList();
+        }
+
+        // NOWA METODA: Aktualizacja ścieżki pliku PDF dla konkretnego tematu
+        public void UpdateCurriculumNodePdf(int id, string pdfType, string path)
+        {
+            var tracked = _dbContext.CurriculumNodes.Find(id);
+            if (tracked != null)
+            {
+                if (pdfType == "Task") tracked.TasksPdfPath = path;
+                else if (pdfType == "Answer") tracked.AnswersPdfPath = path;
+                else if (pdfType == "Quiz") tracked.QuizzesPdfPath = path;
+                
+                _dbContext.SaveChanges();
+            }
+        }
+
+        // --- LOGIKA ROZKŁADU MATERIAŁU ---
+        // ZWRÓCONA METODA - naprawia błąd CS1061 w CurriculumWindow.xaml.cs
+        public void UpdateCurriculumNode(int id, string newName, int? newHours)
+        {
+            var tracked = _dbContext.CurriculumNodes.Find(id);
+            if (tracked != null)
+            {
+                tracked.Name = newName; tracked.Hours = newHours;
+                _dbContext.SaveChanges();
+            }
+        }
+        public List<CurriculumNode> GetAllCurriculumNodes()
+        {
+            _dbContext.ChangeTracker.Clear();
+            return _dbContext.CurriculumNodes.ToList();
+        }
+
+        public CurriculumNode AddCurriculumNode(string name, int? hours, int level, int? parentId)
+        {
+            var node = new CurriculumNode { Name = name, Hours = hours, Level = level, ParentId = parentId };
+            _dbContext.CurriculumNodes.Add(node);
+            _dbContext.SaveChanges();
+            return node;
+        }
+
+        public void DeleteCurriculumNode(int id)
+        {
+            var nodes = _dbContext.CurriculumNodes.ToList();
+            DeleteNodeRecursive(id, nodes);
+            _dbContext.SaveChanges();
+        }
+
+        private void DeleteNodeRecursive(int id, List<CurriculumNode> allNodes)
+        {
+            var children = allNodes.Where(n => n.ParentId == id).ToList();
+            foreach (var child in children) DeleteNodeRecursive(child.Id, allNodes);
+            
+            var node = _dbContext.CurriculumNodes.Find(id);
+            if (node != null) _dbContext.CurriculumNodes.Remove(node);
+        }
         public void Dispose() => _dbContext.Dispose();
 
         // --- NOWOŚĆ: LOGIKA PLANU ZAJĘĆ (WIDOK DZIENNY/TYGODNIOWY) ---
@@ -129,14 +263,6 @@ namespace GradebookApp.Services
         {
             _dbContext.ChangeTracker.Clear();
             return _dbContext.LessonScheduleItems.ToList();
-        }
-
-        // Atomowy zapis całego planu (eliminuje problemy z pustymi polami i zmianami godzin)
-        public void SaveFullSchedule(List<LessonScheduleItem> items)
-        {
-            _dbContext.LessonScheduleItems.RemoveRange(_dbContext.LessonScheduleItems);
-            _dbContext.LessonScheduleItems.AddRange(items);
-            _dbContext.SaveChanges(); // Wykonywane jako pojedyncza, bezpieczna transakcja
         }
 
         public List<SchoolClass> GetAllClasses() => _dbContext.Classes.ToList();

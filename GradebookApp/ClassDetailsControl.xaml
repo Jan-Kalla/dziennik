@@ -19,7 +19,12 @@
             </Grid.ColumnDefinitions>
             
             <TextBlock x:Name="ClassNameText" Grid.Column="1" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"/>
-            <Button Grid.Column="2" Content="Odśwież tabelę ↻" Width="110" Height="26" HorizontalAlignment="Right" VerticalAlignment="Center" Click="RefreshTable_Click" Background="#007ACC" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+            
+            <!-- NOWY PANEL Z DWOMA PRZYCISKAMI -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <Button Content="Przejdź do lekcji →" Width="130" Height="26" Margin="0,0,10,0" Click="GoToLesson_Click" Background="#4DB6AC" Foreground="#1E1E1E" FontWeight="Bold" BorderThickness="0" Cursor="Hand" ToolTip="Wróć do kalendarza lekcji"/>
+                <Button Content="Odśwież tabelę ↻" Width="110" Height="26" Click="RefreshTable_Click" Background="#007ACC" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+            </StackPanel>
         </Grid>
         
         <TabControl Grid.Row="1" FontSize="14">

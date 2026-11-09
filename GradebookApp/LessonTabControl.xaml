@@ -24,7 +24,6 @@
             <Setter Property="Padding" Value="5"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-            <!-- Wyłącza domyślny podwójny skok TABa (teraz kontrolę przejmie kod C#) -->
             <Setter Property="KeyboardNavigation.TabNavigation" Value="None"/>
             <Style.Triggers>
                 <Trigger Property="IsKeyboardFocused" Value="True">
@@ -43,7 +42,6 @@
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <EventSetter Event="GotFocus" Handler="DataGridCell_GotFocus"/> 
-            <!-- Ukrycie niebieskiego zaznaczania -->
             <Style.Triggers>
                 <Trigger Property="IsSelected" Value="True">
                     <Setter Property="Background" Value="Transparent"/>
@@ -84,10 +82,13 @@
         </Style>
 
         <Style x:Key="HeaderAddButtonStyle" TargetType="Button" BasedOn="{StaticResource RowAddButtonStyle}">
-            <Setter Property="Opacity" Value="1"/>
-            <Setter Property="Background" Value="#333333"/>
-            <Setter Property="Foreground" Value="#888888"/>
             <Setter Property="ToolTip" Value="Wstaw wiersz na samej górze"/>
+            <Style.Triggers>
+                <!-- Pokazuje przycisk tylko, gdy najeżdżamy myszką na nagłówek -->
+                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=DataGridColumnHeader}}" Value="True">
+                    <Setter Property="Opacity" Value="1"/>
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
 
         <ContextMenu x:Key="RowMenu" x:Shared="False" DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
@@ -99,7 +100,6 @@
             <Setter Property="ClipToBounds" Value="False"/>
             <Setter Property="ContextMenu" Value="{StaticResource RowMenu}"/>
             <Style.Triggers>
-                <!-- Ukrycie niebieskiego wiersza -->
                 <Trigger Property="IsSelected" Value="True">
                     <Setter Property="Background" Value="Transparent"/>
                     <Setter Property="BorderBrush" Value="Transparent"/>
@@ -124,7 +124,6 @@
             </Grid.ColumnDefinitions>
             
             <StackPanel x:Name="DateNavigationPanel" Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
-                <!-- Zablokowanie szerokości tekstu, by strzałki nie latały -->
                 <Button Content="◀" Width="32" Height="32" Background="#3E3E42" Foreground="#E0E0E0" BorderThickness="0" Cursor="Hand" Click="PrevDay_Click" ToolTip="Poprzedni dzień" Margin="0,0,10,0" Focusable="False"/>
                 <TextBlock x:Name="LessonDateText" Text="Dzisiaj: -" FontSize="20" FontWeight="Bold" Foreground="#E0E0E0" VerticalAlignment="Center" Width="300" TextAlignment="Center"/>
                 <Button Content="▶" Width="32" Height="32" Background="#3E3E42" Foreground="#E0E0E0" BorderThickness="0" Cursor="Hand" Click="NextDay_Click" ToolTip="Następny dzień" Margin="10,0,0,0" Focusable="False"/>
@@ -139,20 +138,35 @@
         </Grid>
 
         <!-- WIDOK DZIENNY -->
-        <!-- Dodano zdarzenie PreviewKeyDown od podglądania klikniętych klawiszy -->
         <DataGrid x:Name="DailyScheduleGrid" Grid.Row="1" FontSize="16" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" EnableRowVirtualization="False" HeadersVisibility="Column" Background="#1E1E1E" RowBackground="#252526" AlternatingRowBackground="#2D2D30" Foreground="#E0E0E0" BorderBrush="#3E3E42" GridLinesVisibility="All" RowStyle="{StaticResource RowStyleWithMenu}" PreviewKeyDown="TasksDataGrid_PreviewKeyDown">
             <DataGrid.Columns>
-                <DataGridTemplateColumn Width="30" CellStyle="{StaticResource NoClipCellStyle}">
+                <!-- Zintegrowana kolumna "Nr" połączona z przyciskami "+" do dodawania wierszy -->
+                <DataGridTemplateColumn Width="45" CellStyle="{StaticResource NoClipCellStyle}">
+                    <!-- Wymuszamy rozciągnięcie zawartości nagłówka na pełną szerokość -->
+                    <DataGridTemplateColumn.HeaderStyle>
+                        <Style TargetType="DataGridColumnHeader">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Setter Property="Padding" Value="0"/>
+                            <!-- Narzucenie kolorów z motywu -->
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="Foreground" Value="#E0E0E0"/>
+                            <!-- Wyłączenie ucinania brzegów komórki -->
+                            <Setter Property="ClipToBounds" Value="False"/>
+                        </Style>
+                    </DataGridTemplateColumn.HeaderStyle>
                     <DataGridTemplateColumn.HeaderTemplate>
                         <DataTemplate>
-                            <Grid ClipToBounds="False" Background="Transparent" Height="25">
-                                <Button Content="+" Style="{StaticResource HeaderAddButtonStyle}" Click="AddRowAtTop_Click" Height="20" Width="20" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,-10" Panel.ZIndex="100"/>
+                            <Grid ClipToBounds="False" Background="Transparent" Height="30">
+                                <TextBlock Text="Nr" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" Foreground="#E0E0E0"/>
+                                <!-- Poprawiony margines dla plusa na górze -->
+                                <Button Content="+" Style="{StaticResource HeaderAddButtonStyle}" Click="AddRowAtTop_Click" Height="20" Width="20" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,-8" Panel.ZIndex="100"/>
                             </Grid>
                         </DataTemplate>
                     </DataGridTemplateColumn.HeaderTemplate>
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <Grid ClipToBounds="False" Background="Transparent" MinHeight="35">
+                                <TextBlock Text="{Binding LessonNumber}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#888888"/>
                                 <Button Content="+" Style="{StaticResource RowAddButtonStyle}" Click="AddRowBelow_Click" Height="20" Width="20" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,-10" Panel.ZIndex="100"/>
                             </Grid>
                         </DataTemplate>
@@ -163,8 +177,7 @@
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <Grid Background="Transparent">
-                                <!-- Zmienione na LostFocus, żeby parser nie wariował podczas pisania -->
-                                <TextBox Text="{Binding TimeSlot, UpdateSourceTrigger=LostFocus}" Style="{StaticResource CellTextBoxStyle}" Margin="0,5"/>
+                                <TextBox Text="{Binding TimeSlot, UpdateSourceTrigger=Explicit}" Style="{StaticResource CellTextBoxStyle}" Margin="0,5" LostFocus="TimeSlotTextBox_LostFocus"/>
                             </Grid>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
@@ -173,21 +186,8 @@
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <Grid Background="Transparent">
-                                <ComboBox IsEditable="True" 
-                                        Text="{Binding ClassName, UpdateSourceTrigger=PropertyChanged}" 
-                                        ItemsSource="{Binding DataContext.ClassNames, RelativeSource={RelativeSource AncestorType=UserControl}}" 
-                                        IsTextSearchEnabled="False"
-                                        StaysOpenOnEdit="True"
-                                        KeyUp="ClassComboBox_KeyUp"
-                                        Background="Transparent"
-                                        Foreground="#E0E0E0"
-                                        BorderThickness="0"
-                                        Padding="5">
-                                    <ComboBox.Resources>
-                                        <Style TargetType="ToggleButton">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </Style>
-                                    </ComboBox.Resources>
+                                <ComboBox IsEditable="True" Text="{Binding ClassName, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding DataContext.ClassNames, RelativeSource={RelativeSource AncestorType=UserControl}}" IsTextSearchEnabled="False" StaysOpenOnEdit="True" KeyUp="ClassComboBox_KeyUp" Background="Transparent" Foreground="#E0E0E0" BorderThickness="0" Padding="5">
+                                    <ComboBox.Resources><Style TargetType="ToggleButton"><Setter Property="Visibility" Value="Collapsed"/></Style></ComboBox.Resources>
                                 </ComboBox>
                             </Grid>
                         </DataTemplate>
@@ -195,7 +195,30 @@
                 </DataGridTemplateColumn>
                 <DataGridTemplateColumn Header="Zrealizowany materiał" Width="*" CellStyle="{StaticResource NoClipCellStyle}">
                     <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><Grid Background="Transparent"><TextBox Text="{Binding Material, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}"/></Grid></DataTemplate>
+                        <DataTemplate>
+                            <Grid Background="Transparent">
+                                <!-- ZNAK WODNY Z HISTORIĄ MATERIAŁU -->
+                                <TextBlock Text="{Binding MaterialWatermark}" Foreground="#666666" FontStyle="Italic" VerticalAlignment="Center" Margin="5,0" TextTrimming="CharacterEllipsis" IsHitTestVisible="False">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <!-- Pokaż historię tylko, gdy pole jest puste -->
+                                                <DataTrigger Binding="{Binding Material}" Value="">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Material}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                
+                                <!-- Właściwe pole edycji -->
+                                <TextBox Text="{Binding Material, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}"/>
+                            </Grid>
+                        </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
                 <DataGridTemplateColumn Width="60" CellStyle="{StaticResource NoClipCellStyle}">
@@ -207,20 +230,35 @@
         </DataGrid>
 
         <!-- WIDOK TYGODNIOWY -->
-        <!-- Dodano zdarzenie PreviewKeyDown -->
         <DataGrid x:Name="WeeklyScheduleGrid" Grid.Row="1" FontSize="16" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" EnableRowVirtualization="False" HeadersVisibility="Column" Background="#1E1E1E" RowBackground="#252526" AlternatingRowBackground="#2D2D30" Foreground="#E0E0E0" BorderBrush="#3E3E42" GridLinesVisibility="All" Visibility="Collapsed" RowStyle="{StaticResource RowStyleWithMenu}" PreviewKeyDown="TasksDataGrid_PreviewKeyDown">
             <DataGrid.Columns>
-                <DataGridTemplateColumn Width="30" CellStyle="{StaticResource NoClipCellStyle}">
+                <!-- Zintegrowana kolumna "Nr" połączona z przyciskami "+" do dodawania wierszy -->
+                <DataGridTemplateColumn Width="45" CellStyle="{StaticResource NoClipCellStyle}">
+                    <!-- Wymuszamy rozciągnięcie zawartości nagłówka na pełną szerokość -->
+                    <DataGridTemplateColumn.HeaderStyle>
+                        <Style TargetType="DataGridColumnHeader">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Setter Property="Padding" Value="0"/>
+                            <!-- Narzucenie kolorów z motywu -->
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="Foreground" Value="#E0E0E0"/>
+                            <!-- Wyłączenie ucinania brzegów komórki -->
+                            <Setter Property="ClipToBounds" Value="False"/>
+                        </Style>
+                    </DataGridTemplateColumn.HeaderStyle>
                     <DataGridTemplateColumn.HeaderTemplate>
                         <DataTemplate>
-                            <Grid ClipToBounds="False" Background="Transparent" Height="25">
-                                <Button Content="+" Style="{StaticResource HeaderAddButtonStyle}" Click="AddRowAtTop_Click" Height="20" Width="20" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,-10" Panel.ZIndex="100"/>
+                            <Grid ClipToBounds="False" Background="Transparent" Height="30">
+                                <TextBlock Text="Nr" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" Foreground="#E0E0E0"/>
+                                <!-- Poprawiony margines dla plusa na górze -->
+                                <Button Content="+" Style="{StaticResource HeaderAddButtonStyle}" Click="AddRowAtTop_Click" Height="20" Width="20" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,-8" Panel.ZIndex="100"/>
                             </Grid>
                         </DataTemplate>
                     </DataGridTemplateColumn.HeaderTemplate>
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <Grid ClipToBounds="False" Background="Transparent" MinHeight="35">
+                                <TextBlock Text="{Binding LessonNumber}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#888888"/>
                                 <Button Content="+" Style="{StaticResource RowAddButtonStyle}" Click="AddRowBelow_Click" Height="20" Width="20" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,-10" Panel.ZIndex="100"/>
                             </Grid>
                         </DataTemplate>
@@ -229,32 +267,66 @@
 
                 <DataGridTemplateColumn Header="Godz." Width="120" CellStyle="{StaticResource NoClipCellStyle}">
                     <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><Grid Background="Transparent"><TextBox Text="{Binding TimeSlot, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}" Margin="0,5"/></Grid></DataTemplate>
+                        <DataTemplate>
+                            <Grid Background="Transparent">
+                                <TextBox Text="{Binding TimeSlot, UpdateSourceTrigger=Explicit}" Style="{StaticResource CellTextBoxStyle}" Margin="0,5" LostFocus="TimeSlotTextBox_LostFocus"/>
+                            </Grid>
+                        </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
                 <DataGridTemplateColumn Header="Pon." Width="*" CellStyle="{StaticResource NoClipCellStyle}">
                     <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><Grid Background="Transparent"><TextBox Text="{Binding MonClass, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}"/></Grid></DataTemplate>
+                        <DataTemplate>
+                            <Grid Background="Transparent">
+                                <ComboBox IsEditable="True" Text="{Binding MonClass, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding DataContext.ClassNames, RelativeSource={RelativeSource AncestorType=UserControl}}" IsTextSearchEnabled="False" StaysOpenOnEdit="True" KeyUp="ClassComboBox_KeyUp" Background="Transparent" Foreground="#E0E0E0" BorderThickness="0" Padding="5">
+                                    <ComboBox.Resources><Style TargetType="ToggleButton"><Setter Property="Visibility" Value="Collapsed"/></Style></ComboBox.Resources>
+                                </ComboBox>
+                            </Grid>
+                        </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
                 <DataGridTemplateColumn Header="Wt." Width="*" CellStyle="{StaticResource NoClipCellStyle}">
                     <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><Grid Background="Transparent"><TextBox Text="{Binding TueClass, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}"/></Grid></DataTemplate>
+                        <DataTemplate>
+                            <Grid Background="Transparent">
+                                <ComboBox IsEditable="True" Text="{Binding TueClass, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding DataContext.ClassNames, RelativeSource={RelativeSource AncestorType=UserControl}}" IsTextSearchEnabled="False" StaysOpenOnEdit="True" KeyUp="ClassComboBox_KeyUp" Background="Transparent" Foreground="#E0E0E0" BorderThickness="0" Padding="5">
+                                    <ComboBox.Resources><Style TargetType="ToggleButton"><Setter Property="Visibility" Value="Collapsed"/></Style></ComboBox.Resources>
+                                </ComboBox>
+                            </Grid>
+                        </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
                 <DataGridTemplateColumn Header="Śr." Width="*" CellStyle="{StaticResource NoClipCellStyle}">
                     <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><Grid Background="Transparent"><TextBox Text="{Binding WedClass, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}"/></Grid></DataTemplate>
+                        <DataTemplate>
+                            <Grid Background="Transparent">
+                                <ComboBox IsEditable="True" Text="{Binding WedClass, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding DataContext.ClassNames, RelativeSource={RelativeSource AncestorType=UserControl}}" IsTextSearchEnabled="False" StaysOpenOnEdit="True" KeyUp="ClassComboBox_KeyUp" Background="Transparent" Foreground="#E0E0E0" BorderThickness="0" Padding="5">
+                                    <ComboBox.Resources><Style TargetType="ToggleButton"><Setter Property="Visibility" Value="Collapsed"/></Style></ComboBox.Resources>
+                                </ComboBox>
+                            </Grid>
+                        </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
                 <DataGridTemplateColumn Header="Czw." Width="*" CellStyle="{StaticResource NoClipCellStyle}">
                     <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><Grid Background="Transparent"><TextBox Text="{Binding ThuClass, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}"/></Grid></DataTemplate>
+                        <DataTemplate>
+                            <Grid Background="Transparent">
+                                <ComboBox IsEditable="True" Text="{Binding ThuClass, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding DataContext.ClassNames, RelativeSource={RelativeSource AncestorType=UserControl}}" IsTextSearchEnabled="False" StaysOpenOnEdit="True" KeyUp="ClassComboBox_KeyUp" Background="Transparent" Foreground="#E0E0E0" BorderThickness="0" Padding="5">
+                                    <ComboBox.Resources><Style TargetType="ToggleButton"><Setter Property="Visibility" Value="Collapsed"/></Style></ComboBox.Resources>
+                                </ComboBox>
+                            </Grid>
+                        </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
                 <DataGridTemplateColumn Header="Pt." Width="*" CellStyle="{StaticResource NoClipCellStyle}">
                     <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><Grid Background="Transparent"><TextBox Text="{Binding FriClass, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}"/></Grid></DataTemplate>
+                        <DataTemplate>
+                            <Grid Background="Transparent">
+                                <ComboBox IsEditable="True" Text="{Binding FriClass, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding DataContext.ClassNames, RelativeSource={RelativeSource AncestorType=UserControl}}" IsTextSearchEnabled="False" StaysOpenOnEdit="True" KeyUp="ClassComboBox_KeyUp" Background="Transparent" Foreground="#E0E0E0" BorderThickness="0" Padding="5">
+                                    <ComboBox.Resources><Style TargetType="ToggleButton"><Setter Property="Visibility" Value="Collapsed"/></Style></ComboBox.Resources>
+                                </ComboBox>
+                            </Grid>
+                        </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
             </DataGrid.Columns>

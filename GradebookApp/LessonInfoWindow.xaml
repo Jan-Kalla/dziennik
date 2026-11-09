@@ -38,7 +38,7 @@
 
         <StackPanel Grid.Row="1" Margin="0,0,0,15">
             <TextBlock Text="Temat:" FontSize="14" Foreground="#AAAAAA" Margin="0,0,0,5" />
-            <ComboBox x:Name="TopicComboBox" IsEditable="True" ToolTip="Wybierz z rozkładu materiału lub wpisz własny temat" />
+            <ComboBox x:Name="TopicComboBox" IsEditable="True" ToolTip="Wybierz z rozkładu materiału lub wpisz własny temat" IsTextSearchEnabled="False" StaysOpenOnEdit="True" KeyUp="TopicComboBox_KeyUp"/>
         </StackPanel>
 
         <StackPanel Grid.Row="2" Margin="0,0,0,15">
@@ -54,6 +54,9 @@
         <!-- Dolne Przyciski -->
         <Grid Grid.Row="4" Margin="0,10,0,0">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                <!-- NOWY PRZYCISK -->
+                <Button Content="Widok klasy" Background="#007ACC" Foreground="White" BorderThickness="0" Padding="15,8" Margin="0,0,10,0" Cursor="Hand" Click="GoToClassView_Click" ToolTip="Otwórz pełny widok tej klasy" FontWeight="Bold"/>
+                
                 <Button Content="Dodaj ocenę" Background="#4A2E2E" Foreground="White" BorderThickness="0" Padding="15,8" Margin="0,0,10,0" Cursor="Hand" Click="PlanWork_Click" ToolTip="Otwórz kreator pracy pisemnej" FontWeight="Bold"/>
                 <Button Content="Zaplanuj poprawę" Background="#825a2c" Foreground="White" BorderThickness="0" Padding="15,8" Cursor="Hand" Click="PlanRetake_Click" ToolTip="Zaplanuj poprawę do wybranej pracy dla wybranej klasy" FontWeight="Bold"/>
             </StackPanel>

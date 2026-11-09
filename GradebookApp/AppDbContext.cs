@@ -158,14 +158,36 @@ namespace GradebookApp
         public WorkTemplate WorkTemplate { get; set; } = null!;
     }
 
-    public class LessonScheduleItem
+    // Ten model reprezentuje sztywny plan zajęć w szkole (Godziny i Klasy)
+    public class LessonTemplateItem
     {
         public int Id { get; set; }
         public string TimeSlot { get; set; } = string.Empty;
         public DayOfWeek DayOfWeek { get; set; }
-        
         public string ClassName { get; set; } = string.Empty;
+    }
+
+    // Ten model przechowuje to, co faktycznie zrealizowano danego konkretnego dnia
+    public class LessonScheduleItem
+    {
+        public int Id { get; set; }
+        public string TimeSlot { get; set; } = string.Empty;
+        public DateTime Date { get; set; } // Zmieniono na konkretną datę!
         public string Material { get; set; } = string.Empty;
+    }
+
+    public class CurriculumNode
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public int? Hours { get; set; }
+        public int Level { get; set; } // 0 = Dział, 1 = Rozdział, 2 = Temat
+        public int? ParentId { get; set; }
+        
+        // NOWE: Ścieżki do plików PDF (Mogą być puste, stąd znak zapytania)
+        public string? TasksPdfPath { get; set; }
+        public string? AnswersPdfPath { get; set; }
+        public string? QuizzesPdfPath { get; set; }
     }
 
     public class AppDbContext : DbContext
@@ -181,11 +203,15 @@ namespace GradebookApp
         
         public DbSet<WorkTemplate> WorkTemplates { get; set; }
         public DbSet<WorkTemplateTask> WorkTemplateTasks { get; set; }
+        public DbSet<LessonTemplateItem> LessonTemplateItems { get; set; }
         public DbSet<LessonScheduleItem> LessonScheduleItems { get; set; }
+        public DbSet<CurriculumNode> CurriculumNodes { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             optionsBuilder.UseSqlite("Data Source=gradebook.db")
+                          // Wyciszenie błędu PendingModelChangesWarning pozwalające na użycie ręcznego SQL-a zamiast oficjalnych migracji EF
+                          .ConfigureWarnings(warnings => warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))
                           .LogTo(message => System.Diagnostics.Debug.WriteLine(message), Microsoft.Extensions.Logging.LogLevel.Information);
         }
     }
