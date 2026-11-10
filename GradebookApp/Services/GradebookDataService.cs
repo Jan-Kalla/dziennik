@@ -121,6 +121,7 @@ namespace GradebookApp.Services
         }
 
         // Zaktualizowana metoda ApplyMigrations (tworzy tabelę w locie)
+        // Zaktualizowana metoda ApplyMigrations (tworzy tabelę w locie)
         public void ApplyMigrations() 
         {
             _dbContext.Database.Migrate();
@@ -139,7 +140,7 @@ namespace GradebookApp.Services
             try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"CurriculumNodes\" ADD COLUMN \"AnswersPdfPath\" TEXT NULL;"); } catch { }
             try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"CurriculumNodes\" ADD COLUMN \"QuizzesPdfPath\" TEXT NULL;"); } catch { }
 
-            // Tworzenie nowej tabeli szablonów planu lekcji
+            // Tworzenie tabeli szablonów planu lekcji
             _dbContext.Database.ExecuteSqlRaw(@"
                 CREATE TABLE IF NOT EXISTS ""LessonTemplateItems"" (
                     ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_LessonTemplateItems"" PRIMARY KEY AUTOINCREMENT,
@@ -149,10 +150,77 @@ namespace GradebookApp.Services
                 );
             ");
 
-            // Aktualizacja tabeli zrealizowanych materiałów - usunięcie DayOfWeek i dodanie Date
+            // Aktualizacja tabeli zrealizowanych materiałów - Dodano kolumnę Notes
             try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"LessonScheduleItems\" ADD COLUMN \"Date\" TEXT NOT NULL DEFAULT '0001-01-01 00:00:00';"); } catch { }
             try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"LessonScheduleItems\" DROP COLUMN \"ClassName\";"); } catch { }
             try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"LessonScheduleItems\" DROP COLUMN \"DayOfWeek\";"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"LessonScheduleItems\" ADD COLUMN \"Notes\" TEXT NULL;"); } catch { }
+
+            // ==========================================================
+            // TUTEJ BRAKOWAŁO TEGO KODU! Tworzenie nowej tabeli na pliki PDF
+            // ==========================================================
+            _dbContext.Database.ExecuteSqlRaw(@"
+                CREATE TABLE IF NOT EXISTS ""TopicFiles"" (
+                    ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_TopicFiles"" PRIMARY KEY AUTOINCREMENT,
+                    ""CurriculumNodeId"" INTEGER NOT NULL,
+                    ""FileType"" TEXT NOT NULL,
+                    ""FileName"" TEXT NOT NULL,
+                    ""FilePath"" TEXT NOT NULL,
+                    CONSTRAINT ""FK_TopicFiles_CurriculumNodes_CurriculumNodeId"" FOREIGN KEY (""CurriculumNodeId"") REFERENCES ""CurriculumNodes"" (""Id"") ON DELETE CASCADE
+                );
+            ");
+
+            // AUTOMATYCZNA MIGRACJA: Przeniesienie Twoich starych plików PDF do nowego, lepszego systemu!
+            var nodesToMigrate = _dbContext.CurriculumNodes.Where(n => n.TasksPdfPath != null || n.AnswersPdfPath != null || n.QuizzesPdfPath != null).ToList();
+            foreach (var n in nodesToMigrate)
+            {
+                if (!string.IsNullOrEmpty(n.TasksPdfPath)) {
+                    _dbContext.TopicFiles.Add(new TopicFile { CurriculumNodeId = n.Id, FileType = "Task", FileName = "Zadania.pdf", FilePath = n.TasksPdfPath });
+                    n.TasksPdfPath = null;
+                }
+                if (!string.IsNullOrEmpty(n.AnswersPdfPath)) {
+                    _dbContext.TopicFiles.Add(new TopicFile { CurriculumNodeId = n.Id, FileType = "Answer", FileName = "Odpowiedzi.pdf", FilePath = n.AnswersPdfPath });
+                    n.AnswersPdfPath = null;
+                }
+                if (!string.IsNullOrEmpty(n.QuizzesPdfPath)) {
+                    _dbContext.TopicFiles.Add(new TopicFile { CurriculumNodeId = n.Id, FileType = "Quiz", FileName = "Kartkówka.pdf", FilePath = n.QuizzesPdfPath });
+                    n.QuizzesPdfPath = null;
+                }
+            }
+            if (nodesToMigrate.Any()) _dbContext.SaveChanges();
+        }
+
+        // --- ZAKTUALIZOWANA LOGIKA ROZKŁADU MATERIAŁU ---
+        
+        public List<CurriculumNode> GetAllCurriculumNodes()
+        {
+            _dbContext.ChangeTracker.Clear();
+            // Musimy "Dołączyć" (Include) nową tabelę plików do zapytań o tematy
+            return _dbContext.CurriculumNodes.Include(n => n.Files).ToList();
+        }
+
+        public void AddTopicFile(int nodeId, string fileType, string fileName, string path)
+        {
+            var f = new TopicFile { CurriculumNodeId = nodeId, FileType = fileType, FileName = fileName, FilePath = path };
+            _dbContext.TopicFiles.Add(f);
+            _dbContext.SaveChanges();
+        }
+
+        public void DeleteTopicFile(int fileId)
+        {
+            var f = _dbContext.TopicFiles.Find(fileId);
+            if (f != null) { _dbContext.TopicFiles.Remove(f); _dbContext.SaveChanges(); }
+        }
+
+        // PRZYWRÓCONA METODA: Niezbędna do edycji nazw i godzin tematów
+        public void UpdateCurriculumNode(int id, string newName, int? newHours)
+        {
+            var tracked = _dbContext.CurriculumNodes.Find(id);
+            if (tracked != null)
+            {
+                tracked.Name = newName; tracked.Hours = newHours;
+                _dbContext.SaveChanges();
+            }
         }
 
         // POBIERANIE SZABLONU (Dni Tygodnia)
@@ -185,12 +253,12 @@ namespace GradebookApp.Services
         {
             if (!items.Any()) return;
             
-            // Określamy zakres dat do nadpisania
             var dates = items.Select(i => i.Date).Distinct().ToList();
             var existing = _dbContext.LessonScheduleItems.Where(i => dates.Contains(i.Date)).ToList();
             
             _dbContext.LessonScheduleItems.RemoveRange(existing);
-            _dbContext.LessonScheduleItems.AddRange(items.Where(i => !string.IsNullOrWhiteSpace(i.Material)));
+            // Zapisz element, jeśli ma wpisany materiał LUB ma wpisane uwagi
+            _dbContext.LessonScheduleItems.AddRange(items.Where(i => !string.IsNullOrWhiteSpace(i.Material) || !string.IsNullOrWhiteSpace(i.Notes)));
             _dbContext.SaveChanges();
         }
 
@@ -198,38 +266,8 @@ namespace GradebookApp.Services
         public List<LessonScheduleItem> GetAllScheduleMaterials()
         {
             _dbContext.ChangeTracker.Clear();
-            return _dbContext.LessonScheduleItems.Where(i => i.Material != "").ToList();
-        }
-
-        // NOWA METODA: Aktualizacja ścieżki pliku PDF dla konkretnego tematu
-        public void UpdateCurriculumNodePdf(int id, string pdfType, string path)
-        {
-            var tracked = _dbContext.CurriculumNodes.Find(id);
-            if (tracked != null)
-            {
-                if (pdfType == "Task") tracked.TasksPdfPath = path;
-                else if (pdfType == "Answer") tracked.AnswersPdfPath = path;
-                else if (pdfType == "Quiz") tracked.QuizzesPdfPath = path;
-                
-                _dbContext.SaveChanges();
-            }
-        }
-
-        // --- LOGIKA ROZKŁADU MATERIAŁU ---
-        // ZWRÓCONA METODA - naprawia błąd CS1061 w CurriculumWindow.xaml.cs
-        public void UpdateCurriculumNode(int id, string newName, int? newHours)
-        {
-            var tracked = _dbContext.CurriculumNodes.Find(id);
-            if (tracked != null)
-            {
-                tracked.Name = newName; tracked.Hours = newHours;
-                _dbContext.SaveChanges();
-            }
-        }
-        public List<CurriculumNode> GetAllCurriculumNodes()
-        {
-            _dbContext.ChangeTracker.Clear();
-            return _dbContext.CurriculumNodes.ToList();
+            // Pobieramy wszystko, co nie jest w całości puste
+            return _dbContext.LessonScheduleItems.Where(i => i.Material != "" || i.Notes != null).ToList();
         }
 
         public CurriculumNode AddCurriculumNode(string name, int? hours, int level, int? parentId)

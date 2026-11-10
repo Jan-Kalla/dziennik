@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows;
@@ -13,7 +14,8 @@ namespace GradebookApp
         private DailyRowWrapper _rowContext;
         private DateTime _currentDate; 
         private readonly GradebookDataService _dataService;
-        private System.Collections.Generic.List<string> _allTopics = new System.Collections.Generic.List<string>();
+        private List<string> _allTopics = new List<string>();
+        private List<string> _allMaterials = new List<string>(); // NOWOŚĆ: Baza zrealizowanych materiałów
 
         public LessonInfoWindow(DailyRowWrapper rowContext, string dateDisplay, DateTime currentDate)
         {
@@ -29,7 +31,24 @@ namespace GradebookApp
             _allTopics = _dataService.GetAllCurriculumNodes().Where(n => n.Level == 2).Select(n => n.Name).ToList();
             TopicComboBox.ItemsSource = _allTopics;
 
-            // Sprytne rozdzielanie zapisanej wcześniej frazy (np. "Temat 1: Zadania testowe") na dwa pola
+            // NOWOŚĆ: Pobieramy historię i wyłuskujemy same "Materiały" (ignorując "Temat")
+            var allHist = _dataService.GetAllScheduleMaterials();
+            var extractedMats = new List<string>();
+            foreach (var item in allHist)
+            {
+                if (!string.IsNullOrWhiteSpace(item.Material))
+                {
+                    string mat = item.Material;
+                    if (mat.Contains(": ")) mat = mat.Substring(mat.IndexOf(": ") + 2).Trim();
+                    else mat = mat.Trim();
+                    
+                    if (!string.IsNullOrWhiteSpace(mat)) extractedMats.Add(mat);
+                }
+            }
+            _allMaterials = extractedMats.Distinct().OrderBy(m => m).ToList();
+            MaterialComboBox.ItemsSource = _allMaterials;
+
+            // Przypisanie wcześniejszego wpisu (Temat: Materiał)
             string savedMaterial = _rowContext.Material ?? "";
             if (savedMaterial.Contains(": "))
             {
@@ -41,6 +60,9 @@ namespace GradebookApp
             {
                 MaterialComboBox.Text = savedMaterial;
             }
+
+            // NOWOŚĆ: Zaczytywanie uwag do pola tekstowego
+            NotesTextBox.Text = _rowContext.Notes ?? "";
         }
 
         private void TopicComboBox_KeyUp(object sender, KeyEventArgs e)
@@ -52,7 +74,20 @@ namespace GradebookApp
                 string search = cmb.Text.ToLower();
                 var filtered = _allTopics.Where(c => c.ToLower().Contains(search)).ToList();
                 cmb.ItemsSource = filtered;
-                
+                cmb.IsDropDownOpen = filtered.Any() && !string.IsNullOrWhiteSpace(search);
+            }
+        }
+
+        // NOWOŚĆ: Logika wyszukiwania dla materiału (identyczna jak dla tematów)
+        private void MaterialComboBox_KeyUp(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Up || e.Key == Key.Down || e.Key == Key.Enter || e.Key == Key.Escape || e.Key == Key.Tab) return;
+
+            if (sender is ComboBox cmb)
+            {
+                string search = cmb.Text.ToLower();
+                var filtered = _allMaterials.Where(c => c.ToLower().Contains(search)).ToList();
+                cmb.ItemsSource = filtered;
                 cmb.IsDropDownOpen = filtered.Any() && !string.IsNullOrWhiteSpace(search);
             }
         }
@@ -62,19 +97,13 @@ namespace GradebookApp
             string t = TopicComboBox.Text.Trim();
             string m = MaterialComboBox.Text.Trim();
             
-            // Scalanie tekstu w jeden ciąg, jeśli podano Temat
-            if (!string.IsNullOrEmpty(t) && !string.IsNullOrEmpty(m))
-            {
-                _rowContext.Material = $"{t}: {m}";
-            }
-            else if (!string.IsNullOrEmpty(t))
-            {
-                _rowContext.Material = $"{t}:"; // Sam temat
-            }
-            else
-            {
-                _rowContext.Material = m; // Tylko materiał
-            }
+            // Scalanie tekstu w jeden ciąg
+            if (!string.IsNullOrEmpty(t) && !string.IsNullOrEmpty(m)) _rowContext.Material = $"{t}: {m}";
+            else if (!string.IsNullOrEmpty(t)) _rowContext.Material = $"{t}:";
+            else _rowContext.Material = m;
+
+            // Zapis uwag
+            _rowContext.Notes = NotesTextBox.Text.Trim();
 
             DialogResult = true;
             Close();
@@ -88,6 +117,13 @@ namespace GradebookApp
             var targetClass = _dataService.GetAllClasses().FirstOrDefault(c => c.Name.Equals(_rowContext.ClassName.Trim(), StringComparison.OrdinalIgnoreCase));
             if (targetClass == null) { MessageBox.Show($"Nie odnaleziono klasy '{_rowContext.ClassName}'.", "Nieznana klasa", MessageBoxButton.OK, MessageBoxImage.Warning); return null; }
             return targetClass;
+        }
+
+        private void GoToClassView_Click(object sender, RoutedEventArgs e)
+        {
+            var targetClass = TryGetContextClass(); 
+            if (targetClass == null) return;
+            new ClassDetailsWindow(targetClass) { Owner = Window.GetWindow(this) }.ShowDialog();
         }
 
         private void PlanWork_Click(object sender, RoutedEventArgs e)
@@ -108,15 +144,6 @@ namespace GradebookApp
                 if (match.Success) retakeDialog.TimeTextBox.Text = match.Value;
             }
             retakeDialog.ShowDialog();
-        }
-        private void GoToClassView_Click(object sender, RoutedEventArgs e)
-        {
-            var targetClass = TryGetContextClass(); 
-            if (targetClass == null) return;
-            
-            // Tworzy i otwiera nowe okno z detalami przypisanej klasy
-            var classDetailsWindow = new ClassDetailsWindow(targetClass) { Owner = Window.GetWindow(this) };
-            classDetailsWindow.ShowDialog();
         }
 
         protected override void OnClosed(EventArgs e) { _dataService.Dispose(); base.OnClosed(e); }

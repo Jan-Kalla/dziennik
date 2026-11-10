@@ -174,6 +174,7 @@ namespace GradebookApp
         public string TimeSlot { get; set; } = string.Empty;
         public DateTime Date { get; set; } // Zmieniono na konkretną datę!
         public string Material { get; set; } = string.Empty;
+        public string? Notes { get; set; }
     }
 
     public class CurriculumNode
@@ -188,6 +189,18 @@ namespace GradebookApp
         public string? TasksPdfPath { get; set; }
         public string? AnswersPdfPath { get; set; }
         public string? QuizzesPdfPath { get; set; }
+
+        public List<TopicFile> Files { get; set; } = new List<TopicFile>();
+    }
+
+    public class TopicFile
+    {
+        public int Id { get; set; }
+        public int CurriculumNodeId { get; set; }
+        public CurriculumNode CurriculumNode { get; set; } = null!;
+        public string FileType { get; set; } = string.Empty; // "Task", "Answer", "Quiz"
+        public string FileName { get; set; } = string.Empty; // Oryginalna nazwa widoczna dla Ciebie
+        public string FilePath { get; set; } = string.Empty; // Ścieżka na dysku
     }
 
     public class AppDbContext : DbContext
@@ -206,6 +219,7 @@ namespace GradebookApp
         public DbSet<LessonTemplateItem> LessonTemplateItems { get; set; }
         public DbSet<LessonScheduleItem> LessonScheduleItems { get; set; }
         public DbSet<CurriculumNode> CurriculumNodes { get; set; }
+        public DbSet<TopicFile> TopicFiles { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {

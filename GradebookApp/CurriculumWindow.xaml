@@ -21,7 +21,7 @@
                 
                 <TextBlock Grid.Column="0" Text="→ " Foreground="#888888" FontSize="16" VerticalAlignment="Center"/>
                 
-                <TextBlock Grid.Column="1" Text="{Binding DisplayText}" FontSize="16" Foreground="#E0E0E0" VerticalAlignment="Center" Margin="0,0,15,0">
+                <TextBlock Grid.Column="1" Text="{Binding DisplayText}" FontSize="16" Foreground="#E0E0E0" VerticalAlignment="Center" Margin="0,0,15,0" MouseLeftButtonUp="TopicTextBlock_MouseLeftButtonUp">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">
                             <Style.Triggers>
@@ -29,12 +29,17 @@
                                     <Setter Property="FontWeight" Value="Bold"/>
                                     <Setter Property="Foreground" Value="#4DB6AC"/>
                                 </DataTrigger>
+                                <!-- Kursor zmienia się w łapkę, podpowiadając, że temat można kliknąć -->
+                                <DataTrigger Binding="{Binding IsTopic}" Value="True">
+                                    <Setter Property="Cursor" Value="Hand"/>
+                                </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                <!-- NOWY KONTENER NA WIELE PLIKÓW -->
+                <StackPanel Grid.Column="2" Orientation="Vertical" VerticalAlignment="Center" Margin="0,2,0,2">
                     <StackPanel.Style>
                         <Style TargetType="StackPanel">
                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -45,10 +50,48 @@
                             </Style.Triggers>
                         </Style>
                     </StackPanel.Style>
-                    <!-- Przyciski zyskują kolor Zielony (#4CAF50) jeśli mają podpięty plik! -->
-                    <Button Content="→" CommandParameter="Task" Tag="{Binding Id}" Width="22" Height="22" Margin="0,0,4,0" ToolTip="Zadania (PDF)" Click="PdfButton_Click" Background="{Binding TasksColor}" Foreground="#E0E0E0" BorderThickness="0" Cursor="Hand"/>
-                    <Button Content="→" CommandParameter="Answer" Tag="{Binding Id}" Width="22" Height="22" Margin="0,0,4,0" ToolTip="Odpowiedzi (PDF)" Click="PdfButton_Click" Background="{Binding AnswersColor}" Foreground="#E0E0E0" BorderThickness="0" Cursor="Hand"/>
-                    <Button Content="→" CommandParameter="Quiz" Tag="{Binding Id}" Width="22" Height="22" Margin="0,0,10,0" ToolTip="Kartkówki (PDF)" Click="PdfButton_Click" Background="{Binding QuizzesColor}" Foreground="#E0E0E0" BorderThickness="0" Cursor="Hand"/>
+                    
+                    <!-- ZADANIA -->
+                    <StackPanel Orientation="Horizontal" Margin="0,2" Visibility="{Binding TaskRowVisibility}">
+                        <TextBlock Text="Zadania:" Width="65" Foreground="#AAAAAA" VerticalAlignment="Center" FontSize="12"/>
+                        <ItemsControl ItemsSource="{Binding TaskFiles}">
+                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Content="{Binding FileName}" CommandParameter="{Binding}" Click="FileButton_Click" Background="#2E4A2E" Foreground="#E0E0E0" BorderThickness="0" Padding="8,2" Margin="0,0,5,0" Cursor="Hand" ToolTip="Otwórz plik (lub usuń w trybie edycji)"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button Content="+" CommandParameter="Task" Tag="{Binding Id}" Click="AddPdfButton_Click" Background="#3E3E42" Foreground="#E0E0E0" BorderThickness="0" Width="20" Height="20" Cursor="Hand" ToolTip="Dodaj nowy plik zadań" Visibility="{Binding EditModeVisibility}"/>
+                    </StackPanel>
+                    
+                    <!-- ODPOWIEDZI -->
+                    <StackPanel Orientation="Horizontal" Margin="0,2" Visibility="{Binding AnswerRowVisibility}">
+                        <TextBlock Text="Odp:" Width="65" Foreground="#AAAAAA" VerticalAlignment="Center" FontSize="12"/>
+                        <ItemsControl ItemsSource="{Binding AnswerFiles}">
+                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Content="{Binding FileName}" CommandParameter="{Binding}" Click="FileButton_Click" Background="#2E4A2E" Foreground="#E0E0E0" BorderThickness="0" Padding="8,2" Margin="0,0,5,0" Cursor="Hand" ToolTip="Otwórz plik (lub usuń w trybie edycji)"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button Content="+" CommandParameter="Answer" Tag="{Binding Id}" Click="AddPdfButton_Click" Background="#3E3E42" Foreground="#E0E0E0" BorderThickness="0" Width="20" Height="20" Cursor="Hand" ToolTip="Dodaj nowy plik odpowiedzi" Visibility="{Binding EditModeVisibility}"/>
+                    </StackPanel>
+
+                    <!-- KARTKÓWKI -->
+                    <StackPanel Orientation="Horizontal" Margin="0,2" Visibility="{Binding QuizRowVisibility}">
+                        <TextBlock Text="Kartkówki:" Width="65" Foreground="#AAAAAA" VerticalAlignment="Center" FontSize="12"/>
+                        <ItemsControl ItemsSource="{Binding QuizFiles}">
+                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Content="{Binding FileName}" CommandParameter="{Binding}" Click="FileButton_Click" Background="#4A2E2E" Foreground="#E0E0E0" BorderThickness="0" Padding="8,2" Margin="0,0,5,0" Cursor="Hand" ToolTip="Otwórz plik (lub usuń w trybie edycji)"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button Content="+" CommandParameter="Quiz" Tag="{Binding Id}" Click="AddPdfButton_Click" Background="#3E3E42" Foreground="#E0E0E0" BorderThickness="0" Width="20" Height="20" Cursor="Hand" ToolTip="Dodaj nowy plik kartkówki" Visibility="{Binding EditModeVisibility}"/>
+                    </StackPanel>
                 </StackPanel>
             </Grid>
         </HierarchicalDataTemplate>

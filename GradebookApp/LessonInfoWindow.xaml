@@ -43,7 +43,7 @@
 
         <StackPanel Grid.Row="2" Margin="0,0,0,15">
             <TextBlock Text="Realizowany materiał:" FontSize="14" Foreground="#AAAAAA" Margin="0,0,0,5" />
-            <ComboBox x:Name="MaterialComboBox" IsEditable="True" ToolTip="Wybierz z rozkładu materiału lub wpisz własny" />
+            <ComboBox x:Name="MaterialComboBox" IsEditable="True" ToolTip="Wybierz z rozkładu materiału lub wpisz własny" IsTextSearchEnabled="False" StaysOpenOnEdit="True" KeyUp="MaterialComboBox_KeyUp"/>
         </StackPanel>
 
         <StackPanel Grid.Row="3" Margin="0,0,0,15">

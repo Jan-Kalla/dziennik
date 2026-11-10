@@ -64,19 +64,19 @@ namespace GradebookApp
                 var row = new ScheduleRow { TimeSlot = slot };
                 
                 var mon = templates.FirstOrDefault(i => i.TimeSlot == slot && i.DayOfWeek == DayOfWeek.Monday);
-                if (mon != null) { row.MonClass = mon.ClassName; row.MonMat = currentWeekMaterials.FirstOrDefault(m => m.TimeSlot == slot && m.Date == currentMonday)?.Material ?? ""; }
+                if (mon != null) { var mItem = currentWeekMaterials.FirstOrDefault(m => m.TimeSlot == slot && m.Date == currentMonday); row.MonClass = mon.ClassName; row.MonMat = mItem?.Material ?? ""; row.MonNotes = mItem?.Notes ?? ""; }
                 
                 var tue = templates.FirstOrDefault(i => i.TimeSlot == slot && i.DayOfWeek == DayOfWeek.Tuesday);
-                if (tue != null) { row.TueClass = tue.ClassName; row.TueMat = currentWeekMaterials.FirstOrDefault(m => m.TimeSlot == slot && m.Date == currentMonday.AddDays(1))?.Material ?? ""; }
+                if (tue != null) { var mItem = currentWeekMaterials.FirstOrDefault(m => m.TimeSlot == slot && m.Date == currentMonday.AddDays(1)); row.TueClass = tue.ClassName; row.TueMat = mItem?.Material ?? ""; row.TueNotes = mItem?.Notes ?? ""; }
 
                 var wed = templates.FirstOrDefault(i => i.TimeSlot == slot && i.DayOfWeek == DayOfWeek.Wednesday);
-                if (wed != null) { row.WedClass = wed.ClassName; row.WedMat = currentWeekMaterials.FirstOrDefault(m => m.TimeSlot == slot && m.Date == currentMonday.AddDays(2))?.Material ?? ""; }
+                if (wed != null) { var mItem = currentWeekMaterials.FirstOrDefault(m => m.TimeSlot == slot && m.Date == currentMonday.AddDays(2)); row.WedClass = wed.ClassName; row.WedMat = mItem?.Material ?? ""; row.WedNotes = mItem?.Notes ?? ""; }
 
                 var thu = templates.FirstOrDefault(i => i.TimeSlot == slot && i.DayOfWeek == DayOfWeek.Thursday);
-                if (thu != null) { row.ThuClass = thu.ClassName; row.ThuMat = currentWeekMaterials.FirstOrDefault(m => m.TimeSlot == slot && m.Date == currentMonday.AddDays(3))?.Material ?? ""; }
+                if (thu != null) { var mItem = currentWeekMaterials.FirstOrDefault(m => m.TimeSlot == slot && m.Date == currentMonday.AddDays(3)); row.ThuClass = thu.ClassName; row.ThuMat = mItem?.Material ?? ""; row.ThuNotes = mItem?.Notes ?? ""; }
 
                 var fri = templates.FirstOrDefault(i => i.TimeSlot == slot && i.DayOfWeek == DayOfWeek.Friday);
-                if (fri != null) { row.FriClass = fri.ClassName; row.FriMat = currentWeekMaterials.FirstOrDefault(m => m.TimeSlot == slot && m.Date == currentMonday.AddDays(4))?.Material ?? ""; }
+                if (fri != null) { var mItem = currentWeekMaterials.FirstOrDefault(m => m.TimeSlot == slot && m.Date == currentMonday.AddDays(4)); row.FriClass = fri.ClassName; row.FriMat = mItem?.Material ?? ""; row.FriNotes = mItem?.Notes ?? ""; }
 
                 row.PropertyChanged += Row_PropertyChanged;
                 _scheduleRows.Add(row);
@@ -110,23 +110,46 @@ namespace GradebookApp
                     emptyCounter++;
                 }
 
-                // Zapisujemy szablon planu zajęć
                 templates.Add(new LessonTemplateItem { TimeSlot = ts, DayOfWeek = DayOfWeek.Monday, ClassName = row.MonClass ?? "" });
                 templates.Add(new LessonTemplateItem { TimeSlot = ts, DayOfWeek = DayOfWeek.Tuesday, ClassName = row.TueClass ?? "" });
                 templates.Add(new LessonTemplateItem { TimeSlot = ts, DayOfWeek = DayOfWeek.Wednesday, ClassName = row.WedClass ?? "" });
                 templates.Add(new LessonTemplateItem { TimeSlot = ts, DayOfWeek = DayOfWeek.Thursday, ClassName = row.ThuClass ?? "" });
                 templates.Add(new LessonTemplateItem { TimeSlot = ts, DayOfWeek = DayOfWeek.Friday, ClassName = row.FriClass ?? "" });
 
-                // Zapisujemy materiały przypisane do konkretnego dnia (tylko te niepuste, by nie zaśmiecać bazy)
-                if (!string.IsNullOrWhiteSpace(row.MonMat)) materials.Add(new LessonScheduleItem { TimeSlot = ts, Date = currentMonday, Material = row.MonMat });
-                if (!string.IsNullOrWhiteSpace(row.TueMat)) materials.Add(new LessonScheduleItem { TimeSlot = ts, Date = currentMonday.AddDays(1), Material = row.TueMat });
-                if (!string.IsNullOrWhiteSpace(row.WedMat)) materials.Add(new LessonScheduleItem { TimeSlot = ts, Date = currentMonday.AddDays(2), Material = row.WedMat });
-                if (!string.IsNullOrWhiteSpace(row.ThuMat)) materials.Add(new LessonScheduleItem { TimeSlot = ts, Date = currentMonday.AddDays(3), Material = row.ThuMat });
-                if (!string.IsNullOrWhiteSpace(row.FriMat)) materials.Add(new LessonScheduleItem { TimeSlot = ts, Date = currentMonday.AddDays(4), Material = row.FriMat });
+                if (!string.IsNullOrWhiteSpace(row.MonMat) || !string.IsNullOrWhiteSpace(row.MonNotes)) materials.Add(new LessonScheduleItem { TimeSlot = ts, Date = currentMonday, Material = row.MonMat, Notes = row.MonNotes });
+                if (!string.IsNullOrWhiteSpace(row.TueMat) || !string.IsNullOrWhiteSpace(row.TueNotes)) materials.Add(new LessonScheduleItem { TimeSlot = ts, Date = currentMonday.AddDays(1), Material = row.TueMat, Notes = row.TueNotes });
+                if (!string.IsNullOrWhiteSpace(row.WedMat) || !string.IsNullOrWhiteSpace(row.WedNotes)) materials.Add(new LessonScheduleItem { TimeSlot = ts, Date = currentMonday.AddDays(2), Material = row.WedMat, Notes = row.WedNotes });
+                if (!string.IsNullOrWhiteSpace(row.ThuMat) || !string.IsNullOrWhiteSpace(row.ThuNotes)) materials.Add(new LessonScheduleItem { TimeSlot = ts, Date = currentMonday.AddDays(3), Material = row.ThuMat, Notes = row.ThuNotes });
+                if (!string.IsNullOrWhiteSpace(row.FriMat) || !string.IsNullOrWhiteSpace(row.FriNotes)) materials.Add(new LessonScheduleItem { TimeSlot = ts, Date = currentMonday.AddDays(4), Material = row.FriMat, Notes = row.FriNotes });
             }
             
             _dataService.SaveLessonTemplates(templates);
             _dataService.SaveScheduleMaterials(materials);
+        }
+
+        private void RefreshDailyView()
+        {
+            var culture = new System.Globalization.CultureInfo("pl-PL");
+            string dayName = culture.DateTimeFormat.GetDayName(_currentDate.DayOfWeek);
+            dayName = char.ToUpper(dayName[0]) + dayName.Substring(1);
+            
+            string prefix = "";
+            if (_currentDate.Date == DateTime.Today) prefix = "Dzisiaj: ";
+            else if (_currentDate.Date == DateTime.Today.AddDays(1)) prefix = "Jutro: ";
+            else if (_currentDate.Date == DateTime.Today.AddDays(-1)) prefix = "Wczoraj: ";
+            
+            LessonDateText.Text = $"{prefix}{dayName}, {_currentDate.ToString("dd.MM.yyyy")}";
+
+            _dailyRows.Clear();
+            foreach (var row in _scheduleRows)
+            {
+                var wrapper = new DailyRowWrapper(row, _currentDate.DayOfWeek);
+                // Uwzględniamy obecność Uwag (Notes) w warunku wyświetlania wiersza
+                if (!string.IsNullOrWhiteSpace(wrapper.ClassName) || !string.IsNullOrWhiteSpace(wrapper.Material) || !string.IsNullOrWhiteSpace(wrapper.Notes) || row.ForceShow)
+                {
+                    _dailyRows.Add(wrapper);
+                }
+            }
         }
 
         // ZWRÓCONA METODA - naprawia błędy CS0103
@@ -174,14 +197,13 @@ namespace GradebookApp
                 var mats = new List<string>();
                 
                 // Krok 1: Wyłuskujemy materiał bieżąco wpisywany z tego tygodnia (jak dotychczas)
-                // Dystrybucja historii do konkretnych wierszy (naprawa CS8604)
                 foreach (var row in _scheduleRows)
                 {
-                    row.MonWatermark = histories.ContainsKey(row.MonClass ?? "") ? histories[row.MonClass ?? ""] : "";
-                    row.TueWatermark = histories.ContainsKey(row.TueClass ?? "") ? histories[row.TueClass ?? ""] : "";
-                    row.WedWatermark = histories.ContainsKey(row.WedClass ?? "") ? histories[row.WedClass ?? ""] : "";
-                    row.ThuWatermark = histories.ContainsKey(row.ThuClass ?? "") ? histories[row.ThuClass ?? ""] : "";
-                    row.FriWatermark = histories.ContainsKey(row.FriClass ?? "") ? histories[row.FriClass ?? ""] : "";
+                    if (row.MonClass == className && !string.IsNullOrWhiteSpace(row.MonMat)) mats.Add(ExtractMat(row.MonMat));
+                    if (row.TueClass == className && !string.IsNullOrWhiteSpace(row.TueMat)) mats.Add(ExtractMat(row.TueMat));
+                    if (row.WedClass == className && !string.IsNullOrWhiteSpace(row.WedMat)) mats.Add(ExtractMat(row.WedMat));
+                    if (row.ThuClass == className && !string.IsNullOrWhiteSpace(row.ThuMat)) mats.Add(ExtractMat(row.ThuMat));
+                    if (row.FriClass == className && !string.IsNullOrWhiteSpace(row.FriMat)) mats.Add(ExtractMat(row.FriMat));
                 }
 
                 // Krok 2: Pobieramy powiązania lekcji z bazą i wyłuskujemy historyczny materiał
@@ -200,17 +222,17 @@ namespace GradebookApp
                 histories[className] = string.Join(", ", mats.Distinct().Where(m => !string.IsNullOrWhiteSpace(m)));
             }
 
+            // Dystrybucja historii do konkretnych wierszy (Zoptymalizowane i wolne od ostrzeżeń CS8604)
             foreach (var row in _scheduleRows)
             {
-                row.MonWatermark = histories.ContainsKey(row.MonClass ?? "") ? histories[row.MonClass] : "";
-                row.TueWatermark = histories.ContainsKey(row.TueClass ?? "") ? histories[row.TueClass] : "";
-                row.WedWatermark = histories.ContainsKey(row.WedClass ?? "") ? histories[row.WedClass] : "";
-                row.ThuWatermark = histories.ContainsKey(row.ThuClass ?? "") ? histories[row.ThuClass] : "";
-                row.FriWatermark = histories.ContainsKey(row.FriClass ?? "") ? histories[row.FriClass] : "";
+                row.MonWatermark = histories.TryGetValue(row.MonClass ?? "", out var mon) ? mon : "";
+                row.TueWatermark = histories.TryGetValue(row.TueClass ?? "", out var tue) ? tue : "";
+                row.WedWatermark = histories.TryGetValue(row.WedClass ?? "", out var wed) ? wed : "";
+                row.ThuWatermark = histories.TryGetValue(row.ThuClass ?? "", out var thu) ? thu : "";
+                row.FriWatermark = histories.TryGetValue(row.FriClass ?? "", out var fri) ? fri : "";
             }
         }
 
-        // Sprytne wyłuskanie samego materiału po słowie "Temat: "
         private string ExtractMat(string fullMat)
         {
             if (fullMat.Contains(": ")) 
@@ -225,7 +247,6 @@ namespace GradebookApp
                 UpdateLessonNumbers();
             }
             
-            // Reagujemy na każdą zmianę OPRÓCZ samych watermarków, by uniknąć pętli
             if (e.PropertyName != nameof(ScheduleRow.LessonNumber) && 
                 e.PropertyName != null && !e.PropertyName.EndsWith("Watermark"))
             {
@@ -239,31 +260,6 @@ namespace GradebookApp
         {
             if (_currentDate.DayOfWeek == DayOfWeek.Saturday) _currentDate = _currentDate.AddDays(2);
             else if (_currentDate.DayOfWeek == DayOfWeek.Sunday) _currentDate = _currentDate.AddDays(1);
-        }
-
-        private void RefreshDailyView()
-        {
-            var culture = new System.Globalization.CultureInfo("pl-PL");
-            string dayName = culture.DateTimeFormat.GetDayName(_currentDate.DayOfWeek);
-            dayName = char.ToUpper(dayName[0]) + dayName.Substring(1);
-            
-            string prefix = "";
-            if (_currentDate.Date == DateTime.Today) prefix = "Dzisiaj: ";
-            else if (_currentDate.Date == DateTime.Today.AddDays(1)) prefix = "Jutro: ";
-            else if (_currentDate.Date == DateTime.Today.AddDays(-1)) prefix = "Wczoraj: ";
-            
-            LessonDateText.Text = $"{prefix}{dayName}, {_currentDate.ToString("dd.MM.yyyy")}";
-
-            _dailyRows.Clear();
-            foreach (var row in _scheduleRows)
-            {
-                var wrapper = new DailyRowWrapper(row, _currentDate.DayOfWeek);
-                
-                if (!string.IsNullOrWhiteSpace(wrapper.ClassName) || !string.IsNullOrWhiteSpace(wrapper.Material) || row.ForceShow)
-                {
-                    _dailyRows.Add(wrapper);
-                }
-            }
         }
 
         private void PrevDay_Click(object sender, RoutedEventArgs e)
@@ -634,6 +630,16 @@ namespace GradebookApp
         public string FriMat { get => _friMat; set { _friMat = value; OnPropertyChanged(); } }
         private string _friWatermark = "";
         public string FriWatermark { get => _friWatermark; set { if (_friWatermark != value) { _friWatermark = value; OnPropertyChanged(); } } }
+        private string _monNotes = "";
+        public string MonNotes { get => _monNotes; set { _monNotes = value; OnPropertyChanged(); } }
+        private string _tueNotes = "";
+        public string TueNotes { get => _tueNotes; set { _tueNotes = value; OnPropertyChanged(); } }
+        private string _wedNotes = "";
+        public string WedNotes { get => _wedNotes; set { _wedNotes = value; OnPropertyChanged(); } }
+        private string _thuNotes = "";
+        public string ThuNotes { get => _thuNotes; set { _thuNotes = value; OnPropertyChanged(); } }
+        private string _friNotes = "";
+        public string FriNotes { get => _friNotes; set { _friNotes = value; OnPropertyChanged(); } }
     }
 
     public static class SmartTimeParser
@@ -724,6 +730,11 @@ namespace GradebookApp
         {
             get => Day switch { DayOfWeek.Monday => Row.MonMat, DayOfWeek.Tuesday => Row.TueMat, DayOfWeek.Wednesday => Row.WedMat, DayOfWeek.Thursday => Row.ThuMat, DayOfWeek.Friday => Row.FriMat, _ => "" };
             set { switch (Day) { case DayOfWeek.Monday: Row.MonMat = value; break; case DayOfWeek.Tuesday: Row.TueMat = value; break; case DayOfWeek.Wednesday: Row.WedMat = value; break; case DayOfWeek.Thursday: Row.ThuMat = value; break; case DayOfWeek.Friday: Row.FriMat = value; break; } OnPropertyChanged(); }
+        }
+        public string Notes
+        {
+            get => Day switch { DayOfWeek.Monday => Row.MonNotes, DayOfWeek.Tuesday => Row.TueNotes, DayOfWeek.Wednesday => Row.WedNotes, DayOfWeek.Thursday => Row.ThuNotes, DayOfWeek.Friday => Row.FriNotes, _ => "" };
+            set { switch (Day) { case DayOfWeek.Monday: Row.MonNotes = value; break; case DayOfWeek.Tuesday: Row.TueNotes = value; break; case DayOfWeek.Wednesday: Row.WedNotes = value; break; case DayOfWeek.Thursday: Row.ThuNotes = value; break; case DayOfWeek.Friday: Row.FriNotes = value; break; } OnPropertyChanged(); }
         }
     }
 }
