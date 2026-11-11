@@ -19,13 +19,10 @@ namespace GradebookApp.Services
         {
             var result = new WorkStatisticsResult();
             
-            var recordsQuery = _dbContext.StudentWorkRecords
-                                  .Include(r => r.Student)
-                                  .Where(r => r.IsRetakeActive);
-
+            var recordsQuery = _dbContext.StudentWorkRecords.Include(r => r.Student).Where(r => r.IsRetakeActive);
             if (classId.HasValue) recordsQuery = recordsQuery.Where(r => r.Student.SchoolClassId == classId.Value);
             if (workIds != null && workIds.Any()) recordsQuery = recordsQuery.Where(r => workIds.Contains(r.WrittenWorkId));
-
+            
             var records = recordsQuery.ToList();
             if (!records.Any()) return result;
 
@@ -34,17 +31,15 @@ namespace GradebookApp.Services
 
             var studentIds = records.Select(r => r.StudentId).Distinct().ToList();
             var scoresQuery = _dbContext.StudentTaskScores.Include(s => s.WrittenWorkTask).AsQueryable();
-            
             if (classId.HasValue) scoresQuery = scoresQuery.Where(s => s.Student.SchoolClassId == classId.Value);
             else scoresQuery = scoresQuery.Where(s => studentIds.Contains(s.StudentId));
-
             if (workIds != null && workIds.Any()) scoresQuery = scoresQuery.Where(s => workIds.Contains(s.WrittenWorkTask.WrittenWorkId));
-
+            
             var scores = scoresQuery.ToList();
 
             double totalPercentagePointsGain = 0, gainFrom1 = 0, gainFrom2 = 0;
             int studentsWithValidRetakeScores = 0, studentsGainFrom1 = 0, studentsGainFrom2 = 0;
-            int actualGradedRetakesCount = 0; // Poprawiony licznik prac
+            int actualGradedRetakesCount = 0; 
 
             foreach (var record in records)
             {
@@ -52,7 +47,6 @@ namespace GradebookApp.Services
 
                 var studentScores = scores.Where(s => s.StudentId == record.StudentId && s.WrittenWorkTask.WrittenWorkId == work.Id).ToList();
                 
-                // Ignorujemy tych, którzy nie dostali jeszcze ocen (naprawia licznik 28->20)
                 bool hasRetakeScores = studentScores.Any(s => s.RetakePointsLevel1.HasValue || s.RetakePointsLevel2.HasValue || s.RetakePointsLevel3.HasValue);
                 if (!hasRetakeScores) continue;
 
@@ -84,6 +78,7 @@ namespace GradebookApp.Services
 
                 if (isBase1)
                 {
+                    // PRZYWRÓCONA LOGIKA kategoryzująca poprawnie podział z jedynek
                     if (isSuccess && !isStillFailed) result.SuccessfulRetakesFrom1To2Plus++;
                     else if (isSuccess && isStillFailed) result.SuccessfulRetakesFrom1To1++;
                     else result.FailedRetakesFrom1++;
@@ -119,8 +114,6 @@ namespace GradebookApp.Services
 
             return result;
         }
-
-        // Zaktualizowana metoda ApplyMigrations (tworzy tabelę w locie)
         // Zaktualizowana metoda ApplyMigrations (tworzy tabelę w locie)
         public void ApplyMigrations() 
         {

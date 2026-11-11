@@ -7,7 +7,6 @@ using GradebookApp.ViewModels;
 
 namespace GradebookApp
 {
-    // Klasy pomocnicze do poprawnego wyświetlania elementów
     public class ComboItem
     {
         public int? Id { get; set; }
@@ -19,6 +18,7 @@ namespace GradebookApp
     {
         private readonly GradebookDataService _dataService;
         private bool _isInitializing = true;
+        private WorkStatisticsResult? _lastCalculatedStats; 
 
         public StatisticsWindow()
         {
@@ -37,7 +37,6 @@ namespace GradebookApp
             ClassComboBox.SelectedIndex = 0;
             _isInitializing = false;
             
-            // Wymuszenie załadowania prac po ustawieniu (Wszystkie)
             ClassComboBox_SelectionChanged(this, null!);
         }
 
@@ -59,7 +58,6 @@ namespace GradebookApp
 
                 var works = query.Select(w => new ComboItem { Id = w.Id, Title = w.Title }).OrderByDescending(w => w.Title).ToList();
                 
-                // Grupowanie unikalnych prac po nazwach dla widoku globalnego
                 if (!classId.HasValue) 
                 {
                     works = works.GroupBy(w => w.Title).Select(g => g.First()).OrderBy(w => w.Title).ToList();
@@ -74,6 +72,12 @@ namespace GradebookApp
             }
 
             WorkComboBox_SelectionChanged(this, null!);
+        }
+
+        // PRZYWRÓCONA METODA DLA CHECKBOXÓW
+        private void OptionsCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitializing) WorkComboBox_SelectionChanged(this, null!);
         }
 
         private void WorkComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -91,72 +95,65 @@ namespace GradebookApp
                 using (var db = new AppDbContext())
                 {
                     string targetTitle = db.WrittenWorks.Find(workId.Value)?.Title ?? "";
-                    
-                    // Zbieramy wszystkie ID tej samej pracy do paczki
                     var allWorksWithSameTitle = db.WrittenWorks.Where(w => w.Title == targetTitle).Select(w => w.Id).ToList();
                     
-                    // Odpytujemy serwis jednym, masowym zapytaniem (żadnego uśredniania średnich!)
-                    var stats = _dataService.CalculateStatistics(null, allWorksWithSameTitle, includeFailed, includeStillFailed);
-                    UpdateStatsUI(stats);
+                    _lastCalculatedStats = _dataService.CalculateStatistics(null, allWorksWithSameTitle, includeFailed, includeStillFailed);
                 }
             }
             else
             {
-                // Tworzymy paczkę z jednym elementem (lub null, jeśli wybrano "(Wszystkie)" prace)
                 var targetWorkIds = workId.HasValue ? new List<int> { workId.Value } : null;
-                var stats = _dataService.CalculateStatistics(classId, targetWorkIds, includeFailed, includeStillFailed);
-                UpdateStatsUI(stats);
+                _lastCalculatedStats = _dataService.CalculateStatistics(classId, targetWorkIds, includeFailed, includeStillFailed);
             }
+            
+            RenderTable();
         }
 
-        private void OptionsCheckBox_Changed(object sender, RoutedEventArgs e)
+        private void DisplayModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (!_isInitializing)
-            {
-                WorkComboBox_SelectionChanged(this, null!);
-            }
+            if (!_isInitializing) RenderTable();
         }
 
-        private void UpdateStatsUI(WorkStatisticsResult stats)
+        private void RenderTable()
         {
+            if (_lastCalculatedStats == null) return;
+            var stats = _lastCalculatedStats;
+            
             TotalRetakesText.Text = $"Liczba poprawionych prac: {stats.TotalRetakes}";
             
-            // Przygotowanie tekstów (procenty nadal liczone wewnątrz grupy)
-            int totalFrom1 = stats.SuccessfulRetakesFrom1To2Plus + stats.SuccessfulRetakesFrom1To1 + stats.FailedRetakesFrom1;
-            double success1To2Pct = totalFrom1 > 0 ? (double)stats.SuccessfulRetakesFrom1To2Plus / totalFrom1 * 100 : 0;
-            double success1To1Pct = totalFrom1 > 0 ? (double)stats.SuccessfulRetakesFrom1To1 / totalFrom1 * 100 : 0;
-            double fail1Pct = totalFrom1 > 0 ? (double)stats.FailedRetakesFrom1 / totalFrom1 * 100 : 0;
+            int tableSuccessFrom1 = stats.SuccessfulRetakesFrom1To2Plus;
+            int tableFailFrom1 = stats.FailedRetakesFrom1 + stats.SuccessfulRetakesFrom1To1;
+            int totalFrom1 = tableSuccessFrom1 + tableFailFrom1;
             
-            SuccessFrom1To2Text.Text = $"• Udane (ocena 2+): {stats.SuccessfulRetakesFrom1To2Plus} ({success1To2Pct:0}%)";
-            SuccessFrom1To1Text.Text = $"• Częściowo udane (nadal 1): {stats.SuccessfulRetakesFrom1To1} ({success1To1Pct:0}%)";
-            FailFrom1Text.Text = $"• Nieudane (ten sam lub gorszy wynik): {stats.FailedRetakesFrom1} ({fail1Pct:0}%)";
-            
-            int totalFrom2 = stats.SuccessfulRetakesFrom2Plus + stats.FailedRetakesFrom2Plus;
-            double success2Pct = totalFrom2 > 0 ? (double)stats.SuccessfulRetakesFrom2Plus / totalFrom2 * 100 : 0;
-            double fail2Pct = totalFrom2 > 0 ? (double)stats.FailedRetakesFrom2Plus / totalFrom2 * 100 : 0;
+            int tableSuccessFrom2 = stats.SuccessfulRetakesFrom2Plus;
+            int tableFailFrom2 = stats.FailedRetakesFrom2Plus;
+            int totalFrom2 = tableSuccessFrom2 + tableFailFrom2;
 
-            SuccessFrom2Text.Text = $"• Udane (ocena wyższa): {stats.SuccessfulRetakesFrom2Plus} ({success2Pct:0}%)";
-            FailFrom2Text.Text = $"• Nieudane (brak poprawy): {stats.FailedRetakesFrom2Plus} ({fail2Pct:0}%)";
+            int totalSuccess = tableSuccessFrom1 + tableSuccessFrom2;
+            int totalFail = tableFailFrom1 + tableFailFrom2;
+            int grandTotal = totalSuccess + totalFail; 
 
-            // WSPÓLNE SKALOWANIE: Wyciągamy absolutnie największą liczbę ze wszystkich 5 kategorii
-            int maxCount = new[] { 
-                stats.SuccessfulRetakesFrom1To2Plus, 
-                stats.SuccessfulRetakesFrom1To1, 
-                stats.FailedRetakesFrom1, 
-                stats.SuccessfulRetakesFrom2Plus, 
-                stats.FailedRetakesFrom2Plus 
-            }.Max();
+            double GetPct(int val) => grandTotal > 0 ? ((double)val / grandTotal) * 100 : 0;
 
-            // Maksymalna szerokość paska dla okna o szerokości 720 (340px kolumna tekstu = zostaje ok. 280-300px na sam pasek)
-            double maxBarWidth = 280.0; 
+            string FormatCell(int val)
+            {
+                int mode = DisplayModeComboBox.SelectedIndex;
+                if (mode == 0) return $"{val}";                      
+                if (mode == 1) return $"{GetPct(val):0}%";           
+                return $"{val} ({GetPct(val):0}%)";                  
+            }
 
-            // Renderowanie pasków względem maxCount (26 będzie wizualnie dłuższe niż 18)
-            SuccessFrom1To2Bar.Width = maxCount > 0 ? ((double)stats.SuccessfulRetakesFrom1To2Plus / maxCount) * maxBarWidth : 0;
-            SuccessFrom1To1Bar.Width = maxCount > 0 ? ((double)stats.SuccessfulRetakesFrom1To1 / maxCount) * maxBarWidth : 0;
-            FailFrom1Bar.Width = maxCount > 0 ? ((double)stats.FailedRetakesFrom1 / maxCount) * maxBarWidth : 0;
-            
-            SuccessFrom2Bar.Width = maxCount > 0 ? ((double)stats.SuccessfulRetakesFrom2Plus / maxCount) * maxBarWidth : 0;
-            FailFrom2Bar.Width = maxCount > 0 ? ((double)stats.FailedRetakesFrom2Plus / maxCount) * maxBarWidth : 0;
+            SuccessFrom1Text.Text = FormatCell(tableSuccessFrom1);
+            FailFrom1Text.Text = FormatCell(tableFailFrom1);
+            TotalFrom1Text.Text = FormatCell(totalFrom1);
+
+            SuccessFrom2Text.Text = FormatCell(tableSuccessFrom2);
+            FailFrom2Text.Text = FormatCell(tableFailFrom2);
+            TotalFrom2Text.Text = FormatCell(totalFrom2);
+
+            TotalSuccessText.Text = FormatCell(totalSuccess);
+            TotalFailText.Text = FormatCell(totalFail);
+            GrandTotalText.Text = FormatCell(grandTotal);
 
             AvgGainText.Text = $"Średni całkowity przyrost: +{stats.AveragePercentagePointGain:F1} p.p.";
             AvgGain1Text.Text = $"• w grupie ocen niedostatecznych (1): +{stats.AveragePercentagePointGainFrom1:F1} p.p.";
@@ -166,22 +163,19 @@ namespace GradebookApp
         private void ResetStatsUI()
         {
             TotalRetakesText.Text = "Liczba poprawionych prac: -";
-            SuccessFrom1To2Text.Text = "• Udane: -";
-            SuccessFrom1To1Text.Text = "• Częściowo udane (nadal 1): -";
-            FailFrom1Text.Text = "• Nieudane (brak poprawy): -";
-            
-            SuccessFrom2Text.Text = "• Udane: -";
-            FailFrom2Text.Text = "• Nieudane (brak poprawy): -";
+            SuccessFrom1Text.Text = "-";
+            FailFrom1Text.Text = "-";
+            TotalFrom1Text.Text = "-";
+            SuccessFrom2Text.Text = "-";
+            FailFrom2Text.Text = "-";
+            TotalFrom2Text.Text = "-";
+            TotalSuccessText.Text = "-";
+            TotalFailText.Text = "-";
+            GrandTotalText.Text = "-";
             
             AvgGainText.Text = "Średni całkowity przyrost: - p.p.";
             AvgGain1Text.Text = "• w grupie ocen niedostatecznych (1): - p.p.";
             AvgGain2Text.Text = "• w grupie ocen pozytywnych (2+): - p.p.";
-            
-            SuccessFrom1To2Bar.Width = 0;
-            SuccessFrom1To1Bar.Width = 0;
-            FailFrom1Bar.Width = 0;
-            SuccessFrom2Bar.Width = 0;
-            FailFrom2Bar.Width = 0;
         }
 
         protected override void OnClosed(System.EventArgs e)
