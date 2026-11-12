@@ -30,7 +30,7 @@
                                     <Setter Property="Foreground" Value="#4DB6AC"/>
                                 </DataTrigger>
                                 <!-- Kursor zmienia się w łapkę, podpowiadając, że temat można kliknąć -->
-                                <DataTrigger Binding="{Binding IsTopic}" Value="True">
+                                <DataTrigger Binding="{Binding IsLeaf}" Value="True">
                                     <Setter Property="Cursor" Value="Hand"/>
                                 </DataTrigger>
                             </Style.Triggers>
@@ -44,7 +44,7 @@
                         <Style TargetType="StackPanel">
                             <Setter Property="Visibility" Value="Collapsed"/>
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsTopic}" Value="True">
+                                <DataTrigger Binding="{Binding IsLeaf}" Value="True">
                                     <Setter Property="Visibility" Value="Visible"/>
                                 </DataTrigger>
                             </Style.Triggers>
@@ -77,20 +77,6 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                         <Button Content="+" CommandParameter="Answer" Tag="{Binding Id}" Click="AddPdfButton_Click" Background="#3E3E42" Foreground="#E0E0E0" BorderThickness="0" Width="20" Height="20" Cursor="Hand" ToolTip="Dodaj nowy plik odpowiedzi" Visibility="{Binding EditModeVisibility}"/>
-                    </StackPanel>
-
-                    <!-- KARTKÓWKI -->
-                    <StackPanel Orientation="Horizontal" Margin="0,2" Visibility="{Binding QuizRowVisibility}">
-                        <TextBlock Text="Kartkówki:" Width="65" Foreground="#AAAAAA" VerticalAlignment="Center" FontSize="12"/>
-                        <ItemsControl ItemsSource="{Binding QuizFiles}">
-                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Button Content="{Binding FileName}" CommandParameter="{Binding}" Click="FileButton_Click" Background="#4A2E2E" Foreground="#E0E0E0" BorderThickness="0" Padding="8,2" Margin="0,0,5,0" Cursor="Hand" ToolTip="Otwórz plik (lub usuń w trybie edycji)"/>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <Button Content="+" CommandParameter="Quiz" Tag="{Binding Id}" Click="AddPdfButton_Click" Background="#3E3E42" Foreground="#E0E0E0" BorderThickness="0" Width="20" Height="20" Cursor="Hand" ToolTip="Dodaj nowy plik kartkówki" Visibility="{Binding EditModeVisibility}"/>
                     </StackPanel>
                 </StackPanel>
             </Grid>
@@ -139,8 +125,12 @@
 
                 <StackPanel Grid.Row="1" Orientation="Horizontal">
                     <Button Content="+ Dział" Width="70" Height="26" Margin="0,0,5,0" Background="#007ACC" Foreground="White" BorderThickness="0" Cursor="Hand" Click="AddRoot_Click" ToolTip="Dodaj nowy główny Dział"/>
-                    <Button x:Name="AddChildBtn" Content="+ Podrzędny" Width="90" Height="26" Margin="0,0,5,0" Background="#007ACC" Foreground="White" BorderThickness="0" Cursor="Hand" Click="AddChild_Click" ToolTip="Dodaj element wewnątrz wybranego (np. Rozdział do Działu)"/>
-                    <Button x:Name="AddSiblingBtn" Content="+ Obok" Width="70" Height="26" Margin="0,0,20,0" Background="#007ACC" Foreground="White" BorderThickness="0" Cursor="Hand" Click="AddSibling_Click" ToolTip="Dodaj element na tym samym poziomie"/>
+                    <Button x:Name="AddChildBtn" Content="+ Podrzędny" Width="90" Height="26" Margin="0,0,5,0" Background="#007ACC" Foreground="White" BorderThickness="0" Cursor="Hand" Click="AddChild_Click" ToolTip="Dodaj element wewnątrz wybranego"/>
+                    <Button x:Name="AddSiblingBtn" Content="+ Obok" Width="70" Height="26" Margin="0,0,10,0" Background="#007ACC" Foreground="White" BorderThickness="0" Cursor="Hand" Click="AddSibling_Click" ToolTip="Dodaj element na tym samym poziomie"/>
+                    
+                    <Button x:Name="MoveUpBtn" Content="▲" Width="30" Height="26" Margin="0,0,5,0" Background="#3E3E42" Foreground="White" BorderThickness="0" Cursor="Hand" Click="MoveUp_Click" ToolTip="Przesuń element w górę"/>
+                    <Button x:Name="MoveDownBtn" Content="▼" Width="30" Height="26" Margin="0,0,10,0" Background="#3E3E42" Foreground="White" BorderThickness="0" Cursor="Hand" Click="MoveDown_Click" ToolTip="Przesuń element w dół"/>
+                    
                     <Button x:Name="DeleteNodeBtn" Content="Usuń wybrany" Width="100" Height="26" Background="#A13B3B" Foreground="White" BorderThickness="0" Cursor="Hand" Click="DeleteNode_Click"/>
                 </StackPanel>
             </Grid>

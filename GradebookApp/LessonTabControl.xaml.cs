@@ -187,49 +187,57 @@ namespace GradebookApp
                                               .Distinct()
                                               .ToList();
 
-            var histories = new Dictionary<string, string>();
+            var latestHistories = new Dictionary<string, string>();
             
-            // Pobieramy całą historię ze wszystkich tygodni!
-            var allHistoricalMaterials = _dataService.GetAllScheduleMaterials();
+            // Pobieramy całą historię i upewniamy się, że jest posortowana od najnowszego wpisu do najstarszego
+            var allHistoricalMaterials = _dataService.GetAllScheduleMaterials().OrderByDescending(h => h.Date).ToList();
 
             foreach (var className in allUsedClasses)
             {
-                var mats = new List<string>();
+                string latestMaterial = "";
                 
-                // Krok 1: Wyłuskujemy materiał bieżąco wpisywany z tego tygodnia (jak dotychczas)
-                foreach (var row in _scheduleRows)
+                // Szukamy absolutnie najświeższego (pierwszego w posortowanej liście) wpisu dla danej klasy w bieżącym tygodniu
+                foreach (var row in _scheduleRows.Reverse()) // Patrzymy od końca tygodnia
                 {
-                    if (row.MonClass == className && !string.IsNullOrWhiteSpace(row.MonMat)) mats.Add(ExtractMat(row.MonMat));
-                    if (row.TueClass == className && !string.IsNullOrWhiteSpace(row.TueMat)) mats.Add(ExtractMat(row.TueMat));
-                    if (row.WedClass == className && !string.IsNullOrWhiteSpace(row.WedMat)) mats.Add(ExtractMat(row.WedMat));
-                    if (row.ThuClass == className && !string.IsNullOrWhiteSpace(row.ThuMat)) mats.Add(ExtractMat(row.ThuMat));
-                    if (row.FriClass == className && !string.IsNullOrWhiteSpace(row.FriMat)) mats.Add(ExtractMat(row.FriMat));
-                }
-
-                // Krok 2: Pobieramy powiązania lekcji z bazą i wyłuskujemy historyczny materiał
-                // (Przeszukujemy szablony by dowiedzieć się, kiedy klasa ma zajęcia i łączymy to z datami wpisów z historii)
-                var classTemplates = _dataService.GetLessonTemplates().Where(t => t.ClassName == className).ToList();
-                foreach(var histMat in allHistoricalMaterials)
-                {
-                    // Szukamy, czy w dniu tygodnia historycznego wpisu dana klasa miała przypisaną lekcję na tej godzinie
-                    var matchingTemplate = classTemplates.FirstOrDefault(t => t.DayOfWeek == histMat.Date.DayOfWeek && t.TimeSlot == histMat.TimeSlot);
-                    if (matchingTemplate != null)
+                    if (string.IsNullOrEmpty(latestMaterial))
                     {
-                        mats.Add(ExtractMat(histMat.Material));
+                        if (row.FriClass == className && !string.IsNullOrWhiteSpace(row.FriMat)) latestMaterial = ExtractMat(row.FriMat);
+                        else if (row.ThuClass == className && !string.IsNullOrWhiteSpace(row.ThuMat)) latestMaterial = ExtractMat(row.ThuMat);
+                        else if (row.WedClass == className && !string.IsNullOrWhiteSpace(row.WedMat)) latestMaterial = ExtractMat(row.WedMat);
+                        else if (row.TueClass == className && !string.IsNullOrWhiteSpace(row.TueMat)) latestMaterial = ExtractMat(row.TueMat);
+                        else if (row.MonClass == className && !string.IsNullOrWhiteSpace(row.MonMat)) latestMaterial = ExtractMat(row.MonMat);
                     }
                 }
 
-                histories[className] = string.Join(", ", mats.Distinct().Where(m => !string.IsNullOrWhiteSpace(m)));
+                // Jeśli w bieżącym tygodniu nic nie wpisano, szukamy najnowszego wpisu w całej historii bazy
+                if (string.IsNullOrEmpty(latestMaterial))
+                {
+                    var classTemplates = _dataService.GetLessonTemplates().Where(t => t.ClassName == className).ToList();
+                    foreach (var histMat in allHistoricalMaterials)
+                    {
+                        // Pomijamy wpisy z bieżącego lub przyszłych tygodni, żeby przypadkiem "znak wodny" z przyszłości nie pojawił się wczoraj
+                        if (histMat.Date >= GetMondayOfCurrentWeek()) continue;
+
+                        var matchingTemplate = classTemplates.FirstOrDefault(t => t.DayOfWeek == histMat.Date.DayOfWeek && t.TimeSlot == histMat.TimeSlot);
+                        if (matchingTemplate != null)
+                        {
+                            latestMaterial = ExtractMat(histMat.Material);
+                            break; // Znaleźliśmy najświeższy przeszły materiał, przerywamy pętlę
+                        }
+                    }
+                }
+
+                latestHistories[className] = latestMaterial;
             }
 
-            // Dystrybucja historii do konkretnych wierszy (Zoptymalizowane i wolne od ostrzeżeń CS8604)
+            // Dystrybucja ostatniego tematu jako znaku wodnego
             foreach (var row in _scheduleRows)
             {
-                row.MonWatermark = histories.TryGetValue(row.MonClass ?? "", out var mon) ? mon : "";
-                row.TueWatermark = histories.TryGetValue(row.TueClass ?? "", out var tue) ? tue : "";
-                row.WedWatermark = histories.TryGetValue(row.WedClass ?? "", out var wed) ? wed : "";
-                row.ThuWatermark = histories.TryGetValue(row.ThuClass ?? "", out var thu) ? thu : "";
-                row.FriWatermark = histories.TryGetValue(row.FriClass ?? "", out var fri) ? fri : "";
+                row.MonWatermark = latestHistories.TryGetValue(row.MonClass ?? "", out var mon) ? mon : "";
+                row.TueWatermark = latestHistories.TryGetValue(row.TueClass ?? "", out var tue) ? tue : "";
+                row.WedWatermark = latestHistories.TryGetValue(row.WedClass ?? "", out var wed) ? wed : "";
+                row.ThuWatermark = latestHistories.TryGetValue(row.ThuClass ?? "", out var thu) ? thu : "";
+                row.FriWatermark = latestHistories.TryGetValue(row.FriClass ?? "", out var fri) ? fri : "";
             }
         }
 
@@ -440,6 +448,22 @@ namespace GradebookApp
         {
             var grid = sender as DataGrid;
             if (grid == null) return;
+
+            // NOWOŚĆ: Zatwierdzanie Enterem
+            if (e.Key == Key.Enter)
+            {
+                var textBox = e.OriginalSource as TextBox;
+                if (textBox != null)
+                {
+                    e.Handled = true;
+                    // Wymuszamy aktualizację tekstu powiązanego z bazą danych (LostFocus)
+                    textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+                    
+                    // Po zatwierdzeniu przenosimy ostrość z powrotem na główną siatkę, by "zamknąć" edycję
+                    grid.Focus();
+                    return;
+                }
+            }
 
             if (e.Key == Key.Tab)
             {

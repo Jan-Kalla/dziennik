@@ -118,7 +118,7 @@
             
             <StackPanel x:Name="DateNavigationPanel" Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
                 <Button Content="◀" Width="32" Height="32" Background="#3E3E42" Foreground="#E0E0E0" BorderThickness="0" Cursor="Hand" Click="PrevDay_Click" ToolTip="Poprzedni dzień" Margin="0,0,10,0" Focusable="False"/>
-                <TextBlock x:Name="LessonDateText" Text="Dzisiaj: -" FontSize="20" FontWeight="Bold" Foreground="#E0E0E0" VerticalAlignment="Center" Width="300" TextAlignment="Center"/>
+                <TextBlock x:Name="LessonDateText" Text="Dzisiaj: -" FontSize="20" FontWeight="Bold" Foreground="#E0E0E0" VerticalAlignment="Center" Width="400" TextAlignment="Center"/>
                 <Button Content="▶" Width="32" Height="32" Background="#3E3E42" Foreground="#E0E0E0" BorderThickness="0" Cursor="Hand" Click="NextDay_Click" ToolTip="Następny dzień" Margin="10,0,0,0" Focusable="False"/>
             </StackPanel>
 
@@ -166,37 +166,42 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTemplateColumn Header="Godz." Width="120" CellStyle="{StaticResource NoClipCellStyle}">
+                <!-- KOLUMNA GODZINA (ZABLOKOWANA) -->
+                <DataGridTemplateColumn CellStyle="{StaticResource NoClipCellStyle}" Header="Godz." Width="120">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <Grid Background="Transparent">
-                                <TextBox Text="{Binding TimeSlot, UpdateSourceTrigger=Explicit}" Style="{StaticResource CellTextBoxStyle}" Margin="0,5" LostFocus="TimeSlotTextBox_LostFocus"/>
+                                <!-- Zamiast TextBoxa używamy TextBlocka (tylko do odczytu) -->
+                                <TextBlock Foreground="#E0E0E0" Margin="10,5" Text="{Binding TimeSlot}" VerticalAlignment="Center"/>
                             </Grid>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTemplateColumn Header="Klasa (dyżur)" Width="150" CellStyle="{StaticResource NoClipCellStyle}">
+                
+                <!-- KOLUMNA KLASA (ZABLOKOWANA) -->
+                <DataGridTemplateColumn CellStyle="{StaticResource NoClipCellStyle}" Header="Klasa (dyżur)" Width="150">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <Grid Background="Transparent">
-                                <ComboBox IsEditable="True" Text="{Binding ClassName, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding DataContext.ClassNames, RelativeSource={RelativeSource AncestorType=UserControl}}" IsTextSearchEnabled="False" StaysOpenOnEdit="True" KeyUp="ClassComboBox_KeyUp" Background="Transparent" Foreground="#E0E0E0" BorderThickness="0" Padding="5">
-                                    <ComboBox.Resources><Style TargetType="ToggleButton"><Setter Property="Visibility" Value="Collapsed"/></Style></ComboBox.Resources>
-                                </ComboBox>
+                                <!-- Zamiast ComboBoxa używamy TextBlocka -->
+                                <TextBlock Foreground="#E0E0E0" Margin="10,5" Text="{Binding ClassName}" VerticalAlignment="Center"/>
                             </Grid>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTemplateColumn Header="Zrealizowany materiał" Width="*" CellStyle="{StaticResource NoClipCellStyle}">
+                
+                <!-- KOLUMNA MATERIAŁ (OPTYMALIZACJA ZAPISU I BLOKADA DLA DYŻURÓW) -->
+                <DataGridTemplateColumn CellStyle="{StaticResource NoClipCellStyle}" Header="Zrealizowany materiał" Width="*">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <Grid Background="Transparent">
-                                <!-- ZNAK WODNY Z HISTORIĄ MATERIAŁU -->
-                                <TextBlock Text="{Binding MaterialWatermark}" Foreground="#666666" FontStyle="Italic" VerticalAlignment="Center" Margin="5,0" TextTrimming="CharacterEllipsis" IsHitTestVisible="False">
+                                <!-- ZNAK WODNY Z HISTORIĄ -->
+                                <TextBlock FontStyle="Italic" Foreground="#666666" IsHitTestVisible="False" Margin="5,0" Text="{Binding MaterialWatermark}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                             <Style.Triggers>
-                                                <!-- Pokaż historię tylko, gdy pole jest puste -->
+                                                <!-- Value="{x:Static sys:String.Empty}" (puste pole) -->
                                                 <DataTrigger Binding="{Binding Material}" Value="">
                                                     <Setter Property="Visibility" Value="Visible"/>
                                                 </DataTrigger>
@@ -208,15 +213,72 @@
                                     </TextBlock.Style>
                                 </TextBlock>
                                 
-                                <!-- Właściwe pole edycji -->
-                                <TextBox Text="{Binding Material, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource CellTextBoxStyle}"/>
+                                <!-- WŁAŚCIWE POLE EDYCJI -->
+                                <!-- Usunięto deklarację z atrybutu Style i przeniesiono do wnętrza znacznika -->
+                                <TextBox Text="{Binding Material, UpdateSourceTrigger=LostFocus}">
+                                    <TextBox.Style>
+                                        <!-- Dziedziczy z CellTextBoxStyle -->
+                                        <Style BasedOn="{StaticResource CellTextBoxStyle}" TargetType="TextBox">
+                                            <!-- Domyślnie edycja jest włączona -->
+                                            <Setter Property="IsEnabled" Value="True"/>
+                                            <Style.Triggers>
+                                                <!-- Ale jeśli to dyżur (puste ID lekcji), blokujemy -->
+                                                <DataTrigger Binding="{Binding LessonNumber}" Value="">
+                                                    <Setter Property="IsEnabled" Value="False"/>
+                                                </DataTrigger>
+                                                <!-- Oraz jeśli to null, profilaktycznie też blokujemy -->
+                                                <DataTrigger Binding="{Binding LessonNumber}" Value="{x:Null}">
+                                                    <Setter Property="IsEnabled" Value="False"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBox.Style>
+                                </TextBox>
                             </Grid>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTemplateColumn Width="60" CellStyle="{StaticResource NoClipCellStyle}">
+                
+                <!-- STRZAŁKA PRZEJŚCIA (UKRYTA DLA DYŻURÓW) -->
+                <DataGridTemplateColumn CellStyle="{StaticResource NoClipCellStyle}" Width="60">
                     <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><Grid Background="Transparent"><Button Content="→" Margin="2" Click="GoToLessonInfo_Click" Cursor="Hand" Background="#007ACC" Foreground="White" FontSize="18" FontWeight="Bold" ToolTip="Przejdź do okna informacji" Focusable="False"/></Grid></DataTemplate>
+                        <DataTemplate>
+                            <Grid Background="Transparent">
+                                <!-- Usunięto Background i Foreground z właściwości przycisku - przeniesiono do Stylu -->
+                                <Button Click="GoToLessonInfo_Click" Content="→" Cursor="Hand" Focusable="False" FontSize="18" FontWeight="Bold" Margin="2" ToolTip="Przejdź do okna informacji">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Background" Value="#007ACC"/>
+                                            <Setter Property="Foreground" Value="White"/>
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <!-- Całkowicie nowy szablon rysowania przycisku omijający systemowe animacje -->
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border Background="{TemplateBinding Background}" CornerRadius="3">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                            <Style.Triggers>
+                                                <!-- Własny, ciemniejszy kolor po najechaniu myszką -->
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="#005A9E"/>
+                                                </Trigger>
+                                                <!-- Logika ukrywania dla dyżurów -->
+                                                <DataTrigger Binding="{Binding LessonNumber}" Value="">
+                                                    <Setter Property="Visibility" Value="Hidden"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding LessonNumber}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Hidden"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </Grid>
+                        </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
             </DataGrid.Columns>

@@ -20,9 +20,7 @@
             
             <TextBlock x:Name="ClassNameText" Grid.Column="1" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"/>
             
-            <!-- NOWY PANEL Z DWOMA PRZYCISKAMI -->
             <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                <Button Content="Przejdź do lekcji →" Width="130" Height="26" Margin="0,0,10,0" Click="GoToLesson_Click" Background="#4DB6AC" Foreground="#1E1E1E" FontWeight="Bold" BorderThickness="0" Cursor="Hand" ToolTip="Wróć do kalendarza lekcji"/>
                 <Button Content="Odśwież tabelę ↻" Width="110" Height="26" Click="RefreshTable_Click" Background="#007ACC" Foreground="White" BorderThickness="0" Cursor="Hand"/>
             </StackPanel>
         </Grid>
@@ -43,8 +41,9 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         
+                        <!-- Dodano PreviewMouseLeftButtonDown do czyszczenia tekstu -->
                         <TextBox x:Name="SearchTextBox" Grid.Column="0" Margin="0,0,10,0" Height="30" VerticalContentAlignment="Center" 
-                                 ToolTip="Wpisz imię, nazwisko lub nazwę pracy..." TextChanged="SearchTextBox_TextChanged">
+                                 ToolTip="Wpisz imię, nazwisko lub nazwę pracy..." TextChanged="SearchTextBox_TextChanged" PreviewMouseLeftButtonDown="SearchTextBox_PreviewMouseLeftButtonDown">
                             <TextBox.Style>
                                 <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
                                     <Style.Triggers>
@@ -64,7 +63,8 @@
                             </TextBox.Style>
                         </TextBox>
                         
-                        <Button Grid.Column="1" Content="⇄ Zamień Imię z Nazwiskiem" Width="200" Height="30" Click="SwapColumns_Click" Cursor="Hand" Background="#333333" Foreground="#E0E0E0" BorderBrush="#555555" />
+                        <!-- Poszerzono z 200 na 220 -->
+                        <Button Grid.Column="1" Content="⇄ Zamień Imię z Nazwiskiem" Width="220" Height="30" Click="SwapColumns_Click" Cursor="Hand" Background="#333333" Foreground="#E0E0E0" BorderBrush="#555555" />
                     </Grid>
                              
                     <DataGrid x:Name="StudentsDataGrid" Grid.Row="1" Margin="0,0,0,10" FontSize="16" 
@@ -144,7 +144,8 @@
                                 <TextBox x:Name="QuickAddLastNameTextBox" TabIndex="2" Width="150" Height="28" VerticalContentAlignment="Center" PreviewKeyDown="QuickAdd_PreviewKeyDown"/>
                             </StackPanel>
 
-                            <Button Grid.Column="3" Content="Dodaj (Enter)" TabIndex="3" Width="120" Height="28" Click="QuickAddStudent_Click" Background="#2E4A2E" BorderBrush="#4CAF50" Foreground="White" Cursor="Hand" Margin="20,0,0,0"/>
+                            <!-- Zwiększono Height na 32 -->
+                            <Button Grid.Column="3" Content="Dodaj (Enter)" TabIndex="3" Width="120" Height="32" Click="QuickAddStudent_Click" Background="#2E4A2E" BorderBrush="#4CAF50" Foreground="White" Cursor="Hand" Margin="20,0,0,0"/>
                         </Grid>
                     </Border>
                 </Grid>

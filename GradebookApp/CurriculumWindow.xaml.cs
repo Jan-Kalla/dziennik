@@ -31,7 +31,7 @@ namespace GradebookApp
             CurriculumItems.Clear();
             var allNodes = _dataService.GetAllCurriculumNodes();
 
-            var roots = allNodes.Where(n => n.ParentId == null).OrderBy(n => n.Id).ToList();
+            var roots = allNodes.Where(n => n.ParentId == null).OrderBy(n => n.OrderIndex).ThenBy(n => n.Id).ToList();
             foreach (var root in roots)
             {
                 CurriculumItems.Add(BuildTree(root, allNodes));
@@ -40,6 +40,11 @@ namespace GradebookApp
 
         private CurriculumItem BuildTree(CurriculumNode node, List<CurriculumNode> allNodes)
         {
+            bool hasChildren = allNodes.Any(n => n.ParentId == node.Id);
+            
+            // LOGIKA LIŚCIA: Węzeł jest liściem, jeśli nie ma dzieci ORAZ (jest Tematem [poz. 2] LUB wpisano mu ręcznie godziny [np. Sprawdzian])
+            bool isLeaf = !hasChildren && (node.Level == 2 || node.Hours.HasValue);
+
             var item = new CurriculumItem
             {
                 Id = node.Id,
@@ -48,27 +53,43 @@ namespace GradebookApp
                 Level = node.Level,
                 ParentId = node.ParentId,
                 IsTopic = node.Level == 2,
+                IsLeaf = isLeaf,
                 IsEditMode = _isEditMode
             };
 
-            // Ładowanie wszystkich podpiętych plików z nowej struktury
             if (node.Files != null)
             {
                 foreach (var f in node.Files.Where(x => x.FileType == "Task")) item.TaskFiles.Add(new TopicFileDto { FileId = f.Id, FileName = f.FileName, FilePath = f.FilePath });
                 foreach (var f in node.Files.Where(x => x.FileType == "Answer")) item.AnswerFiles.Add(new TopicFileDto { FileId = f.Id, FileName = f.FileName, FilePath = f.FilePath });
-                foreach (var f in node.Files.Where(x => x.FileType == "Quiz")) item.QuizFiles.Add(new TopicFileDto { FileId = f.Id, FileName = f.FileName, FilePath = f.FilePath });
             }
 
-            var children = allNodes.Where(n => n.ParentId == node.Id).OrderBy(n => n.Id).ToList();
+            var children = allNodes.Where(n => n.ParentId == node.Id).OrderBy(n => n.OrderIndex).ThenBy(n => n.Id).ToList();
             foreach (var child in children)
             {
                 item.Children.Add(BuildTree(child, allNodes));
             }
             
-            // Wymuszenie odświeżenia widoczności wierszy po załadowaniu plików
+            // AUTO-SUMOWANIE GODZIN: Jeśli węzeł ma dzieci, ignorujemy jego własne godziny i sumujemy kaskadowo z dołu
+            if (item.Children.Any())
+            {
+                item.Hours = SumHours(item);
+                _dataService.UpdateCurriculumNode(item.Id, item.Name, item.Hours);
+            }
+
             item.ForceUpdateVisibilities();
-            
             return item;
+        }
+
+        // Rekurencyjna funkcja sumująca
+        private int SumHours(CurriculumItem item)
+        {
+            int sum = 0;
+            foreach (var child in item.Children)
+            {
+                if (child.Children.Any()) sum += SumHours(child);
+                else sum += child.Hours ?? 0;
+            }
+            return sum;
         }
 
         private void ToggleEditMode_Click(object sender, RoutedEventArgs e)
@@ -106,19 +127,38 @@ namespace GradebookApp
             if (_selectedItem != null)
             {
                 EditNameTextBox.Text = _selectedItem.Name;
-                EditHoursTextBox.Text = _selectedItem.Hours?.ToString() ?? "";
+                
+                // Odblokowujemy edycję godzin dla KAŻDEGO węzła, który nie ma jeszcze podtematów
+                bool hasChildren = _selectedItem.Children.Any();
+                if (hasChildren)
+                {
+                    EditHoursTextBox.Text = "";
+                    EditHoursTextBox.IsEnabled = false;
+                    EditHoursTextBox.ToolTip = "Godziny są sumowane automatycznie z elementów podrzędnych";
+                }
+                else
+                {
+                    EditHoursTextBox.Text = _selectedItem.Hours?.ToString() ?? "";
+                    EditHoursTextBox.IsEnabled = true;
+                    EditHoursTextBox.ToolTip = "Wpisz godziny, aby zamienić węzeł w temat/sprawdzian (liść) i dodać pliki";
+                }
                 
                 AddChildBtn.IsEnabled = _selectedItem.Level < 2; 
                 AddSiblingBtn.IsEnabled = true;
                 DeleteNodeBtn.IsEnabled = true;
+                MoveUpBtn.IsEnabled = true;     // <-- NOWE
+                MoveDownBtn.IsEnabled = true;   // <-- NOWE
             }
             else
             {
                 EditNameTextBox.Text = "";
                 EditHoursTextBox.Text = "";
+                EditHoursTextBox.IsEnabled = true;
                 AddChildBtn.IsEnabled = false;
                 AddSiblingBtn.IsEnabled = false;
                 DeleteNodeBtn.IsEnabled = false;
+                MoveUpBtn.IsEnabled = false;    // <-- NOWE
+                MoveDownBtn.IsEnabled = false;  // <-- NOWE
             }
         }
 
@@ -126,14 +166,17 @@ namespace GradebookApp
         {
             if (_selectedItem == null) return;
             string newName = string.IsNullOrWhiteSpace(EditNameTextBox.Text) ? "Nowy element" : EditNameTextBox.Text;
-            int? newHours = int.TryParse(EditHoursTextBox.Text, out int h) ? h : null;
+            
+            // Zapisujemy ręczne godziny tylko, jeśli pole jest aktywne (węzeł nie ma dzieci)
+            bool hasChildren = _selectedItem.Children.Any();
+            int? newHours = !hasChildren ? (int.TryParse(EditHoursTextBox.Text, out int h) ? h : null) : _selectedItem.Hours;
 
             _dataService.UpdateCurriculumNode(_selectedItem.Id, newName, newHours);
             LoadFromDatabase(); 
         }
 
         private void AddRoot_Click(object sender, RoutedEventArgs e) { _dataService.AddCurriculumNode("Nowy Dział", null, 0, null); LoadFromDatabase(); }
-        private void AddChild_Click(object sender, RoutedEventArgs e) { if (_selectedItem == null || _selectedItem.Level >= 2) return; string prefix = _selectedItem.Level == 0 ? "Rozdział" : "Temat"; _dataService.AddCurriculumNode($"Nowy {prefix}", null, _selectedItem.Level + 1, _selectedItem.Id); LoadFromDatabase(); }
+        private void AddChild_Click(object sender, RoutedEventArgs e) { if (_selectedItem == null || _selectedItem.Level >= 2) return; string prefix = _selectedItem.Level == 0 ? "Rozdział/Sprawdzian" : "Temat"; _dataService.AddCurriculumNode($"Nowy {prefix}", null, _selectedItem.Level + 1, _selectedItem.Id); LoadFromDatabase(); }
         private void AddSibling_Click(object sender, RoutedEventArgs e) { if (_selectedItem == null) return; string prefix = _selectedItem.Level == 0 ? "Dział" : (_selectedItem.Level == 1 ? "Rozdział" : "Temat"); _dataService.AddCurriculumNode($"Nowy {prefix}", null, _selectedItem.Level, _selectedItem.ParentId); LoadFromDatabase(); }
 
         private void DeleteNode_Click(object sender, RoutedEventArgs e)
@@ -145,17 +188,29 @@ namespace GradebookApp
                 LoadFromDatabase();
             }
         }
-        // NOWOŚĆ: Reakcja na kliknięcie w nazwę tematu
+        private void MoveUp_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedItem == null) return;
+            _dataService.MoveCurriculumNode(_selectedItem.Id, true);
+            LoadFromDatabase();
+        }
+
+        private void MoveDown_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedItem == null) return;
+            _dataService.MoveCurriculumNode(_selectedItem.Id, false);
+            LoadFromDatabase();
+        }
+
         private void TopicTextBlock_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             if (sender is TextBlock tb && tb.DataContext is CurriculumItem item)
             {
-                if (item.IsTopic)
+                // Reakcja na kliknięcie zadziała dla każdego liścia (Tematu oraz Sprawdzianu)
+                if (item.IsLeaf)
                 {
-                    // Zliczamy wszystkie pliki ze wszystkich trzech list
-                    var allFiles = item.TaskFiles.Concat(item.AnswerFiles).Concat(item.QuizFiles).ToList();
+                    var allFiles = item.TaskFiles.Concat(item.AnswerFiles).ToList();
                     
-                    // Jeśli jesteśmy w trybie podglądu i temat ma DOKŁADNIE JEDEN plik - od razu go otwieramy
                     if (!_isEditMode && allFiles.Count == 1)
                     {
                         var fileToOpen = allFiles.First();
@@ -166,23 +221,21 @@ namespace GradebookApp
                         }
                         else MessageBox.Show("Ten plik został fizycznie usunięty z dysku komputera.", "Brak pliku", MessageBoxButton.OK, MessageBoxImage.Information);
                         
-                        e.Handled = true; // Zatrzymujemy zdarzenie, by pominąć resztę akcji
+                        e.Handled = true; 
                         return;
                     }
 
-                    // W przeciwnym razie (więcej plików lub tryb edycji) - po prostu rozwijamy/zwijamy widok plików
                     item.AreFilesExpanded = !item.AreFilesExpanded;
                 }
             }
         }
 
-        // OBSŁUGA PLIKÓW - Dodawanie
         private void AddPdfButton_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button btn && btn.Tag is int nodeId)
             {
                 string pdfType = btn.CommandParameter?.ToString() ?? "";
-                var openFileDialog = new Microsoft.Win32.OpenFileDialog { Filter = "Pliki PDF (*.pdf)|*.pdf", Title = "Dodaj plik do tematu", Multiselect = false };
+                var openFileDialog = new Microsoft.Win32.OpenFileDialog { Filter = "Pliki PDF (*.pdf)|*.pdf", Title = "Dodaj plik", Multiselect = false };
                 
                 if (openFileDialog.ShowDialog() == true)
                 {
@@ -197,7 +250,6 @@ namespace GradebookApp
                         
                         System.IO.File.Copy(openFileDialog.FileName, destPath);
                         
-                        // Zapisujemy oryginalną nazwę pliku, żeby była czytelna w interfejsie
                         _dataService.AddTopicFile(nodeId, pdfType, originalFileName, destPath);
                         LoadFromDatabase(); 
                     }
@@ -209,14 +261,13 @@ namespace GradebookApp
             }
         }
 
-        // OBSŁUGA PLIKÓW - Otwieranie / Usuwanie
         private void FileButton_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button btn && btn.CommandParameter is TopicFileDto fileDto)
             {
                 if (_isEditMode)
                 {
-                    if (MessageBox.Show($"Czy na pewno odpiąć plik '{fileDto.FileName}' od tego tematu?", "Usuwanie pliku", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+                    if (MessageBox.Show($"Czy na pewno odpiąć plik '{fileDto.FileName}'?", "Usuwanie pliku", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
                     {
                         _dataService.DeleteTopicFile(fileDto.FileId);
                         LoadFromDatabase();
@@ -253,6 +304,7 @@ namespace GradebookApp
         public string Name { get; set; } = "";
         public int? Hours { get; set; }
         public bool IsTopic { get; set; }
+        public bool IsLeaf { get; set; } 
         public int Level { get; set; } 
         public int? ParentId { get; set; }
 
@@ -266,7 +318,7 @@ namespace GradebookApp
                 ForceUpdateVisibilities();
             }
         }
-        // NOWOŚĆ: Przechowuje stan rozwinięcia plików dla danego tematu
+        
         private bool _areFilesExpanded = false;
         public bool AreFilesExpanded 
         {
@@ -278,26 +330,22 @@ namespace GradebookApp
             }
         }
         
-
         public Visibility EditModeVisibility => _isEditMode ? Visibility.Visible : Visibility.Collapsed;
-        // Zmieniona logika: Pliki pokazują się ZAWSZE w trybie edycji, a w trybie podglądu TYLKO GDY są rozwinięte
         public Visibility TaskRowVisibility => (_isEditMode || (_areFilesExpanded && TaskFiles.Any())) ? Visibility.Visible : Visibility.Collapsed;
         public Visibility AnswerRowVisibility => (_isEditMode || (_areFilesExpanded && AnswerFiles.Any())) ? Visibility.Visible : Visibility.Collapsed;
-        public Visibility QuizRowVisibility => (_isEditMode || (_areFilesExpanded && QuizFiles.Any())) ? Visibility.Visible : Visibility.Collapsed;
 
         public ObservableCollection<TopicFileDto> TaskFiles { get; set; } = new ObservableCollection<TopicFileDto>();
         public ObservableCollection<TopicFileDto> AnswerFiles { get; set; } = new ObservableCollection<TopicFileDto>();
-        public ObservableCollection<TopicFileDto> QuizFiles { get; set; } = new ObservableCollection<TopicFileDto>();
 
         public ObservableCollection<CurriculumItem> Children { get; set; } = new ObservableCollection<CurriculumItem>();
-        public string DisplayText => Hours.HasValue ? $"{Name} ({Hours})" : Name;
+        
+        public string DisplayText => Hours.HasValue && Hours.Value > 0 ? $"{Name} ({Hours})" : Name;
 
         public void ForceUpdateVisibilities()
         {
             OnPropertyChanged(nameof(EditModeVisibility));
             OnPropertyChanged(nameof(TaskRowVisibility));
             OnPropertyChanged(nameof(AnswerRowVisibility));
-            OnPropertyChanged(nameof(QuizRowVisibility));
         }
     }
 }

@@ -12,7 +12,69 @@
     <Grid Margin="15">
         <!-- GŁÓWNY KONTENER Z ZAKŁADKAMI -->
         <Grid x:Name="MainTabContainer">
-            <!-- Usunięto narzucone tło, by WPF użył natywnego dla aplikacji (z niebieską linią) -->
+            
+            <!-- POPUP PRZENIESIONY TUTAJ (Poza TabControl, by zawsze był gotowy do wyświetlenia) -->
+            <!-- Zmieniono PlacementTarget na: {Binding ElementName=ClassesTab} -->
+            <Popup x:Name="ClassesPopup" AllowsTransparency="True" Placement="Bottom" PlacementTarget="{Binding ElementName=ClassesTab}" StaysOpen="False">
+                <Border Background="#252526" BorderBrush="#434346" BorderThickness="1" CornerRadius="3" MaxHeight="500" MinWidth="250">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        
+                        <ListBox x:Name="ClassesDropdownList" Background="Transparent" BorderThickness="0" DisplayMemberPath="Name" Foreground="#E0E0E0" Padding="0,5" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Padding" Value="15,10"/>
+                                    <Setter Property="FontSize" Value="16"/>
+                                    <Setter Property="Cursor" Value="Hand"/>
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <EventSetter Event="MouseLeftButtonUp" Handler="ClassDropdownItem_Click"/>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="#333337"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Click="OpenClassNewWindow_Click" Header="Otwórz klasę w nowym oknie"/>
+                                    <MenuItem Click="EditClass_Click" Header="Edytuj nazwę"/>
+                                    <Separator/>
+                                    <MenuItem Click="DeleteClass_Click" Foreground="#E53935" Header="Usuń klasę"/>
+                                </ContextMenu>
+                            </ListBox.ContextMenu>
+                        </ListBox>
+                        
+                        <Border Background="#1E1E1E" BorderBrush="#434346" BorderThickness="0,1,0,0" Grid.Row="1" Padding="5">
+                            <TextBox x:Name="DropdownNewClassTextBox" Background="#333337" BorderThickness="0" FontSize="14" Foreground="#E0E0E0" Height="32" KeyDown="DropdownNewClassTextBox_KeyDown" Padding="10,0" VerticalContentAlignment="Center">
+                                <TextBox.Style>
+                                    <Style TargetType="TextBox">
+                                        <Style.Triggers>
+                                            <Trigger Property="Text" Value="">
+                                                <Setter Property="Background">
+                                                    <Setter.Value>
+                                                        <VisualBrush AlignmentX="Left" AlignmentY="Center" Stretch="None">
+                                                            <VisualBrush.Visual>
+                                                                <!-- ZMIENIONO TEKST PODPOWIEDZI -->
+                                                                <TextBlock FontStyle="Italic" Foreground="#888888" Text="Dodaj klasę..."/>
+                                                            </VisualBrush.Visual>
+                                                        </VisualBrush>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBox.Style>
+                            </TextBox>
+                        </Border>
+                    </Grid>
+                </Border>
+            </Popup>
+
+            <!-- GŁÓWNY TAB CONTROL -->
             <TabControl x:Name="MainTabControl" FontSize="16" SelectionChanged="MainTabControl_SelectionChanged">
 
                 <!-- ZAKŁADKA 1: LEKCJA -->
@@ -20,65 +82,24 @@
                     <local:LessonTabControl />
                 </TabItem>
 
-                <!-- ZAKŁADKA 2: KLASY -->
-                <TabItem Header="Klasy">
-                    <Grid Margin="10,20,10,10">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-
-                        <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="0,0,0,25">
-                            <TextBlock Text="Witaj w tym przecudownym dzienniku!" FontSize="14" Foreground="#AAAAAA" Margin="0,0,0,2" HorizontalAlignment="Center" />
-                            <TextBlock Text="Baza wszystkich klas" FontSize="26" FontWeight="Bold" Foreground="#E0E0E0" HorizontalAlignment="Center" />
-                        </StackPanel>
-
-                        <ListBox x:Name="ClassesListBox" Grid.Row="1" Margin="0,0,0,15" FontSize="18" DisplayMemberPath="Name" BorderBrush="#3E3E42" BorderThickness="1" Background="#252526" Foreground="#E0E0E0">
-                            <ListBox.ItemContainerStyle>
-                                <Style TargetType="ListBoxItem">
-                                    <Setter Property="Padding" Value="15,10"/>
-                                    <Setter Property="Cursor" Value="Hand"/>
-                                    <EventSetter Event="MouseLeftButtonUp" Handler="ClassItem_MouseLeftButtonUp" />
-                                </Style>
-                            </ListBox.ItemContainerStyle>
-                            
-                            <ListBox.ContextMenu>
-                                <ContextMenu>
-                                    <MenuItem Header="Otwórz klasę w nowym oknie" Click="OpenClassNewWindow_Click"/>
-                                    <MenuItem Header="Edytuj nazwę" Click="EditClass_Click"/>
-                                    <Separator />
-                                    <MenuItem Header="Usuń klasę" Click="DeleteClass_Click"/>
-                                </ContextMenu>
-                            </ListBox.ContextMenu>
-                        </ListBox>
-
-                        <Grid Grid.Row="2" Margin="0,0,0,5">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            
-                            <TextBox x:Name="NewClassNameTextBox" Height="35" FontSize="16" VerticalContentAlignment="Center" Padding="10,0" KeyDown="NewClassNameTextBox_KeyDown" TextChanged="NewClassNameTextBox_TextChanged" ToolTip="Wpisz nazwę nowej klasy..." />
-                            
-                            <TextBlock IsHitTestVisible="False" Text="Wpisz nazwę nowej klasy..." VerticalAlignment="Center" HorizontalAlignment="Left" Margin="12,0,0,0" FontSize="16" Foreground="DarkGray">
-                                <TextBlock.Style>
-                                    <Style TargetType="{x:Type TextBlock}">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Text, ElementName=NewClassNameTextBox}" Value="">
-                                                <Setter Property="Visibility" Value="Visible"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-
-                            <Button x:Name="AddClassButton" Grid.Column="1" Content="Dodaj klasę" Height="35" FontSize="16" Margin="10,0,0,0" Padding="15,0" Visibility="Collapsed" Click="AddClassButton_Click"/>
+                <!-- ZAKŁADKA 2: KLASY (Odchudzona, służy tylko jako kontener) -->
+                <TabItem x:Name="ClassesTab" PreviewMouseLeftButtonDown="ClassesTab_PreviewMouseLeftButtonDown" PreviewMouseLeftButtonUp="ClassesTab_PreviewMouseLeftButtonUp">
+                    <TabItem.Header>
+                        <TextBlock Background="Transparent" Text="Klasy ▾"/>
+                    </TabItem.Header>
+                    <Grid>
+                        <local:ClassDetailsControl x:Name="SharedClassControl" Visibility="Collapsed" />
+                        
+                        <Grid x:Name="StudentDetailsView" Background="#1E1E1E" Visibility="Collapsed">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <Button Background="#333337" BorderThickness="0" Click="BackToClassFromStudent_Click" Content="← Powrót do klasy" Cursor="Hand" Foreground="White" Height="30" HorizontalAlignment="Left" Margin="10,10,0,10" Width="130"/>
+                            <local:StudentDetailsControl x:Name="SharedStudentControl" Grid.Row="1" />
                         </Grid>
                     </Grid>
                 </TabItem>
-
                 <!-- ZAKŁADKA 3: KALENDARZ -->
                 <TabItem Header="Kalendarz">
                     <Grid Margin="10,20,10,10">
@@ -175,28 +196,6 @@
                     <Grid/>
                 </TabItem>
             </TabControl>
-        </Grid>
-
-        <!-- WIDOK 2: SZCZEGÓŁY KLASY (Nakładka przykrywająca zakładki, by nie psuć dotychczasowego kodu) -->
-        <Grid x:Name="ClassDetailsView" Visibility="Collapsed">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
-            
-            <Button Content="← Powrót do bazy klas" Width="150" Height="30" Margin="0,0,0,10" HorizontalAlignment="Left" Click="BackButton_Click" />
-            <local:ClassDetailsControl x:Name="SharedClassControl" Grid.Row="1" />
-        </Grid>
-        
-        <!-- WIDOK 3: SZCZEGÓŁY UCZNIA -->
-        <Grid x:Name="StudentDetailsView" Visibility="Collapsed">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
-            
-            <Button Content="← Powrót do klasy" Width="130" Height="30" Margin="0,0,0,10" HorizontalAlignment="Left" Click="BackToClassFromStudent_Click" />
-            <local:StudentDetailsControl x:Name="SharedStudentControl" Grid.Row="1" />
         </Grid>
     </Grid>
 </Window>

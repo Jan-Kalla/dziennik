@@ -184,6 +184,7 @@ namespace GradebookApp
         public int? Hours { get; set; }
         public int Level { get; set; } // 0 = Dział, 1 = Rozdział, 2 = Temat
         public int? ParentId { get; set; }
+        public int OrderIndex { get; set; }
         
         // NOWE: Ścieżki do plików PDF (Mogą być puste, stąd znak zapytania)
         public string? TasksPdfPath { get; set; }

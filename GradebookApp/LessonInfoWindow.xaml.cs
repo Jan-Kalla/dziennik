@@ -27,8 +27,13 @@ namespace GradebookApp
             string classNameInfo = string.IsNullOrWhiteSpace(_rowContext.ClassName) ? "[Brak wybranej klasy]" : _rowContext.ClassName;
             InfoHeader.Text = $"INFORMACJE — Klasa: {classNameInfo} | Godz: {_rowContext.TimeSlot} | {dateDisplay}";
 
-            // Ładowanie tematów z bazy do listy rozwijanej
-            _allTopics = _dataService.GetAllCurriculumNodes().Where(n => n.Level == 2).Select(n => n.Name).ToList();
+            // NOWOŚĆ: Tematem w widoku lekcji jest KAŻDY liść z wpisaną liczbą godzin (>0)
+            var allNodes = _dataService.GetAllCurriculumNodes();
+            _allTopics = allNodes.Where(n => 
+                !allNodes.Any(child => child.ParentId == n.Id) // Węzeł jest "liściem" (nie ma podtematów)
+                && n.Hours.HasValue && n.Hours.Value > 0       // Posiada godziny (omija bezgodzinowe kartkówki)
+            ).Select(n => n.Name).ToList();
+            
             TopicComboBox.ItemsSource = _allTopics;
 
             // NOWOŚĆ: Pobieramy historię i wyłuskujemy same "Materiały" (ignorując "Temat")

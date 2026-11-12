@@ -126,12 +126,14 @@ namespace GradebookApp.Services
                     ""Name"" TEXT NOT NULL,
                     ""Hours"" INTEGER NULL,
                     ""Level"" INTEGER NOT NULL,
-                    ""ParentId"" INTEGER NULL
+                    ""ParentId"" INTEGER NULL,
+                    ""OrderIndex"" INTEGER NOT NULL DEFAULT 0
                 );
             ");
             try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"CurriculumNodes\" ADD COLUMN \"TasksPdfPath\" TEXT NULL;"); } catch { }
             try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"CurriculumNodes\" ADD COLUMN \"AnswersPdfPath\" TEXT NULL;"); } catch { }
             try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"CurriculumNodes\" ADD COLUMN \"QuizzesPdfPath\" TEXT NULL;"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"CurriculumNodes\" ADD COLUMN \"OrderIndex\" INTEGER NOT NULL DEFAULT 0;"); } catch { }
 
             // Tworzenie tabeli szablonów planu lekcji
             _dbContext.Database.ExecuteSqlRaw(@"
@@ -265,10 +267,43 @@ namespace GradebookApp.Services
 
         public CurriculumNode AddCurriculumNode(string name, int? hours, int level, int? parentId)
         {
-            var node = new CurriculumNode { Name = name, Hours = hours, Level = level, ParentId = parentId };
+            // Nowy element dostaje najwyższy indeks, aby trafić na sam koniec listy
+            int maxOrder = _dbContext.CurriculumNodes.Where(n => n.ParentId == parentId).Select(n => (int?)n.OrderIndex).Max() ?? 0;
+            
+            var node = new CurriculumNode { Name = name, Hours = hours, Level = level, ParentId = parentId, OrderIndex = maxOrder + 1 };
             _dbContext.CurriculumNodes.Add(node);
             _dbContext.SaveChanges();
             return node;
+        }
+
+        // NOWOŚĆ: Logika zamiany kolejności tematów/rozdziałów
+        public void MoveCurriculumNode(int id, bool moveUp)
+        {
+            var node = _dbContext.CurriculumNodes.Find(id);
+            if (node == null) return;
+
+            var siblings = _dbContext.CurriculumNodes
+                .Where(n => n.ParentId == node.ParentId)
+                .OrderBy(n => n.OrderIndex).ThenBy(n => n.Id)
+                .ToList();
+
+            // Normalizacja starych rekordów, które miały OrderIndex = 0
+            for (int i = 0; i < siblings.Count; i++) siblings[i].OrderIndex = i;
+
+            int currentIndex = siblings.FindIndex(n => n.Id == id);
+            
+            if (moveUp && currentIndex > 0)
+            {
+                siblings[currentIndex].OrderIndex--;
+                siblings[currentIndex - 1].OrderIndex++;
+            }
+            else if (!moveUp && currentIndex < siblings.Count - 1)
+            {
+                siblings[currentIndex].OrderIndex++;
+                siblings[currentIndex + 1].OrderIndex--;
+            }
+
+            _dbContext.SaveChanges();
         }
 
         public void DeleteCurriculumNode(int id)

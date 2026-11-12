@@ -22,41 +22,134 @@ namespace GradebookApp
             // 2. DOPIERO POTEM ładujemy interfejs XAML (dzięki temu LessonTabControl bezpiecznie pobierze klasy)
             InitializeComponent();
             
+            // W konstruktorze MainWindow:
             ClassesList = new ObservableCollection<SchoolClass>(_dataService.GetAllClasses().OrderBy(c => c.Name));
-            ClassesListBox.ItemsSource = ClassesList;
+            ClassesDropdownList.ItemsSource = ClassesList; // TO JEST ZMIENIONE
             
             SharedClassControl.StudentDetailsRequested += SharedClassControl_StudentDetailsRequested;
         }
 
-        private void NewClassNameTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        // =====================================================================
+        // NOWA LOGIKA ZAKŁADKI KLASY (DROPDOWN MENU)
+        // =====================================================================
+        private void ClassesTab_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
-            // Zabezpieczenie: Sprawdzamy, czy przycisk zdążył się załadować z pliku XAML
-            if (AddClassButton != null)
+            e.Handled = true; // Zatrzymuje zdarzenie wciśnięcia
+        }
+
+        private void ClassesTab_PreviewMouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            e.Handled = true; // NOWOŚĆ: Zatrzymuje zdarzenie puszczenia LPM (blokuje przejście na pustą stronę!)
+            
+            if (!ClassesPopup.IsOpen)
             {
-                AddClassButton.Visibility = string.IsNullOrWhiteSpace(NewClassNameTextBox.Text) ? Visibility.Collapsed : Visibility.Visible;
+                ClassesPopup.IsOpen = true;
+                DropdownNewClassTextBox.Text = ""; 
+            }
+            else
+            {
+                ClassesPopup.IsOpen = false;
+            }
+        }
+
+        private void ClassDropdownItem_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (sender is ListBoxItem item && item.DataContext is SchoolClass selectedClass)
+            {
+                ClassesPopup.IsOpen = false;
+                
+                // Ręczne wymuszenie zmiany zakładki DOPIERO po dokonaniu wyboru klasy
+                MainTabControl.SelectedItem = ClassesTab;
+                
+                StudentDetailsView.Visibility = Visibility.Collapsed;
+                SharedClassControl.Visibility = Visibility.Visible;
+                SharedClassControl.LoadClassData(selectedClass);
+            }
+        }
+
+        private void DeleteClass_Click(object sender, RoutedEventArgs e)
+        {
+            if (ClassesDropdownList.SelectedItem is SchoolClass selectedClass)
+            {
+                ClassesPopup.IsOpen = false;
+                var result = MessageBox.Show($"Czy na pewno chcesz usunąć klasę {selectedClass.Name} i wszystkie przypisane do niej dane?", 
+                                             "Potwierdzenie usunięcia", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (result == MessageBoxResult.Yes)
+                {
+                    _dataService.DeleteClass(selectedClass);
+                    ClassesList.Remove(selectedClass);
+                    
+                    // Jeśli usunęliśmy klasę, na którą właśnie patrzyliśmy, to bezpiecznie wracamy do zakładki Lekcja
+                    if (MainTabControl.SelectedItem == ClassesTab)
+                    {
+                        SharedClassControl.Visibility = Visibility.Collapsed;
+                        MainTabControl.SelectedIndex = 0; 
+                    }
+                }
             }
         }
 
         private void AddNewClass()
         {
-            string newName = NewClassNameTextBox.Text.Trim();
+            string newName = DropdownNewClassTextBox.Text.Trim();
             if (!string.IsNullOrEmpty(newName))
             {
                 var newClass = _dataService.AddClass(newName);
                 ClassesList.Add(newClass);
-                NewClassNameTextBox.Clear();
-                AddClassButton.Visibility = Visibility.Collapsed;
+                DropdownNewClassTextBox.Clear();
                 ClassesList = new ObservableCollection<SchoolClass>(ClassesList.OrderBy(c => c.Name));
-                ClassesListBox.ItemsSource = ClassesList;
+                ClassesDropdownList.ItemsSource = ClassesList;
             }
             else MessageBox.Show("Nazwa klasy nie może być pusta.", "Ajajajaj! Błąd walidacji...", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
-        private void AddClassButton_Click(object sender, RoutedEventArgs e) => AddNewClass();
-
-        private void NewClassNameTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        private void DropdownNewClassTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
             if (e.Key == System.Windows.Input.Key.Enter) AddNewClass();
+        }
+
+        private void OpenClassNewWindow_Click(object sender, RoutedEventArgs e)
+        {
+            if (ClassesDropdownList.SelectedItem is SchoolClass selectedClass)
+            {
+                ClassesPopup.IsOpen = false;
+                var newWindow = new ClassDetailsWindow(selectedClass) { Owner = this };
+                newWindow.ShowDialog();
+            }
+        }
+
+        private void EditClass_Click(object sender, RoutedEventArgs e)
+        {
+            if (ClassesDropdownList.SelectedItem is SchoolClass selectedClass)
+            {
+                ClassesPopup.IsOpen = false;
+                var dialog = new EditClassDialog(selectedClass.Name) { Owner = this };
+
+                if (dialog.ShowDialog() == true && !string.IsNullOrEmpty(dialog.NewName) && dialog.NewName != selectedClass.Name)
+                {
+                    _dataService.UpdateClassName(selectedClass, dialog.NewName);
+                    ClassesList = new ObservableCollection<SchoolClass>(_dataService.GetAllClasses().OrderBy(c => c.Name));
+                    ClassesDropdownList.ItemsSource = ClassesList;
+                    
+                    // Jeśli edytowaliśmy obecnie wyświetlaną klasę, odświeżamy dane na bieżąco
+                    if (SharedClassControl.Visibility == Visibility.Visible)
+                        SharedClassControl.LoadClassData(selectedClass);
+                }
+            }
+        }
+
+        private void SharedClassControl_StudentDetailsRequested(object? sender, Student student)
+        {
+            // Płynne przełączenie wewnątrz zakładki Klasy bez ukrywania górnych kart!
+            SharedClassControl.Visibility = Visibility.Collapsed;
+            StudentDetailsView.Visibility = Visibility.Visible;
+            SharedStudentControl.LoadStudentData(student);
+        }
+
+        private void BackToClassFromStudent_Click(object sender, RoutedEventArgs e)
+        {
+            StudentDetailsView.Visibility = Visibility.Collapsed;
+            SharedClassControl.Visibility = Visibility.Visible;
         }
 
         // --- ZDARZENIE PRZEŁĄCZANIA ZAKŁADEK (Ładuje kalendarz tylko gdy do niego wejdziemy) ---
@@ -269,75 +362,6 @@ namespace GradebookApp
             {
                 if (btn != null) { btn.IsEnabled = true; btn.Content = "☁ Synchronizuj z chmurą"; }
             }
-        }
-
-        // --- NAWIGACJA OKIEN/NAKŁADEK ---
-        private void ClassItem_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
-        {
-            if (sender is System.Windows.Controls.ListBoxItem item && item.DataContext is SchoolClass selectedClass)
-            {
-                MainTabContainer.Visibility = Visibility.Collapsed;
-                ClassDetailsView.Visibility = Visibility.Visible;
-                SharedClassControl.LoadClassData(selectedClass);
-            }
-        }
-
-        private void BackButton_Click(object sender, RoutedEventArgs e)
-        {
-            ClassDetailsView.Visibility = Visibility.Collapsed;
-            StudentDetailsView.Visibility = Visibility.Collapsed;
-            MainTabContainer.Visibility = Visibility.Visible;
-        }
-
-        private void OpenClassNewWindow_Click(object sender, RoutedEventArgs e)
-        {
-            if (ClassesListBox.SelectedItem is SchoolClass selectedClass)
-            {
-                var newWindow = new ClassDetailsWindow(selectedClass) { Owner = this };
-                newWindow.ShowDialog();
-            }
-        }
-
-        private void DeleteClass_Click(object sender, RoutedEventArgs e)
-        {
-            if (ClassesListBox.SelectedItem is SchoolClass selectedClass)
-            {
-                var result = MessageBox.Show($"Czy na pewno chcesz usunąć klasę {selectedClass.Name} i wszystkie przypisane do niej dane?", 
-                                             "Potwierdzenie usunięcia", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-                if (result == MessageBoxResult.Yes)
-                {
-                    _dataService.DeleteClass(selectedClass);
-                    ClassesList.Remove(selectedClass);
-                }
-            }
-        }
-
-        private void EditClass_Click(object sender, RoutedEventArgs e)
-        {
-            if (ClassesListBox.SelectedItem is SchoolClass selectedClass)
-            {
-                var dialog = new EditClassDialog(selectedClass.Name) { Owner = this };
-
-                if (dialog.ShowDialog() == true && !string.IsNullOrEmpty(dialog.NewName) && dialog.NewName != selectedClass.Name)
-                {
-                    _dataService.UpdateClassName(selectedClass, dialog.NewName);
-                    ClassesList = new ObservableCollection<SchoolClass>(_dataService.GetAllClasses().OrderBy(c => c.Name));
-                    ClassesListBox.ItemsSource = ClassesList;
-                }
-            }
-        }
-
-        private void SharedClassControl_StudentDetailsRequested(object? sender, Student student)
-        {
-            ClassDetailsView.Visibility = Visibility.Collapsed;
-            StudentDetailsView.Visibility = Visibility.Visible;
-            SharedStudentControl.LoadStudentData(student);
-        }
-
-        private void BackToClassFromStudent_Click(object sender, RoutedEventArgs e)
-        {
-            StudentDetailsView.Visibility = Visibility.Collapsed;
-            ClassDetailsView.Visibility = Visibility.Visible;
         }
 
         protected override void OnClosed(System.EventArgs e)
