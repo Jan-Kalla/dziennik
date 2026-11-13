@@ -20,7 +20,7 @@
                 <TextBlock x:Name="StudentAverageText" FontSize="26" Foreground="#AAAAAA" Margin="10,0,0,0" />
             </StackPanel>
             
-            <Button Grid.Column="1" Background="#2E4A2E" BorderBrush="#4CAF50" Click="AddIndividualGrade_Click" Content="+ Dodaj indywidualną ocenę" Cursor="Hand" Height="30" Width="180"/>
+            <Button Grid.Column="1" Background="#2E4A2E" BorderBrush="#4CAF50" Click="AddIndividualGrade_Click" Content="+ Dodaj indywidualną ocenę" Cursor="Hand" Height="40" Width="180"/>
         </Grid>
         
         <DataGrid x:Name="StudentWorksDataGrid" Grid.Row="1" FontSize="16" 

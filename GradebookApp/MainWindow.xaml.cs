@@ -12,6 +12,8 @@ namespace GradebookApp
     {
         public ObservableCollection<SchoolClass> ClassesList { get; set; }
         private readonly GradebookDataService _dataService;
+        private int _previousTabIndex = 0;
+        private bool _isClassViewActive = false;
 
         public MainWindow()
         {
@@ -30,27 +32,52 @@ namespace GradebookApp
         }
 
         // =====================================================================
-        // NOWA LOGIKA ZAKŁADKI KLASY (DROPDOWN MENU)
+        // NOWA LOGIKA ZAKŁADKI KLASY (SPLIT BUTTON / MATEMATYCZNY PODZIAŁ)
         // =====================================================================
-        private void ClassesTab_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        
+        private void ClassesHeader_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
-            e.Handled = true; // Zatrzymuje zdarzenie wciśnięcia
+            e.Handled = true; 
         }
 
-        private void ClassesTab_PreviewMouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        private void ClassesHeader_PreviewMouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
-            e.Handled = true; // NOWOŚĆ: Zatrzymuje zdarzenie puszczenia LPM (blokuje przejście na pustą stronę!)
+            e.Handled = true; 
             
-            if (!ClassesPopup.IsOpen)
+            if (sender is FrameworkElement headerElement)
             {
-                ClassesPopup.IsOpen = true;
-                DropdownNewClassTextBox.Text = ""; 
-            }
-            else
-            {
-                ClassesPopup.IsOpen = false;
+                // Sprawdzamy współrzędną X kliknięcia (0 to skrajnie lewa krawędź)
+                double clickX = e.GetPosition(headerElement).X;
+                double totalWidth = headerElement.ActualWidth;
+                
+                // Prawe 1/3 szerokości to strefa trójkącika, lewe 2/3 to strefa napisu
+                bool isRightSideClicked = clickX >= (totalWidth * 0.66);
+
+                if (isRightSideClicked)
+                {
+                    // PRAWA STRONA (Trójkącik "▾") -> Bezwzględnie rozwija listę
+                    ClassesPopup.IsOpen = true;
+                    DropdownNewClassTextBox.Text = ""; 
+                }
+                else
+                {
+                    // LEWA STRONA (Napis "Klasy")
+                    if (_isClassViewActive && MainTabControl.SelectedItem != ClassesTab)
+                    {
+                        // Mamy w pamięci wybraną klasę i jesteśmy na innej zakładce -> Skrót powrotny do klasy
+                        MainTabControl.SelectedItem = ClassesTab;
+                    }
+                    else
+                    {
+                        // W każdym innym przypadku (brak wybranej klasy, albo jesteśmy już w jej widoku) -> Rozwijamy listę
+                        ClassesPopup.IsOpen = true;
+                        DropdownNewClassTextBox.Text = ""; 
+                    }
+                }
             }
         }
+        
+        // (Jeśli masz w kodzie metodę ClassesTab_PreviewMouseLeftButtonUp, możesz ją całkowicie usunąć)
 
         private void ClassDropdownItem_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
@@ -58,7 +85,8 @@ namespace GradebookApp
             {
                 ClassesPopup.IsOpen = false;
                 
-                // Ręczne wymuszenie zmiany zakładki DOPIERO po dokonaniu wyboru klasy
+                // Zezwalamy na wejście w zakładkę i wymuszamy przejście
+                _isClassViewActive = true;
                 MainTabControl.SelectedItem = ClassesTab;
                 
                 StudentDetailsView.Visibility = Visibility.Collapsed;
@@ -79,10 +107,10 @@ namespace GradebookApp
                     _dataService.DeleteClass(selectedClass);
                     ClassesList.Remove(selectedClass);
                     
-                    // Jeśli usunęliśmy klasę, na którą właśnie patrzyliśmy, to bezpiecznie wracamy do zakładki Lekcja
                     if (MainTabControl.SelectedItem == ClassesTab)
                     {
                         SharedClassControl.Visibility = Visibility.Collapsed;
+                        _isClassViewActive = false; // Odblokowujemy powrót blokady
                         MainTabControl.SelectedIndex = 0; 
                     }
                 }
@@ -152,12 +180,31 @@ namespace GradebookApp
             SharedClassControl.Visibility = Visibility.Visible;
         }
 
-        // --- ZDARZENIE PRZEŁĄCZANIA ZAKŁADEK (Ładuje kalendarz tylko gdy do niego wejdziemy) ---
+        // --- ZDARZENIE PRZEŁĄCZANIA ZAKŁADEK ---
         private void MainTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (e.Source is TabControl tabControl && tabControl.SelectedItem is TabItem selectedTab)
             {
-                if (selectedTab.Header.ToString() == "Kalendarz")
+                // BLOKADA 1: Zakładka "Inne" (odsyłamy na poprzednią)
+                if (selectedTab.Name == "OtherTab")
+                {
+                    tabControl.SelectedIndex = _previousTabIndex;
+                    return;
+                }
+
+                // BLOKADA 2: Zakładka "Klasy", jeśli nie wybrano żadnej klasy z listy!
+                if (selectedTab.Name == "ClassesTab" && !_isClassViewActive)
+                {
+                    tabControl.SelectedIndex = _previousTabIndex;
+                    return;
+                }
+
+                // USUNIĘTO resetowanie _isClassViewActive, aby system trwale zapamiętał wybraną klasę!
+                
+                _previousTabIndex = tabControl.SelectedIndex;
+
+                // Bezpieczne sprawdzenie nazwy zakładki dla Kalendarza
+                if (selectedTab.Header != null && selectedTab.Header.ToString() == "Kalendarz")
                 {
                     RefreshGlobalCalendar();
                 }

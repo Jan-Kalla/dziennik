@@ -98,7 +98,13 @@ namespace GradebookApp
                 }
             }
 
-            CalendarDataGrid.ItemsSource = events.OrderBy(e => e.SortDate).ToList();
+            // Sortowanie: 1. Data, 2. Godzina (Puste na koniec), 3. Tytuł
+            CalendarDataGrid.ItemsSource = events
+                .OrderBy(e => e.SortDate)
+                .ThenBy(e => string.IsNullOrEmpty(e.TimeDisplay) || e.TimeDisplay == "-") 
+                .ThenBy(e => e.TimeDisplay)
+                .ThenBy(e => e.Title)
+                .ToList();
         }
 
         private void ViewRetakeDetails_Click(object sender, RoutedEventArgs e)

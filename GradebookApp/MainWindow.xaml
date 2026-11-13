@@ -48,22 +48,28 @@
                             </ListBox.ContextMenu>
                         </ListBox>
                         
-                        <Border Background="#1E1E1E" BorderBrush="#434346" BorderThickness="0,1,0,0" Grid.Row="1" Padding="5">
-                            <TextBox x:Name="DropdownNewClassTextBox" Background="#333337" BorderThickness="0" FontSize="14" Foreground="#E0E0E0" Height="32" KeyDown="DropdownNewClassTextBox_KeyDown" Padding="10,0" VerticalContentAlignment="Center">
+                        <!-- Miejsce na wpisanie nowej klasy w samym menu -->
+                        <Border Grid.Row="1" BorderBrush="#434346" BorderThickness="0,1,0,0" Background="#1E1E1E" Padding="5">
+                            <TextBox x:Name="DropdownNewClassTextBox" BorderThickness="0" FontSize="14" Foreground="#E0E0E0" Height="32" KeyDown="DropdownNewClassTextBox_KeyDown" Padding="10,0" VerticalContentAlignment="Center">
                                 <TextBox.Style>
                                     <Style TargetType="TextBox">
+                                        <Setter Property="Background" Value="#333337"/>
                                         <Style.Triggers>
+                                            <!-- Wyświetlanie napisu gdy puste -->
                                             <Trigger Property="Text" Value="">
                                                 <Setter Property="Background">
                                                     <Setter.Value>
                                                         <VisualBrush AlignmentX="Left" AlignmentY="Center" Stretch="None">
                                                             <VisualBrush.Visual>
-                                                                <!-- ZMIENIONO TEKST PODPOWIEDZI -->
                                                                 <TextBlock FontStyle="Italic" Foreground="#888888" Text="Dodaj klasę..."/>
                                                             </VisualBrush.Visual>
                                                         </VisualBrush>
                                                     </Setter.Value>
                                                 </Setter>
+                                            </Trigger>
+                                            <!-- NOWOŚĆ: Znikanie napisu od razu po kliknięciu w pole -->
+                                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                                <Setter Property="Background" Value="#333337"/>
                                             </Trigger>
                                         </Style.Triggers>
                                     </Style>
@@ -83,9 +89,16 @@
                 </TabItem>
 
                 <!-- ZAKŁADKA 2: KLASY (Odchudzona, służy tylko jako kontener) -->
-                <TabItem x:Name="ClassesTab" PreviewMouseLeftButtonDown="ClassesTab_PreviewMouseLeftButtonDown" PreviewMouseLeftButtonUp="ClassesTab_PreviewMouseLeftButtonUp">
+                <!-- UWAGA: Usunięto stąd zdarzenia PreviewMouse... -->
+                <TabItem x:Name="ClassesTab">
                     <TabItem.Header>
-                        <TextBlock Background="Transparent" Text="Klasy ▾"/>
+                        <!-- Zmiana z Grid na Border, który obsługuje Padding. 
+                             Dzięki temu łapiemy kliknięcia na całej powierzchni. -->
+                        <Border Background="Transparent" Margin="-12,-6" Padding="12,6"
+                                PreviewMouseLeftButtonDown="ClassesHeader_PreviewMouseLeftButtonDown" 
+                                PreviewMouseLeftButtonUp="ClassesHeader_PreviewMouseLeftButtonUp">
+                            <TextBlock Text="Klasy ▾" Background="Transparent" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
                     </TabItem.Header>
                     <Grid>
                         <local:ClassDetailsControl x:Name="SharedClassControl" Visibility="Collapsed" />
@@ -95,7 +108,7 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
-                            <Button Background="#333337" BorderThickness="0" Click="BackToClassFromStudent_Click" Content="← Powrót do klasy" Cursor="Hand" Foreground="White" Height="30" HorizontalAlignment="Left" Margin="10,10,0,10" Width="130"/>
+                            <Button Background="#333337" BorderThickness="0" Click="BackToClassFromStudent_Click" Content="← Powrót" Cursor="Hand" Foreground="White" Height="30" HorizontalAlignment="Left" Margin="10,10,0,10" Width="100"/>
                             <local:StudentDetailsControl x:Name="SharedStudentControl" Grid.Row="1" />
                         </Grid>
                     </Grid>

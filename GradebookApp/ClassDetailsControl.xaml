@@ -21,7 +21,7 @@
             <TextBlock x:Name="ClassNameText" Grid.Column="1" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"/>
             
             <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                <Button Content="Odśwież tabelę ↻" Width="110" Height="26" Click="RefreshTable_Click" Background="#007ACC" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                <Button Content="Odśwież tabelę ↻" Width="130" Height="32" Click="RefreshTable_Click" Background="#007ACC" Foreground="White" BorderThickness="0" Cursor="Hand"/>
             </StackPanel>
         </Grid>
         
@@ -64,7 +64,7 @@
                         </TextBox>
                         
                         <!-- Poszerzono z 200 na 220 -->
-                        <Button Grid.Column="1" Content="⇄ Zamień Imię z Nazwiskiem" Width="220" Height="30" Click="SwapColumns_Click" Cursor="Hand" Background="#333333" Foreground="#E0E0E0" BorderBrush="#555555" />
+                        <Button Grid.Column="1" Content="⇄ Zamień Imię z Nazwiskiem" Width="220" Height="32" Click="SwapColumns_Click" Cursor="Hand" Background="#333333" Foreground="#E0E0E0" BorderBrush="#555555" />
                     </Grid>
                              
                     <DataGrid x:Name="StudentsDataGrid" Grid.Row="1" Margin="0,0,0,10" FontSize="16" 

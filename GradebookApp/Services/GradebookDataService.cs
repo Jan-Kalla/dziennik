@@ -420,7 +420,13 @@ namespace GradebookApp.Services
                     });
                 }
             }
-            return events.OrderBy(e => e.SortDate).ToList();
+            // Sortowanie: 1. Data, 2. Godzina (Puste na koniec), 3. Tytuł
+            return events
+                .OrderBy(e => e.SortDate)
+                .ThenBy(e => string.IsNullOrEmpty(e.TimeDisplay) || e.TimeDisplay == "-")
+                .ThenBy(e => e.TimeDisplay)
+                .ThenBy(e => e.Title)
+                .ToList();
         }
 
         
