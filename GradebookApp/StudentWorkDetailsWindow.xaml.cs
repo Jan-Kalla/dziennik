@@ -19,7 +19,8 @@ namespace GradebookApp
         
         private List<StudentTaskScore> _existingScores = new List<StudentTaskScore>();
         
-        // Pamięć wybranej grupy
+        // Pamięć wybranej grupy i pracy pisemnej
+        private static int _lastWorkId = 0;
         private static string _lastUsedGroup = string.Empty;
         private static string _lastUsedRetakeGroup = string.Empty;
         
@@ -51,6 +52,30 @@ namespace GradebookApp
             if (student == null || _currentWork == null) return;
             ScoresDataGrid.ItemsSource = ScoresCollection;
 
+            // Jeśli sprawdzamy inną pracę pisemną niż poprzednio, czyścimy pamięć podręczną innej pracy
+            if (_lastWorkId != _workId)
+            {
+                _lastWorkId = _workId;
+                _lastUsedGroup = string.Empty;
+                _lastUsedRetakeGroup = string.Empty;
+                _lastUsedBaseWrittenDate = null;
+                _lastUsedBaseEnteredDate = null;
+                _lastUsedRetakeDeadline = null;
+                _lastUsedRetakeWrittenDate = null;
+                _lastUsedRetakeEnteredDate = null;
+            }
+
+            // Fallback z bazy danych: jeśli w pamięci RAM nie ma dat poprawy dla tej pracy (np. po restarcie programu),
+            // pobieramy ostatnio użytą datę poprawy dla tej pracy bezpośrednio z bazy danych
+            if (!_lastUsedRetakeWrittenDate.HasValue || !_lastUsedRetakeEnteredDate.HasValue)
+            {
+                var dbRetakeDates = _dataService.GetLastUsedRetakeDatesForWork(_workId);
+                if (!_lastUsedRetakeWrittenDate.HasValue && dbRetakeDates.writtenDate.HasValue)
+                    _lastUsedRetakeWrittenDate = dbRetakeDates.writtenDate;
+                if (!_lastUsedRetakeEnteredDate.HasValue && dbRetakeDates.enteredDate.HasValue)
+                    _lastUsedRetakeEnteredDate = dbRetakeDates.enteredDate;
+            }
+
             // Sprawdzamy, czy uczeń ma już przypisane punkty W TEJ KONKRETNEJ PRACY, żeby nie nadpisywać mu danych z pamięci autouzupełniania
             var workTaskIds = _currentWork.Tasks.Select(t => t.Id).ToList();
             bool hasBaseScores = _existingScores.Any(s => workTaskIds.Contains(s.WrittenWorkTaskId) && (s.PointsLevel1.HasValue || s.PointsLevel2.HasValue || s.PointsLevel3.HasValue));
@@ -59,13 +84,15 @@ namespace GradebookApp
             if (workRecord != null)
             {
                 // Jeśli rekord w bazie istnieje, nadpisujemy kontrolki jego zawartością. 
-                // ZABEZPIECZENIE: Używamy zapamiętanej daty tylko wtedy, gdy uczeń NIE MA JESZCZE OCEN!
                 CustomDateWrittenPicker.SelectedDate = workRecord.CustomDateWritten ?? (hasBaseScores ? null : _lastUsedBaseWrittenDate); 
                 CustomDateEnteredPicker.SelectedDate = workRecord.CustomDateEntered ?? (hasBaseScores ? null : _lastUsedBaseEnteredDate); 
                 AbsentCheckBox.IsChecked = workRecord.IsAbsent;
                 RetakeDeadlinePicker.SelectedDate = workRecord.RetakeDeadline ?? (hasBaseScores ? null : _lastUsedRetakeDeadline); 
-                RetakeDateWrittenPicker.SelectedDate = workRecord.RetakeDateWritten ?? (hasRetakeScores ? null : _lastUsedRetakeWrittenDate); 
-                RetakeDateEnteredPicker.SelectedDate = workRecord.RetakeDateEntered ?? (hasRetakeScores ? null : _lastUsedRetakeEnteredDate); 
+                
+                // Dla poprawy: jeśli uczeń nie ma jeszcze przypisanych dat poprawy w swoim rekordzie,
+                // ZAWSZE podpowiadamy ostatnio użytą datę poprawy ze sprawdzanego stosika!
+                RetakeDateWrittenPicker.SelectedDate = workRecord.RetakeDateWritten ?? _lastUsedRetakeWrittenDate; 
+                RetakeDateEnteredPicker.SelectedDate = workRecord.RetakeDateEntered ?? _lastUsedRetakeEnteredDate; 
                 _isRetakeActive = workRecord.IsRetakeActive;
             }
             else
@@ -191,9 +218,28 @@ namespace GradebookApp
         }
 
         private void SetTodayBase_Click(object sender, RoutedEventArgs e) { CustomDateEnteredPicker.SelectedDate = DateTime.Today; }
-        private void SetTodayRetake_Click(object sender, RoutedEventArgs e) { RetakeDateEnteredPicker.SelectedDate = DateTime.Today; }
+        private void SetTodayRetake_Click(object sender, RoutedEventArgs e) 
+        { 
+            RetakeDateEnteredPicker.SelectedDate = DateTime.Today; 
+            if (RetakeDateWrittenPicker.SelectedDate == null)
+            {
+                RetakeDateWrittenPicker.SelectedDate = DateTime.Today;
+            }
+        }
 
-        private void ActivateRetakeButton_Click(object sender, RoutedEventArgs e) { _isRetakeActive = true; ApplyRetakeVisibility(); RecalculateTotalScore(); }
+        private void ActivateRetakeButton_Click(object sender, RoutedEventArgs e) 
+        { 
+            _isRetakeActive = true; 
+            
+            // Jeśli kontrolki dat są puste, uzupełniamy je zapamiętanymi datami ze stosika
+            if (RetakeDateWrittenPicker.SelectedDate == null && _lastUsedRetakeWrittenDate.HasValue)
+                RetakeDateWrittenPicker.SelectedDate = _lastUsedRetakeWrittenDate;
+            if (RetakeDateEnteredPicker.SelectedDate == null && _lastUsedRetakeEnteredDate.HasValue)
+                RetakeDateEnteredPicker.SelectedDate = _lastUsedRetakeEnteredDate;
+
+            ApplyRetakeVisibility(); 
+            RecalculateTotalScore(); 
+        }
         private void DeactivateRetakeButton_Click(object sender, RoutedEventArgs e)
         {
             if (MessageBox.Show("Usunąć poprawę i wyczyścić wpisane oceny z panelu?", "Potwierdzenie", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
@@ -273,17 +319,25 @@ namespace GradebookApp
                 }
             }
 
-            // Zapisanie w całości wszystkich 5 dat oddzielnie do pamięci podręcznej dla kolejnych wpisów
-            _lastUsedGroup = record.Group; 
-            _lastUsedBaseWrittenDate = record.CustomDateWritten;
-            _lastUsedBaseEnteredDate = record.CustomDateEntered;
-            _lastUsedRetakeDeadline = record.RetakeDeadline;
+            // Zapisanie dat do pamięci podręcznej dla kolejnych wpisów ze stosika
+            // ZABEZPIECZENIE: Zapisujemy tylko wartości, które użytkownik rzeczywiście ustawił, aby nigdy nie wyzerować pamięci wartością null!
+            if (!string.IsNullOrEmpty(record.Group))
+                _lastUsedGroup = record.Group; 
+            if (record.CustomDateWritten.HasValue)
+                _lastUsedBaseWrittenDate = record.CustomDateWritten;
+            if (record.CustomDateEntered.HasValue)
+                _lastUsedBaseEnteredDate = record.CustomDateEntered;
+            if (record.RetakeDeadline.HasValue)
+                _lastUsedRetakeDeadline = record.RetakeDeadline;
 
             if (_isRetakeActive) 
             {
-                _lastUsedRetakeGroup = record.RetakeGroup; 
-                _lastUsedRetakeWrittenDate = record.RetakeDateWritten;
-                _lastUsedRetakeEnteredDate = record.RetakeDateEntered;
+                if (!string.IsNullOrEmpty(record.RetakeGroup))
+                    _lastUsedRetakeGroup = record.RetakeGroup; 
+                if (record.RetakeDateWritten.HasValue)
+                    _lastUsedRetakeWrittenDate = record.RetakeDateWritten;
+                if (record.RetakeDateEntered.HasValue)
+                    _lastUsedRetakeEnteredDate = record.RetakeDateEntered;
             }
 
             _dataService.SaveStudentWorkRecordAndScores(record, scoresToSave, _isRetakeActive);

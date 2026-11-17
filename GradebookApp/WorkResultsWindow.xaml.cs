@@ -210,7 +210,7 @@ namespace GradebookApp
             }
             else
             {
-                MessageBox.Show("Wpisz poprawną liczbę całkowitą (np. 7, 14 lub -3).", "Błąd formatu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Wpisz poprawną liczbę całkowitą (np. 5, 10 lub -3).", "Błąd formatu", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
     }

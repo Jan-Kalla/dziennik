@@ -216,8 +216,8 @@ namespace GradebookApp
                         var fileToOpen = allFiles.First();
                         if (System.IO.File.Exists(fileToOpen.FilePath))
                         {
-                            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(fileToOpen.FilePath) { UseShellExecute = true }); }
-                            catch { MessageBox.Show("Nie można otworzyć pliku. Brak domyślnego programu PDF w systemie.", "Błąd", MessageBoxButton.OK, MessageBoxImage.Warning); }
+                            var viewer = new PdfViewerWindow(fileToOpen.FilePath, fileToOpen.FileName) { Owner = this };
+                            viewer.Show();
                         }
                         else MessageBox.Show("Ten plik został fizycznie usunięty z dysku komputera.", "Brak pliku", MessageBoxButton.OK, MessageBoxImage.Information);
                         
@@ -277,8 +277,8 @@ namespace GradebookApp
                 {
                     if (System.IO.File.Exists(fileDto.FilePath))
                     {
-                        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(fileDto.FilePath) { UseShellExecute = true }); }
-                        catch { MessageBox.Show("Nie można otworzyć pliku. Brak domyślnego programu PDF.", "Błąd", MessageBoxButton.OK, MessageBoxImage.Warning); }
+                        var viewer = new PdfViewerWindow(fileDto.FilePath, fileDto.FileName) { Owner = this };
+                        viewer.Show();
                     }
                     else MessageBox.Show("Ten plik został fizycznie usunięty z dysku komputera.", "Brak pliku", MessageBoxButton.OK, MessageBoxImage.Information);
                 }

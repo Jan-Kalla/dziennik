@@ -874,6 +874,20 @@ namespace GradebookApp.Services
         
         public StudentWorkRecord? GetWorkRecord(int studentId, int workId) => _dbContext.StudentWorkRecords.FirstOrDefault(r => r.StudentId == studentId && r.WrittenWorkId == workId);
 
+        /// <summary>
+        /// Pobiera ostatnio użyte daty poprawy (napisania i wpisania) dla danej pracy pisemnej z bazy danych.
+        /// </summary>
+        public (DateTime? writtenDate, DateTime? enteredDate) GetLastUsedRetakeDatesForWork(int workId)
+        {
+            var record = _dbContext.StudentWorkRecords
+                .Where(r => r.WrittenWorkId == workId && (r.RetakeDateWritten != null || r.RetakeDateEntered != null))
+                .OrderByDescending(r => r.Id)
+                .Select(r => new { r.RetakeDateWritten, r.RetakeDateEntered })
+                .FirstOrDefault();
+
+            return (record?.RetakeDateWritten, record?.RetakeDateEntered);
+        }
+
         public void SaveStudentWorkRecordAndScores(StudentWorkRecord updatedRecord, List<StudentTaskScore> generatedScores, bool isRetakeActive)
         {
             var existingRecord = _dbContext.StudentWorkRecords.FirstOrDefault(r => r.StudentId == updatedRecord.StudentId && r.WrittenWorkId == updatedRecord.WrittenWorkId);

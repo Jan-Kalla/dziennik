@@ -41,8 +41,8 @@
             </TextBox>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="Przesuń terminy o (dni):" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="#4DB6AC" FontWeight="Bold"/>
-                <TextBox x:Name="ShiftDaysTextBox" Width="45" Height="30" Margin="0,0,10,0" Text="7" TextAlignment="Center" VerticalContentAlignment="Center" FontSize="15" FontWeight="Bold"/>
+                <TextBlock Text="Przesuń terminy o (dni robocze):" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="#4DB6AC" FontWeight="Bold"/>
+                <TextBox x:Name="ShiftDaysTextBox" Width="45" Height="30" Margin="0,0,10,0" Text="5" TextAlignment="Center" VerticalContentAlignment="Center" FontSize="15" FontWeight="Bold"/>
                 <Button Content="Zastosuj" Width="80" Height="30" Click="ShiftDeadlines_Click" Background="#007ACC" Foreground="White" BorderThickness="0" Cursor="Hand"/>
             </StackPanel>
         </Grid>
