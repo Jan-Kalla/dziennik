@@ -51,9 +51,10 @@ namespace GradebookApp
             if (student == null || _currentWork == null) return;
             ScoresDataGrid.ItemsSource = ScoresCollection;
 
-            // Sprawdzamy, czy uczeń ma już przypisane JAKIEKOLWIEK punkty, żeby nie nadpisywać mu danych z pamięci autouzupełniania
-            bool hasBaseScores = _existingScores.Any(s => s.PointsLevel1.HasValue || s.PointsLevel2.HasValue || s.PointsLevel3.HasValue);
-            bool hasRetakeScores = _existingScores.Any(s => s.RetakePointsLevel1.HasValue || s.RetakePointsLevel2.HasValue || s.RetakePointsLevel3.HasValue);
+            // Sprawdzamy, czy uczeń ma już przypisane punkty W TEJ KONKRETNEJ PRACY, żeby nie nadpisywać mu danych z pamięci autouzupełniania
+            var workTaskIds = _currentWork.Tasks.Select(t => t.Id).ToList();
+            bool hasBaseScores = _existingScores.Any(s => workTaskIds.Contains(s.WrittenWorkTaskId) && (s.PointsLevel1.HasValue || s.PointsLevel2.HasValue || s.PointsLevel3.HasValue));
+            bool hasRetakeScores = _existingScores.Any(s => workTaskIds.Contains(s.WrittenWorkTaskId) && (s.RetakePointsLevel1.HasValue || s.RetakePointsLevel2.HasValue || s.RetakePointsLevel3.HasValue));
 
             if (workRecord != null)
             {
@@ -170,7 +171,8 @@ namespace GradebookApp
             DateTime? baseDate = CustomDateEnteredPicker.SelectedDate ?? _currentWork?.DateEntered;
             if (baseDate.HasValue) 
             { 
-                RetakeDeadlinePromptText.Text = $"Termin na poprawę: do {(RetakeDeadlinePicker.SelectedDate ?? baseDate.Value.AddDays(14)):dd.MM.yyyy}"; 
+                DateTime defaultDeadline = SchoolCalendarService.AddWorkingDays(baseDate.Value, 10);
+                RetakeDeadlinePromptText.Text = $"Termin na poprawę: do {(RetakeDeadlinePicker.SelectedDate ?? defaultDeadline):dd.MM.yyyy}"; 
             }
             else 
             { 
@@ -180,10 +182,10 @@ namespace GradebookApp
 
         private void CustomDateEnteredPicker_SelectedDateChanged(object sender, SelectionChangedEventArgs e) 
         { 
-            // Wymuszamy aktualizację daty poprawy o 14 dni, jeśli użytkownik zmienił datę "Wpisania" po załadowaniu okna
+            // Wymuszamy aktualizację daty poprawy o 10 dni roboczych, jeśli użytkownik zmienił datę "Wpisania" po załadowaniu okna
             if (_isLoaded && CustomDateEnteredPicker.SelectedDate.HasValue)
             {
-                RetakeDeadlinePicker.SelectedDate = CustomDateEnteredPicker.SelectedDate.Value.AddDays(14);
+                RetakeDeadlinePicker.SelectedDate = SchoolCalendarService.AddWorkingDays(CustomDateEnteredPicker.SelectedDate.Value, 10);
             }
             UpdateDeadlinePrompt(); 
         }

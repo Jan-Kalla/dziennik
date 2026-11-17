@@ -164,9 +164,13 @@
                             <DataGridTextColumn Header="Kategoria" Binding="{Binding WorkType}" Width="120" />
                             <DataGridTextColumn Header="Tytuł oceny" Binding="{Binding Title}" Width="*" />
                             
-                            <DataGridTextColumn Header="Max pkt" Binding="{Binding MaxFinalPoints}" Width="Auto">
+                            <DataGridTextColumn Header="Średnia klasy" Binding="{Binding AverageScoreDisplay}" Width="Auto">
                                 <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Center"/></Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="HorizontalAlignment" Value="Center"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter Property="Foreground" Value="#FFD54F"/>
+                                    </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
                             

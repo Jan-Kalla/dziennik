@@ -165,6 +165,24 @@ namespace GradebookApp.Services
                 );
             ");
 
+            // Tworzenie tabeli dni wolnych i reguł kalendarza szkolnego
+            _dbContext.Database.ExecuteSqlRaw(@"
+                CREATE TABLE IF NOT EXISTS ""NonWorkingDayRules"" (
+                    ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_NonWorkingDayRules"" PRIMARY KEY AUTOINCREMENT,
+                    ""RuleType"" INTEGER NOT NULL,
+                    ""Name"" TEXT NOT NULL,
+                    ""StartDate"" TEXT NULL,
+                    ""EndDate"" TEXT NULL,
+                    ""Month"" INTEGER NULL,
+                    ""Day"" INTEGER NULL,
+                    ""EndMonth"" INTEGER NULL,
+                    ""EndDay"" INTEGER NULL,
+                    ""DayOfWeek"" INTEGER NULL
+                );
+            ");
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"NonWorkingDayRules\" ADD COLUMN \"EndMonth\" INTEGER NULL;"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"NonWorkingDayRules\" ADD COLUMN \"EndDay\" INTEGER NULL;"); } catch { }
+
             // AUTOMATYCZNA MIGRACJA: Przeniesienie Twoich starych plików PDF do nowego, lepszego systemu!
             var nodesToMigrate = _dbContext.CurriculumNodes.Where(n => n.TasksPdfPath != null || n.AnswersPdfPath != null || n.QuizzesPdfPath != null).ToList();
             foreach (var n in nodesToMigrate)
@@ -532,6 +550,105 @@ namespace GradebookApp.Services
                 .Select(s => s.StudentId).Distinct().Count();
         }
 
+        /// <summary>
+        /// Oblicza średnią punktów i procentów dla prac pisemnych w danej klasie.
+        /// Zwraca słownik: workId -> (displayString, avgPoints, avgPercentage, gradedCount).
+        /// </summary>
+        public Dictionary<int, (string display, double? avgPoints, double? avgPercentage, int gradedCount)> GetClassWorksAverages(int classId, List<WrittenWork> works)
+        {
+            var result = new Dictionary<int, (string display, double? avgPoints, double? avgPercentage, int gradedCount)>();
+            if (works == null || !works.Any()) return result;
+
+            var students = _dbContext.Students.Where(s => s.SchoolClassId == classId).ToList();
+            var studentIds = students.Select(s => s.Id).ToList();
+            var workIds = works.Select(w => w.Id).ToList();
+
+            var allRecords = _dbContext.StudentWorkRecords
+                .Where(r => workIds.Contains(r.WrittenWorkId) && studentIds.Contains(r.StudentId))
+                .ToList();
+
+            var allTaskIds = works.SelectMany(w => w.Tasks.Select(t => t.Id)).ToList();
+            var allScores = _dbContext.StudentTaskScores
+                .Where(s => allTaskIds.Contains(s.WrittenWorkTaskId) && studentIds.Contains(s.StudentId))
+                .ToList();
+
+            foreach (var work in works)
+            {
+                var taskIds = work.Tasks.Select(t => t.Id).ToList();
+                if (!taskIds.Any() || !students.Any())
+                {
+                    result[work.Id] = ("Brak ocen", null, null, 0);
+                    continue;
+                }
+
+                var workRecords = allRecords.Where(r => r.WrittenWorkId == work.Id).ToList();
+                var workScores = allScores.Where(s => taskIds.Contains(s.WrittenWorkTaskId)).ToList();
+
+                double totalPoints = 0;
+                int gradedCount = 0;
+
+                foreach (var student in students)
+                {
+                    var record = workRecords.FirstOrDefault(r => r.StudentId == student.Id);
+                    if (record != null && record.IsAbsent)
+                    {
+                        continue; // Uczeń nieobecny (NB)
+                    }
+
+                    var studentScores = workScores.Where(s => s.StudentId == student.Id).ToList();
+                    bool hasBase = studentScores.Any(s => s.PointsLevel1.HasValue || s.PointsLevel2.HasValue || s.PointsLevel3.HasValue);
+                    bool hasRetake = studentScores.Any(s => s.RetakePointsLevel1.HasValue || s.RetakePointsLevel2.HasValue || s.RetakePointsLevel3.HasValue);
+
+                    if (!hasBase && !hasRetake)
+                    {
+                        continue; // Uczeń nieoceniony
+                    }
+
+                    var baseTasks = work.Tasks;
+                    var retakeTasks = work.Tasks;
+
+                    if (work.HasGroups && record != null)
+                    {
+                        if (!string.IsNullOrEmpty(record.Group))
+                            baseTasks = work.Tasks.Where(t => t.GroupName == record.Group).ToList();
+
+                        if (!string.IsNullOrEmpty(record.RetakeGroup))
+                            retakeTasks = work.Tasks.Where(t => t.GroupName == record.RetakeGroup).ToList();
+                        else if (!string.IsNullOrEmpty(record.Group))
+                            retakeTasks = work.Tasks.Where(t => t.GroupName == record.Group).ToList();
+                    }
+
+                    double baseSum = hasBase ? GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, baseTasks, studentScores, false) : 0;
+                    double retakeSum = hasRetake ? GradeCalculator.CalculateWorkScore(work.MaxFinalPoints, retakeTasks, studentScores, true) : 0;
+
+                    bool useRetake = record != null && record.IsRetakeActive && hasRetake && retakeSum > baseSum;
+                    double finalScore = useRetake ? retakeSum : (hasBase ? baseSum : retakeSum);
+
+                    totalPoints += finalScore;
+                    gradedCount++;
+                }
+
+                if (gradedCount == 0)
+                {
+                    result[work.Id] = ("Brak ocen", null, null, 0);
+                }
+                else
+                {
+                    double avgPoints = totalPoints / gradedCount;
+                    double avgPercentage = work.MaxFinalPoints > 0 ? (avgPoints / work.MaxFinalPoints) * 100.0 : 0;
+
+                    string pointsFormatted = Math.Round(avgPoints, 2).ToString("0.##");
+                    string maxPointsFormatted = work.MaxFinalPoints.ToString("0.##");
+                    int percentRounded = (int)Math.Round(avgPercentage, 0, MidpointRounding.AwayFromZero);
+
+                    string display = $"{pointsFormatted} / {maxPointsFormatted} pkt ({percentRounded}%)";
+                    result[work.Id] = (display, avgPoints, avgPercentage, gradedCount);
+                }
+            }
+
+            return result;
+        }
+
         // NOWOŚĆ: Błyskawiczne sprawdzenie, czy w ogóle są jakieś oceny z danej pracy
         public bool HasWorkAnyScores(int workId)
         {
@@ -723,7 +840,9 @@ namespace GradebookApp.Services
                 if (workRecord != null) groupText = (useRetake && !string.IsNullOrWhiteSpace(workRecord.RetakeGroup)) ? workRecord.RetakeGroup : (!string.IsNullOrWhiteSpace(workRecord.Group) ? workRecord.Group : "-");
 
                 bool isRetakeDone = workRecord != null && workRecord.IsRetakeActive && hasRetake;
-                string deadlineStr = isRetakeDone ? "Poprawiono" : (workRecord?.RetakeDeadline ?? (workRecord?.CustomDateEntered ?? work.DateEntered)?.AddDays(14))?.ToString("dd.MM.yyyy") ?? "-";
+                DateTime? baseDate = workRecord?.CustomDateEntered ?? work.DateEntered;
+                DateTime? defaultDeadline = baseDate.HasValue ? SchoolCalendarService.AddWorkingDays(baseDate.Value, 10) : null;
+                string deadlineStr = isRetakeDone ? "Poprawiono" : (workRecord?.RetakeDeadline ?? defaultDeadline)?.ToString("dd.MM.yyyy") ?? "-";
 
                 worksList.Add(new StudentWorkViewModel { WorkId = work.Id, WorkType = work.WorkType, WorkTitle = work.Title, DeadlineDisplay = deadlineStr, ScoreDisplay = scoreText, GroupDisplay = groupText });
             }
@@ -813,16 +932,87 @@ namespace GradebookApp.Services
                     _dbContext.StudentWorkRecords.Add(record);
                 }
 
-                // Pobieramy obecny termin poprawy (z bazy) lub wyliczamy domyślne 14 dni
-                DateTime currentDeadline = record.RetakeDeadline ?? baseEntered.Value.AddDays(14);
+                // Pobieramy obecny termin poprawy (z bazy) lub wyliczamy domyślne 10 dni roboczych
+                DateTime currentDeadline = record.RetakeDeadline ?? SchoolCalendarService.AddWorkingDays(baseEntered.Value, 10);
                 
-                // Nadpisujemy nową datę do bazy danych
-                record.RetakeDeadline = currentDeadline.AddDays(days);
+                // Nadpisujemy nową datę do bazy danych, przesuwając o dni robocze
+                record.RetakeDeadline = SchoolCalendarService.AddWorkingDays(currentDeadline, days);
                 updatedCount++;
             }
             
             _dbContext.SaveChanges();
             return updatedCount;
+        }
+
+        // --- ZARZĄDZANIE KALENDARZEM DNI WOLNYCH I NIEROBOCZYCH ---
+
+        public List<NonWorkingDayRule> GetAllCalendarRules()
+        {
+            _dbContext.ChangeTracker.Clear();
+            return _dbContext.NonWorkingDayRules.ToList();
+        }
+
+        public void AddCalendarRule(NonWorkingDayRule rule)
+        {
+            _dbContext.NonWorkingDayRules.Add(rule);
+            _dbContext.SaveChanges();
+            SchoolCalendarService.InvalidateCache();
+        }
+
+        public void DeleteCalendarRule(int ruleId)
+        {
+            var rule = _dbContext.NonWorkingDayRules.Find(ruleId);
+            if (rule != null)
+            {
+                _dbContext.NonWorkingDayRules.Remove(rule);
+                _dbContext.SaveChanges();
+                SchoolCalendarService.InvalidateCache();
+            }
+        }
+
+        public void SetWeeklyNonWorkingDay(DayOfWeek dow, bool isNonWorking)
+        {
+            var existing = _dbContext.NonWorkingDayRules.FirstOrDefault(r => r.RuleType == NonWorkingDayType.WeeklyDay && r.DayOfWeek == dow);
+            if (isNonWorking && existing == null)
+            {
+                _dbContext.NonWorkingDayRules.Add(new NonWorkingDayRule
+                {
+                    RuleType = NonWorkingDayType.WeeklyDay,
+                    DayOfWeek = dow,
+                    Name = $"Wolny każdy {SchoolCalendarService.GetPolishDayName(dow).ToLower()}"
+                });
+                _dbContext.SaveChanges();
+                SchoolCalendarService.InvalidateCache();
+            }
+            else if (!isNonWorking && existing != null)
+            {
+                _dbContext.NonWorkingDayRules.Remove(existing);
+                _dbContext.SaveChanges();
+                SchoolCalendarService.InvalidateCache();
+            }
+        }
+
+        public int SeedStandardPolishHolidays()
+        {
+            var existingHolidays = _dbContext.NonWorkingDayRules.Where(r => r.RuleType == NonWorkingDayType.RecurringYearly).ToList();
+            var stdHolidays = SchoolCalendarService.GetStandardPolishHolidays();
+            int addedCount = 0;
+
+            foreach (var h in stdHolidays)
+            {
+                if (!existingHolidays.Any(e => e.Month == h.Month && e.Day == h.Day))
+                {
+                    _dbContext.NonWorkingDayRules.Add(h);
+                    addedCount++;
+                }
+            }
+
+            if (addedCount > 0)
+            {
+                _dbContext.SaveChanges();
+                SchoolCalendarService.InvalidateCache();
+            }
+            return addedCount;
         }
     }
     

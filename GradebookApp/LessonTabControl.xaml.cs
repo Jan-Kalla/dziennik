@@ -49,7 +49,7 @@ namespace GradebookApp
             return _currentDate.AddDays(-1 * diff).Date;
         }
 
-        private void SetupData()
+        private void SetupData(bool allowSkipWeekends = false)
         {
             _scheduleRows.Clear();
             var templates = _dataService.GetLessonTemplates();
@@ -88,7 +88,7 @@ namespace GradebookApp
             UpdateLessonNumbers();
             UpdateAllWatermarks(); 
             _isInitializingData = false;
-            SkipWeekends();
+            if (allowSkipWeekends) SkipWeekends();
             RefreshDailyView();
         }
 
@@ -298,10 +298,8 @@ namespace GradebookApp
             else RefreshDailyView();
         }
         
-        // Aktualizacja widoku przy wyjściu z trybu tygodniowego z przeładowaniem
-        private void DailyViewBtn_Click(object sender, RoutedEventArgs e)
+        public void SetDailyViewMode()
         {
-            // ... (kod kolorowania przycisków i ukrywania siatki zostaje bez zmian) ...
             DailyViewBtn.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3E3E42"));
             DailyViewBtn.Foreground = Brushes.White;
             DailyViewBtn.FontWeight = FontWeights.Bold;
@@ -314,6 +312,20 @@ namespace GradebookApp
             DateNavigationPanel.Visibility = Visibility.Visible;
             WeeklyScheduleGrid.Visibility = Visibility.Collapsed;
             WeeklyTitleText.Visibility = Visibility.Collapsed;
+        }
+
+        public void NavigateToDate(DateTime targetDate)
+        {
+            _currentDate = targetDate.Date;
+            SetDailyViewMode();
+            _isInitializingData = true;
+            SetupData(allowSkipWeekends: false);
+        }
+
+        // Aktualizacja widoku przy wyjściu z trybu tygodniowego z przeładowaniem
+        private void DailyViewBtn_Click(object sender, RoutedEventArgs e)
+        {
+            SetDailyViewMode();
             
             // Wymuszamy pełne odświeżenie danych i filtrów
             _isInitializingData = true;

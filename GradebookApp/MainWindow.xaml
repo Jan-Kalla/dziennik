@@ -85,7 +85,7 @@
 
                 <!-- ZAKŁADKA 1: LEKCJA -->
                 <TabItem Header="Lekcja">
-                    <local:LessonTabControl />
+                    <local:LessonTabControl x:Name="MainLessonTabControl" />
                 </TabItem>
 
                 <!-- ZAKŁADKA 2: KLASY (Odchudzona, służy tylko jako kontener) -->
@@ -113,8 +113,8 @@
                         </Grid>
                     </Grid>
                 </TabItem>
-                <!-- ZAKŁADKA 3: KALENDARZ -->
-                <TabItem Header="Kalendarz">
+                <!-- ZAKŁADKA 3: TERMINARZ -->
+                <TabItem Header="Terminarz">
                     <Grid Margin="10,20,10,10">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -199,6 +199,7 @@
                         <!-- Menu otwierające się idealnie pod nagłówkiem -->
                         <ContextMenu x:Name="OtherMenu" Placement="Bottom" PlacementTarget="{Binding RelativeSource={RelativeSource AncestorType=TabItem}}">
                             <MenuItem Header="Rozkład materiału" Click="OpenCurriculumWindow_Click" FontWeight="Bold" Foreground="#4DB6AC"/>
+                            <MenuItem Header="Dni wolne / Kalendarz szkolny" Click="OpenNonWorkingDaysWindow_Click" FontWeight="Bold" Foreground="#FFB74D"/>
                             <MenuItem Header="Statystyki popraw" Click="OpenStatisticsWindow_Click"/>
                             <MenuItem Header="Menadżer szablonów" Click="OpenTemplateManager_Click"/>
                             <Separator/>

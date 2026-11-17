@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Microsoft.EntityFrameworkCore;
 using GradebookApp.ViewModels;
+using GradebookApp.Services;
 
 namespace GradebookApp
 {
@@ -117,7 +118,7 @@ namespace GradebookApp
                 }
                 else if (baseEntered.HasValue)
                 {
-                    DateTime deadlineDate = record?.RetakeDeadline ?? baseEntered.Value.AddDays(14);
+                    DateTime deadlineDate = record?.RetakeDeadline ?? SchoolCalendarService.AddWorkingDays(baseEntered.Value, 10);
                     deadlineStr = deadlineDate.ToString("dd.MM.yyyy");
                 }
 
@@ -194,8 +195,8 @@ namespace GradebookApp
         {
             if (int.TryParse(ShiftDaysTextBox?.Text.Trim(), out int days))
             {
-                if (MessageBox.Show($"Czy na pewno chcesz przesunąć terminy na poprawę dla wszystkich uczniów w tej klasie o {days} dni?\n\nDodatnie wartości opóźniają termin, a ujemne go przyspieszają.", 
-                    "Potwierdzenie globalnej zmiany", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+                if (MessageBox.Show($"Czy na pewno chcesz przesunąć terminy na poprawę dla wszystkich uczniów w tej klasie o {days} dni roboczych?\n\n(Dni wolne i weekendy nie są wliczane. Dodatnie wartości wydłużają termin, ujemne go skracają).", 
+                    "Potwierdzenie przesunięcia terminów roboczych", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
                 {
                     using (var service = new Services.GradebookDataService())
                     {

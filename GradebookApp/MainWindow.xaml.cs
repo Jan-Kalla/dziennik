@@ -224,6 +224,23 @@ namespace GradebookApp
             window.ShowDialog();
         }
 
+        private void OpenNonWorkingDaysWindow_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new NonWorkingDaysWindow() { Owner = this };
+            window.ShowDialog();
+
+            if (window.SelectedLessonDateToNavigate.HasValue)
+            {
+                NavigateToLessonDate(window.SelectedLessonDateToNavigate.Value);
+            }
+        }
+
+        public void NavigateToLessonDate(DateTime date)
+        {
+            MainTabControl.SelectedIndex = 0; // Przełączenie na zakładkę "Lekcja"
+            MainLessonTabControl.NavigateToDate(date); // Przełączenie na widok dzienny i ustawienie konkretnej daty
+        }
+
         // Zdarzenie wywołujące menu dropdown dla zakładki Inne i blokujące zmianę karty
         private void OtherTab_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
@@ -310,66 +327,9 @@ namespace GradebookApp
 
             try
             {
-                string supabaseUrl = "https://pnrnuwwneqoqfzcamauw.supabase.co";
-                string supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBucm51d3duZXFvcWZ6Y2FtYXV3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTk3MTk5NSwiZXhwIjoyMTA3NTQ3OTk1fQ.tRhMlOH9jJfAJNODbWnJpW1xFBvp3wPl3vzKXo9DKRc";
-
-                using (var client = new System.Net.Http.HttpClient())
-                {
-                    client.DefaultRequestHeaders.Add("apikey", supabaseKey);
-                    client.DefaultRequestHeaders.Add("Authorization", $"Bearer {supabaseKey}");
-                    
-                    var response = await client.GetAsync($"{supabaseUrl}/rest/v1/retake_signups?select=*");
-                    response.EnsureSuccessStatusCode();
-                    
-                    var jsonString = await response.Content.ReadAsStringAsync();
-                    var signups = System.Text.Json.JsonSerializer.Deserialize<List<RetakeSignupDto>>(
-                        jsonString, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
-                    if (signups == null || !signups.Any())
-                    {
-                        MessageBox.Show("Skrzynka podawcza w chmurze jest pusta. Żaden uczeń nie zapisał się na poprawę od czasu ostatniej synchronizacji.", "Aktualizacja", MessageBoxButton.OK, MessageBoxImage.Information);
-                        return;
-                    }
-
-                    int addedCount = 0;
-
-                    using (var db = new AppDbContext())
-                    {
-                        var groupedSignups = signups.GroupBy(s => new { s.work_id, s.class_name });
-
-                        foreach (var group in groupedSignups)
-                        {
-                            var schoolClass = db.Classes.FirstOrDefault(c => c.Name == group.Key.class_name);
-                            if (schoolClass == null) continue;
-
-                            var students = db.Students.Where(s => s.SchoolClassId == schoolClass.Id).ToList();
-                            var work = db.WrittenWorks.FirstOrDefault(w => w.Id == group.Key.work_id);
-                            if (work == null) continue;
-
-                            foreach (var signup in group)
-                            {
-                                var student = students.FirstOrDefault(s => s.JournalNumber == signup.journal_number);
-                                if (student != null)
-                                {
-                                    var record = db.StudentWorkRecords.FirstOrDefault(r => r.StudentId == student.Id && r.WrittenWorkId == work.Id);
-                                    if (record == null)
-                                    {
-                                        record = new StudentWorkRecord { StudentId = student.Id, WrittenWorkId = work.Id, WantsToRetake = true };
-                                        db.StudentWorkRecords.Add(record);
-                                    }
-                                    else record.WantsToRetake = true;
-                                    addedCount++;
-                                }
-                            }
-                        }
-                        db.SaveChanges(); 
-                    }
-
-                    string idsToDelete = string.Join(",", signups.Select(s => s.id));
-                    await client.DeleteAsync($"{supabaseUrl}/rest/v1/retake_signups?id=in.({idsToDelete})");
-
-                    MessageBox.Show($"Pomyślnie pobrano zgłoszenia. Zaktualizowano listę chętnych o {addedCount} uczniów.", "Sukces", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
+                var syncService = new Services.CloudSyncService();
+                var (_, message) = await syncService.FetchAndApplyRetakeSignupsAsync();
+                MessageBox.Show(message, "Zapisy na poprawy", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
@@ -379,14 +339,6 @@ namespace GradebookApp
             {
                 if (btn != null) { btn.IsEnabled = true; btn.Content = "Pobierz zapisy na poprawy (z chmury)"; }
             }
-        }
-        
-        public class RetakeSignupDto
-        {
-            public long id { get; set; }
-            public long work_id { get; set; }
-            public string class_name { get; set; } = "";
-            public int journal_number { get; set; }
         }
 
         // --- SYNCHRONIZACJA Z CHMURĄ ---

@@ -23,6 +23,9 @@ namespace GradebookApp.ViewModels
         public string WorkType { get; set; } = string.Empty;
         public string Title { get; set; } = string.Empty;
         public double MaxFinalPoints { get; set; }
+        public double? AveragePoints { get; set; }
+        public double? AveragePercentage { get; set; }
+        public string AverageScoreDisplay { get; set; } = string.Empty;
         public string DateWrittenDisplay { get; set; } = string.Empty;
         public string DateEnteredDisplay { get; set; } = string.Empty;
         public string AttendanceRatio { get; set; } = string.Empty; 

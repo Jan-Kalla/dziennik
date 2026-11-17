@@ -51,16 +51,27 @@ namespace GradebookApp
         {
             DisplayedWorks.Clear();
             var globalWorks = _allWorks.Where(w => !w.IsIndividual).ToList();
+            var averages = _dataService.GetClassWorksAverages(_currentClass.Id, globalWorks);
 
             foreach (var work in globalWorks)
             {
-                int gradedCount = _dataService.GetGradedStudentsCountForWork(_currentClass.Id, work);
+                averages.TryGetValue(work.Id, out var stat);
+                int gradedCount = stat.gradedCount;
+                string avgDisplay = string.IsNullOrEmpty(stat.display) ? "Brak ocen" : stat.display;
+
                 DisplayedWorks.Add(new ClassWorkViewModel
                 {
-                    WorkId = work.Id, WorkType = work.WorkType, Title = work.Title, MaxFinalPoints = work.MaxFinalPoints,
+                    WorkId = work.Id, 
+                    WorkType = work.WorkType, 
+                    Title = work.Title, 
+                    MaxFinalPoints = work.MaxFinalPoints,
+                    AveragePoints = stat.avgPoints,
+                    AveragePercentage = stat.avgPercentage,
+                    AverageScoreDisplay = avgDisplay,
                     DateWrittenDisplay = work.DateWritten?.ToString("dd.MM.yyyy") ?? "Brak",
                     DateEnteredDisplay = work.DateEntered?.ToString("dd.MM.yyyy") ?? "Brak",
-                    AttendanceRatio = $"{gradedCount} / {_allStudents.Count}", OriginalWork = work
+                    AttendanceRatio = $"{gradedCount} / {_allStudents.Count}", 
+                    OriginalWork = work
                 });
             }
         }
@@ -265,7 +276,14 @@ namespace GradebookApp
 
         private void WorkResultsButton_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button b && b.DataContext is ClassWorkViewModel vm) new WorkResultsWindow(vm.WorkId, _currentClass.Id) { Owner = Window.GetWindow(this) }.ShowDialog();
+            if (sender is Button b && b.DataContext is ClassWorkViewModel vm)
+            {
+                new WorkResultsWindow(vm.WorkId, _currentClass.Id) { Owner = Window.GetWindow(this) }.ShowDialog();
+                _allStudents = _dataService.GetStudentsByClass(_currentClass.Id);
+                _dataService.RecalculateClassAverages(_currentClass.Id);
+                RefreshDisplayedStudents(_allStudents);
+                RefreshDisplayedWorks();
+            }
         }
 
         private void DeleteWork_Click(object sender, RoutedEventArgs e)

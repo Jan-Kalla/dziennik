@@ -204,6 +204,29 @@ namespace GradebookApp
         public string FilePath { get; set; } = string.Empty; // Ścieżka na dysku
     }
 
+    public enum NonWorkingDayType
+    {
+        SingleDay = 0,          // Konkretna data (np. 14.10.2026)
+        RecurringYearly = 1,    // Co roku ten sam dzień i miesiąc (np. 11 listopada)
+        WeeklyDay = 2,          // Stały dzień tygodnia (np. każdy piątek)
+        DateRange = 3,          // Zakres dat (np. ferie zimowe w konkretnym roku)
+        RecurringDateRange = 4  // Zakres powtarzający się co roku (np. przerwa świąteczna 23.12 - 01.01)
+    }
+
+    public class NonWorkingDayRule
+    {
+        public int Id { get; set; }
+        public NonWorkingDayType RuleType { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public DateTime? StartDate { get; set; }
+        public DateTime? EndDate { get; set; }
+        public int? Month { get; set; }
+        public int? Day { get; set; }
+        public int? EndMonth { get; set; }
+        public int? EndDay { get; set; }
+        public DayOfWeek? DayOfWeek { get; set; }
+    }
+
     public class AppDbContext : DbContext
     {
         public DbSet<SchoolClass> Classes { get; set; }
@@ -221,6 +244,7 @@ namespace GradebookApp
         public DbSet<LessonScheduleItem> LessonScheduleItems { get; set; }
         public DbSet<CurriculumNode> CurriculumNodes { get; set; }
         public DbSet<TopicFile> TopicFiles { get; set; }
+        public DbSet<NonWorkingDayRule> NonWorkingDayRules { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {

@@ -485,3 +485,8 @@ $RECYCLE.BIN/
 gradebook.db
 gradebook.db-shm
 gradebook.db-wal
+
+# Konfiguracja i sekrety lokalne
+appsettings.json
+appsettings.*.json
+!appsettings.example.json

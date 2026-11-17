@@ -34,26 +34,51 @@ namespace GradebookApp.Services
         [Column("max_l3")] public double MaxL3 { get; set; }
     }
 
+    [Table("retake_signups")]
+    public class CloudRetakeSignup : BaseModel
+    {
+        [Supabase.Postgrest.Attributes.PrimaryKey("id", false)] public long Id { get; set; }
+        [Column("work_id")] public long WorkId { get; set; }
+        [Column("class_name")] public string ClassName { get; set; } = string.Empty;
+        [Column("journal_number")] public int JournalNumber { get; set; }
+    }
+
     public class CloudSyncService
     {
-        // TUTAJ WKLEJ SWOJE DANE Z SUPABASE
-        private readonly string _url = "https://pnrnuwwneqoqfzcamauw.supabase.co";
-        private readonly string _key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBucm51d3duZXFvcWZ6Y2FtYXV3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTk3MTk5NSwiZXhwIjoyMTA3NTQ3OTk1fQ.tRhMlOH9jJfAJNODbWnJpW1xFBvp3wPl3vzKXo9DKRc"; 
-        private Supabase.Client _client;
+        private readonly string _url;
+        private readonly string _key;
+        private readonly Supabase.Client? _client;
+
+        public bool IsConfigured => !string.IsNullOrWhiteSpace(_url) && !string.IsNullOrWhiteSpace(_key) && _client != null;
 
         public CloudSyncService()
         {
-            var options = new SupabaseOptions { AutoConnectRealtime = false };
-            _client = new Supabase.Client(_url, _key, options);
+            _url = AppConfig.Settings.Supabase.Url;
+            _key = AppConfig.Settings.Supabase.Key;
+
+            if (!string.IsNullOrWhiteSpace(_url) && !string.IsNullOrWhiteSpace(_key))
+            {
+                var options = new SupabaseOptions { AutoConnectRealtime = false };
+                _client = new Supabase.Client(_url, _key, options);
+            }
+        }
+
+        private void EnsureConfigured()
+        {
+            if (_client == null || string.IsNullOrWhiteSpace(_url) || string.IsNullOrWhiteSpace(_key))
+            {
+                throw new InvalidOperationException("Brak konfiguracji połączenia z Supabase.\nUpewnij się, że plik 'appsettings.json' w katalogu aplikacji zawiera poprawne wartości 'Url' oraz 'Key'.");
+            }
         }
 
         public async Task<string> SynchronizeWithCloudAsync()
         {
-            await _client.InitializeAsync();
+            EnsureConfigured();
+            await _client!.InitializeAsync();
 
             using var db = new AppDbContext();
             
-            // NOWOŚĆ: Pobieramy tylko prace dla całych klas i WYKLUCZAMY "aktywność"
+            // Pobieramy tylko prace dla całych klas i WYKLUCZAMY "aktywność"
             var localWorks = db.WrittenWorks
                 .Include(w => w.Tasks)
                 .Include(w => w.SchoolClass)
@@ -72,7 +97,6 @@ namespace GradebookApp.Services
             bool hasChanges = false;
 
             // 1. Wykrywanie prac do USUNIĘCIA z chmury
-            // Skoro wykluczyliśmy "aktywność" z localWorks, chmura automatycznie usunie je teraz ze swoich serwerów!
             var localWorkIds = localWorks.Select(w => (long)w.Id).ToList();
             var worksToDelete = remoteWorks.Where(rw => !localWorkIds.Contains(rw.Id)).ToList();
             if (worksToDelete.Any())
@@ -127,6 +151,65 @@ namespace GradebookApp.Services
             if (cloudTasksToUpsert.Any()) await _client.From<CloudTask>().Upsert(cloudTasksToUpsert);
 
             return "Zsynchronizowano pomyślnie!";
+        }
+
+        public async Task<(int addedCount, string message)> FetchAndApplyRetakeSignupsAsync()
+        {
+            EnsureConfigured();
+            await _client!.InitializeAsync();
+
+            var response = await _client.From<CloudRetakeSignup>().Get();
+            var signups = response.Models;
+
+            if (signups == null || !signups.Any())
+            {
+                return (0, "Skrzynka podawcza w chmurze jest pusta. Żaden uczeń nie zapisał się na poprawę od czasu ostatniej synchronizacji.");
+            }
+
+            int addedCount = 0;
+
+            using (var db = new AppDbContext())
+            {
+                var groupedSignups = signups.GroupBy(s => new { s.WorkId, s.ClassName });
+
+                foreach (var group in groupedSignups)
+                {
+                    var schoolClass = db.Classes.FirstOrDefault(c => c.Name == group.Key.ClassName);
+                    if (schoolClass == null) continue;
+
+                    var students = db.Students.Where(s => s.SchoolClassId == schoolClass.Id).ToList();
+                    var work = db.WrittenWorks.FirstOrDefault(w => w.Id == group.Key.WorkId);
+                    if (work == null) continue;
+
+                    foreach (var signup in group)
+                    {
+                        var student = students.FirstOrDefault(s => s.JournalNumber == signup.JournalNumber);
+                        if (student != null)
+                        {
+                            var record = db.StudentWorkRecords.FirstOrDefault(r => r.StudentId == student.Id && r.WrittenWorkId == work.Id);
+                            if (record == null)
+                            {
+                                record = new StudentWorkRecord { StudentId = student.Id, WrittenWorkId = work.Id, WantsToRetake = true };
+                                db.StudentWorkRecords.Add(record);
+                            }
+                            else
+                            {
+                                record.WantsToRetake = true;
+                            }
+                            addedCount++;
+                        }
+                    }
+                }
+                db.SaveChanges();
+            }
+
+            // Usuwamy przetworzone zgłoszenia z chmury
+            foreach (var signup in signups)
+            {
+                await _client.From<CloudRetakeSignup>().Delete(signup);
+            }
+
+            return (addedCount, $"Pomyślnie pobrano zgłoszenia. Zaktualizowano listę chętnych o {addedCount} uczniów.");
         }
     }
 }
