@@ -85,6 +85,30 @@
         </Style>
 
         <ContextMenu x:Key="RowMenu" x:Shared="False" DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+            <MenuItem Header="Szczegóły poprawy" Click="ViewRetakeDetails_Click" FontWeight="Bold">
+                <MenuItem.Style>
+                    <Style TargetType="MenuItem">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsRetake}" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </MenuItem.Style>
+            </MenuItem>
+            <MenuItem Header="Edytuj poprawę" Click="EditRetake_Click">
+                <MenuItem.Style>
+                    <Style TargetType="MenuItem">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsRetake}" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </MenuItem.Style>
+            </MenuItem>
             <MenuItem Header="Usuń ten wiersz" Click="DeleteRow_Click" Foreground="#E53935" FontWeight="Bold"/>
         </ContextMenu>
 
@@ -108,6 +132,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         
         <Grid Grid.Row="0" Margin="0,0,0,15">
@@ -122,7 +147,10 @@
                 <Button Content="▶" Width="32" Height="32" Background="#3E3E42" Foreground="#E0E0E0" BorderThickness="0" Cursor="Hand" Click="NextDay_Click" ToolTip="Następny dzień" Margin="10,0,0,0" Focusable="False"/>
             </StackPanel>
 
-            <TextBlock x:Name="WeeklyTitleText" Grid.Column="0" Text="Rozkład tygodniowy" FontSize="20" FontWeight="Bold" Foreground="#E0E0E0" VerticalAlignment="Center" HorizontalAlignment="Left" Visibility="Collapsed"/>
+            <StackPanel x:Name="WeeklyHeaderPanel" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
+                <TextBlock x:Name="WeeklyTitleText" Text="Rozkład tygodniowy" FontSize="20" FontWeight="Bold" Foreground="#E0E0E0" VerticalAlignment="Center" HorizontalAlignment="Left"/>
+                <CheckBox x:Name="HideDutiesCheckBox" Content="Ukryj dyżury" Margin="25,0,0,0" VerticalAlignment="Center" Foreground="#E0E0E0" FontSize="14" IsChecked="False" Click="HideDutiesCheckBox_Click" Focusable="False"/>
+            </StackPanel>
             
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button x:Name="DailyViewBtn" Content="Widok dzienny" Width="140" Height="32" Background="#3E3E42" Foreground="White" BorderThickness="0" Click="DailyViewBtn_Click" Cursor="Hand" FontWeight="Bold" FontSize="15" Focusable="False"/>
@@ -160,7 +188,17 @@
                         <DataTemplate>
                             <Grid ClipToBounds="False" Background="Transparent" MinHeight="35">
                                 <TextBlock Text="{Binding LessonNumber}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#888888"/>
-                                <Button Content="+" Style="{StaticResource RowAddButtonStyle}" Click="AddRowBelow_Click" Height="20" Width="20" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,-10" Panel.ZIndex="100"/>
+                                <Button Content="+" Click="AddRowBelow_Click" Height="20" Width="20" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,-10" Panel.ZIndex="100">
+                                    <Button.Style>
+                                        <Style BasedOn="{StaticResource RowAddButtonStyle}" TargetType="Button">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsRetake}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
                             </Grid>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
@@ -215,7 +253,7 @@
                                 
                                 <!-- WŁAŚCIWE POLE EDYCJI -->
                                 <!-- Usunięto deklarację z atrybutu Style i przeniesiono do wnętrza znacznika -->
-                                <TextBox Text="{Binding Material, UpdateSourceTrigger=LostFocus}">
+                                <TextBox Text="{Binding Material, UpdateSourceTrigger=LostFocus}" ToolTip="{Binding RetakeTooltip}">
                                     <TextBox.Style>
                                         <!-- Dziedziczy z CellTextBoxStyle -->
                                         <Style BasedOn="{StaticResource CellTextBoxStyle}" TargetType="TextBox">
@@ -229,6 +267,13 @@
                                                 <!-- Oraz jeśli to null, profilaktycznie też blokujemy -->
                                                 <DataTrigger Binding="{Binding LessonNumber}" Value="{x:Null}">
                                                     <Setter Property="IsEnabled" Value="False"/>
+                                                </DataTrigger>
+                                                <!-- Dla poprawki pole jest włączone, ale tylko do odczytu, z kolorem akcentu -->
+                                                <DataTrigger Binding="{Binding IsRetake}" Value="True">
+                                                    <Setter Property="IsEnabled" Value="True"/>
+                                                    <Setter Property="IsReadOnly" Value="True"/>
+                                                    <Setter Property="Foreground" Value="#4DB6AC"/>
+                                                    <Setter Property="FontWeight" Value="SemiBold"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -273,6 +318,11 @@
                                                 <DataTrigger Binding="{Binding LessonNumber}" Value="{x:Null}">
                                                     <Setter Property="Visibility" Value="Hidden"/>
                                                 </DataTrigger>
+                                                <!-- Dla poprawki przycisk zawsze widoczny z dedykowanym tooltipem -->
+                                                <DataTrigger Binding="{Binding IsRetake}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Setter Property="ToolTip" Value="Szczegóły poprawy"/>
+                                                </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Button.Style>
@@ -314,7 +364,17 @@
                         <DataTemplate>
                             <Grid ClipToBounds="False" Background="Transparent" MinHeight="35">
                                 <TextBlock Text="{Binding LessonNumber}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#888888"/>
-                                <Button Content="+" Style="{StaticResource RowAddButtonStyle}" Click="AddRowBelow_Click" Height="20" Width="20" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,-10" Panel.ZIndex="100"/>
+                                <Button Content="+" Click="AddRowBelow_Click" Height="20" Width="20" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,-10" Panel.ZIndex="100">
+                                    <Button.Style>
+                                        <Style BasedOn="{StaticResource RowAddButtonStyle}" TargetType="Button">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsRetake}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
                             </Grid>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
@@ -386,5 +446,10 @@
                 </DataGridTemplateColumn>
             </DataGrid.Columns>
         </DataGrid>
+
+        <!-- DOLNY PANEL DLA WIDOKU DZIENNEGO -->
+        <StackPanel x:Name="DailyBottomPanel" Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,15,0,0">
+            <Button Content="Zaplanuj poprawę" Width="160" Height="35" Background="#825a2c" Foreground="White" BorderThickness="0" Cursor="Hand" FontWeight="Bold" FontSize="14" Click="PlanRetake_Click"/>
+        </StackPanel>
     </Grid>
 </UserControl>

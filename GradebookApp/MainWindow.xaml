@@ -114,7 +114,7 @@
                     </Grid>
                 </TabItem>
                 <!-- ZAKŁADKA 3: TERMINARZ -->
-                <TabItem Header="Terminarz">
+                <TabItem x:Name="TerminarzTab" Header="Terminarz">
                     <Grid Margin="10,20,10,10">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -127,7 +127,7 @@
                             <CheckBox x:Name="ShowAllGlobalWorksCheckBox" Content="Pokaż wszystkie prace (również pierwsze terminy)" FontSize="14" Checked="RefreshGlobalCalendar_Click" Unchecked="RefreshGlobalCalendar_Click" />
                         </StackPanel>
 
-                        <DataGrid x:Name="GlobalCalendarDataGrid" Grid.Row="1" FontSize="16" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow">
+                        <DataGrid x:Name="GlobalCalendarDataGrid" Grid.Row="1" FontSize="16" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow" Loaded="GlobalCalendarDataGrid_Loaded" IsVisibleChanged="GlobalCalendarDataGrid_IsVisibleChanged">
                             <DataGrid.ContextMenu>
                                 <ContextMenu>
                                     <MenuItem Header="Edytuj poprawę" Click="EditGlobalRetake_Click"/>

@@ -78,6 +78,13 @@ namespace GradebookApp.ViewModels
         public int? RetakeTaskId { get; set; }
         public int TaskNumber { get; set; }
 
+        private bool _isActiveRow;
+        public bool IsActiveRow 
+        { 
+            get => _isActiveRow; 
+            set { _isActiveRow = value; OnPropertyChanged(); } 
+        }
+
         public Visibility BaseVisibility => BaseTaskId.HasValue ? Visibility.Visible : Visibility.Collapsed;
         public Visibility BaseDashVisibility => BaseTaskId.HasValue ? Visibility.Collapsed : Visibility.Visible;
         

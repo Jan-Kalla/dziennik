@@ -21,6 +21,7 @@ namespace GradebookApp
         {
             InitializeComponent();
             _dataService = new GradebookDataService();
+            PdfFileResolver.EnsurePdfsConsolidated();
             CurriculumTreeView.ItemsSource = CurriculumItems;
             
             LoadFromDatabase();
@@ -59,8 +60,25 @@ namespace GradebookApp
 
             if (node.Files != null)
             {
-                foreach (var f in node.Files.Where(x => x.FileType == "Task")) item.TaskFiles.Add(new TopicFileDto { FileId = f.Id, FileName = f.FileName, FilePath = f.FilePath });
-                foreach (var f in node.Files.Where(x => x.FileType == "Answer")) item.AnswerFiles.Add(new TopicFileDto { FileId = f.Id, FileName = f.FileName, FilePath = f.FilePath });
+                foreach (var f in node.Files.Where(x => x.FileType == "Task"))
+                {
+                    string resolved = PdfFileResolver.ResolvePdfPath(f.FilePath, f.FileName) ?? f.FilePath;
+                    if (resolved != f.FilePath)
+                    {
+                        _dataService.UpdateTopicFilePath(f.Id, resolved);
+                    }
+                    item.TaskFiles.Add(new TopicFileDto { FileId = f.Id, FileName = f.FileName, FilePath = resolved });
+                }
+
+                foreach (var f in node.Files.Where(x => x.FileType == "Answer"))
+                {
+                    string resolved = PdfFileResolver.ResolvePdfPath(f.FilePath, f.FileName) ?? f.FilePath;
+                    if (resolved != f.FilePath)
+                    {
+                        _dataService.UpdateTopicFilePath(f.Id, resolved);
+                    }
+                    item.AnswerFiles.Add(new TopicFileDto { FileId = f.Id, FileName = f.FileName, FilePath = resolved });
+                }
             }
 
             var children = allNodes.Where(n => n.ParentId == node.Id).OrderBy(n => n.OrderIndex).ThenBy(n => n.Id).ToList();
@@ -214,8 +232,14 @@ namespace GradebookApp
                     if (!_isEditMode && allFiles.Count == 1)
                     {
                         var fileToOpen = allFiles.First();
-                        if (System.IO.File.Exists(fileToOpen.FilePath))
+                        string? resolvedPath = PdfFileResolver.ResolvePdfPath(fileToOpen.FilePath, fileToOpen.FileName);
+                        if (!string.IsNullOrEmpty(resolvedPath) && System.IO.File.Exists(resolvedPath))
                         {
+                            if (resolvedPath != fileToOpen.FilePath)
+                            {
+                                fileToOpen.FilePath = resolvedPath;
+                                _dataService.UpdateTopicFilePath(fileToOpen.FileId, resolvedPath);
+                            }
                             var viewer = new PdfViewerWindow(fileToOpen.FilePath, fileToOpen.FileName) { Owner = this };
                             viewer.Show();
                         }
@@ -241,14 +265,12 @@ namespace GradebookApp
                 {
                     try
                     {
-                        string targetFolder = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Pdfs");
-                        System.IO.Directory.CreateDirectory(targetFolder);
-                        
+                        string targetFolder = PdfFileResolver.GetDefaultPdfsDirectory();
                         string originalFileName = System.IO.Path.GetFileName(openFileDialog.FileName);
-                        string fileNameToSave = $"{Guid.NewGuid()}_{originalFileName}";
+                        string fileNameToSave = PdfFileResolver.GenerateUniquePdfFileName(targetFolder, originalFileName);
                         string destPath = System.IO.Path.Combine(targetFolder, fileNameToSave);
                         
-                        System.IO.File.Copy(openFileDialog.FileName, destPath);
+                        System.IO.File.Copy(openFileDialog.FileName, destPath, overwrite: true);
                         
                         _dataService.AddTopicFile(nodeId, pdfType, originalFileName, destPath);
                         LoadFromDatabase(); 
@@ -275,8 +297,14 @@ namespace GradebookApp
                 }
                 else
                 {
-                    if (System.IO.File.Exists(fileDto.FilePath))
+                    string? resolvedPath = PdfFileResolver.ResolvePdfPath(fileDto.FilePath, fileDto.FileName);
+                    if (!string.IsNullOrEmpty(resolvedPath) && System.IO.File.Exists(resolvedPath))
                     {
+                        if (resolvedPath != fileDto.FilePath)
+                        {
+                            fileDto.FilePath = resolvedPath;
+                            _dataService.UpdateTopicFilePath(fileDto.FileId, resolvedPath);
+                        }
                         var viewer = new PdfViewerWindow(fileDto.FilePath, fileDto.FileName) { Owner = this };
                         viewer.Show();
                     }

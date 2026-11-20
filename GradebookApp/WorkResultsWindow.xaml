@@ -85,7 +85,7 @@
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
 
-                <DataGridTextColumn Header="Grupa" Binding="{Binding GroupDisplay}" Width="60">
+                <DataGridTextColumn Header="Grupa" Binding="{Binding GroupDisplay}" Width="70">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Center"/></Style>
                     </DataGridTextColumn.ElementStyle>

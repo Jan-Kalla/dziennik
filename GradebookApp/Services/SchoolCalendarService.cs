@@ -260,7 +260,7 @@ namespace GradebookApp.Services
                 new NonWorkingDayRule { RuleType = NonWorkingDayType.RecurringYearly, Month = 1, Day = 6, Name = "Święto Trzech Króli" },
                 new NonWorkingDayRule { RuleType = NonWorkingDayType.RecurringYearly, Month = 5, Day = 1, Name = "Święto Pracy" },
                 new NonWorkingDayRule { RuleType = NonWorkingDayType.RecurringYearly, Month = 5, Day = 3, Name = "Święto Konstytucji 3 Maja" },
-                new NonWorkingDayRule { RuleType = NonWorkingDayType.RecurringYearly, Month = 8, Day = 15, Name = "Wniebowzięcie NMP" },
+                new NonWorkingDayRule { RuleType = NonWorkingDayType.RecurringYearly, Month = 10, Day = 14, Name = "Dzień Edukacji Narodowej" },
                 new NonWorkingDayRule { RuleType = NonWorkingDayType.RecurringYearly, Month = 11, Day = 1, Name = "Wszystkich Świętych" },
                 new NonWorkingDayRule { RuleType = NonWorkingDayType.RecurringYearly, Month = 11, Day = 11, Name = "Święto Niepodległości" },
                 new NonWorkingDayRule { RuleType = NonWorkingDayType.RecurringYearly, Month = 12, Day = 25, Name = "Boże Narodzenie (I dzień)" },

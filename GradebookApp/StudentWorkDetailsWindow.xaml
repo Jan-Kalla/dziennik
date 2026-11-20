@@ -145,6 +145,7 @@
                 <DataGrid.Resources>
                     <Style TargetType="TextBox">
                         <EventSetter Event="PreviewKeyDown" Handler="ScoreTextBox_PreviewKeyDown"/>
+                        <EventSetter Event="GotFocus" Handler="ScoreTextBox_GotFocus"/>
                         <Setter Property="Background" Value="Transparent"/>
                         <Setter Property="Foreground" Value="#E0E0E0"/>
                         <Setter Property="BorderThickness" Value="0"/>
@@ -159,14 +160,26 @@
                     </Style>
                 </DataGrid.CellStyle>
             <DataGrid.Columns>
-                <DataGridTextColumn Binding="{Binding TaskNumber}" Header="Zad." IsReadOnly="True" Width="40">
-                    <DataGridTextColumn.CellStyle>
+                <DataGridTemplateColumn Header="Zad" Width="50">
+                    <DataGridTemplateColumn.CellStyle>
                         <Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
                             <Setter Property="Focusable" Value="False"/>
                             <Setter Property="IsTabStop" Value="False"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsActiveRow}" Value="True">
+                                    <Setter Property="Background" Value="#007ACC"/>
+                                    <Setter Property="Foreground" Value="White"/>
+                                    <Setter Property="FontWeight" Value="Bold"/>
+                                </DataTrigger>
+                            </Style.Triggers>
                         </Style>
-                    </DataGridTextColumn.CellStyle>
-                </DataGridTextColumn>
+                    </DataGridTemplateColumn.CellStyle>
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding TaskNumber}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
                 
                 <DataGridTemplateColumn Header="BAZA: Poz I" Width="*">
                     <DataGridTemplateColumn.CellTemplate>

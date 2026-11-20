@@ -260,7 +260,15 @@ namespace GradebookApp
         }
 
         private void AbsentCheckBox_Changed(object sender, RoutedEventArgs e) { ScoresDataGrid.IsEnabled = AbsentCheckBox.IsChecked != true; RecalculateTotalScore(); }
-        private void ToggleDetailsButton_Click(object sender, RoutedEventArgs e) { DetailsGrid.Visibility = DetailsGrid.Visibility == Visibility.Collapsed ? Visibility.Visible : Visibility.Collapsed; ToggleDetailsButton.Content = DetailsGrid.Visibility == Visibility.Visible ? "Ukryj szczegóły punktacji ↑" : "Pokaż / Edytuj szczegóły punktacji ↓"; }
+        private void ToggleDetailsButton_Click(object sender, RoutedEventArgs e) 
+        { 
+            DetailsGrid.Visibility = DetailsGrid.Visibility == Visibility.Collapsed ? Visibility.Visible : Visibility.Collapsed; 
+            ToggleDetailsButton.Content = DetailsGrid.Visibility == Visibility.Visible ? "Ukryj szczegóły punktacji ↑" : "Pokaż / Edytuj szczegóły punktacji ↓"; 
+            if (DetailsGrid.Visibility == Visibility.Visible && ScoresCollection.Any())
+            {
+                SetActiveRow(ScoresCollection.FirstOrDefault());
+            }
+        }
 
         private void FillMaxPoints_Click(object sender, RoutedEventArgs e)
         {
@@ -346,6 +354,50 @@ namespace GradebookApp
         }
 
         private void Cancel_Click(object sender, RoutedEventArgs e) => Close();
+
+        private void SetActiveRow(TaskScoreViewModel? activeVm)
+        {
+            if (activeVm == null) return;
+            foreach (var vm in ScoresCollection)
+            {
+                vm.IsActiveRow = (vm == activeVm);
+            }
+        }
+
+        private void SelectCellForElement(FrameworkElement element)
+        {
+            try
+            {
+                var cell = element as DataGridCell ?? FindVisualParent<DataGridCell>(element);
+                if (cell != null)
+                {
+                    var cellInfo = new DataGridCellInfo(cell);
+                    ScoresDataGrid.CurrentCell = cellInfo;
+
+                    if (!cell.IsSelected || ScoresDataGrid.SelectedCells.Count != 1)
+                    {
+                        ScoresDataGrid.SelectedCells.Clear();
+                        cell.IsSelected = true;
+                    }
+                }
+            }
+            catch { }
+
+            if (element.DataContext is TaskScoreViewModel vm)
+            {
+                SetActiveRow(vm);
+            }
+        }
+
+        private void ScoreTextBox_GotFocus(object sender, RoutedEventArgs e)
+        {
+            if (sender is TextBox tb)
+            {
+                tb.SelectAll();
+                SelectCellForElement(tb);
+            }
+        }
+
         private void ScoreTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Up || e.Key == Key.Down || e.Key == Key.Left || e.Key == Key.Right)
@@ -358,22 +410,50 @@ namespace GradebookApp
 
                     e.Handled = true;
                     FocusNavigationDirection direction = e.Key == Key.Up ? FocusNavigationDirection.Up : 
-                                                        e.Key == Key.Down ? FocusNavigationDirection.Down : 
-                                                        e.Key == Key.Left ? FocusNavigationDirection.Left : FocusNavigationDirection.Right;
+                                                         e.Key == Key.Down ? FocusNavigationDirection.Down : 
+                                                         e.Key == Key.Left ? FocusNavigationDirection.Left : FocusNavigationDirection.Right;
                     var request = new TraversalRequest(direction);
                     if (textBox.PredictFocus(direction) is TextBox predicted)
                     {
                         predicted.Focus();
                         predicted.SelectAll();
+                        SelectCellForElement(predicted);
                     }
                     else
                     {
                         textBox.MoveFocus(request);
+                        if (Keyboard.FocusedElement is FrameworkElement focusedFe)
+                        {
+                            SelectCellForElement(focusedFe);
+                        }
                     }
                 }
             }
         }
-        private void DataGridCell_GotFocus(object sender, RoutedEventArgs e) { if (e.OriginalSource is DataGridCell c) { var t = FindVisualChild<TextBox>(c); if (t != null) { t.Focus(); t.SelectAll(); } } }
+
+        private void DataGridCell_GotFocus(object sender, RoutedEventArgs e) 
+        { 
+            if (e.OriginalSource is DataGridCell c) 
+            { 
+                SelectCellForElement(c);
+                var t = FindVisualChild<TextBox>(c); 
+                if (t != null) 
+                { 
+                    t.Focus(); 
+                    t.SelectAll(); 
+                } 
+            } 
+        }
+
+        private static T? FindVisualParent<T>(DependencyObject? child) where T : DependencyObject
+        {
+            if (child == null) return null;
+            var parentObj = System.Windows.Media.VisualTreeHelper.GetParent(child);
+            if (parentObj == null) return null;
+            if (parentObj is T parent) return parent;
+            return FindVisualParent<T>(parentObj);
+        }
+
         private T? FindVisualChild<T>(DependencyObject p) where T : DependencyObject { for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(p); i++) { var c = System.Windows.Media.VisualTreeHelper.GetChild(p, i); if (c is T t) return t; var f = FindVisualChild<T>(c); if (f != null) return f; } return null; }
         protected override void OnClosed(EventArgs e) { _dataService.Dispose(); base.OnClosed(e); }
     }

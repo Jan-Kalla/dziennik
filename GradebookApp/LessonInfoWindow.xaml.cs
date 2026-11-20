@@ -146,7 +146,7 @@ namespace GradebookApp
             if (!string.IsNullOrWhiteSpace(_rowContext.TimeSlot))
             {
                 var match = Regex.Match(_rowContext.TimeSlot, @"\d{1,2}:\d{2}");
-                if (match.Success) retakeDialog.TimeTextBox.Text = match.Value;
+                if (match.Success) retakeDialog.SelectedTime = match.Value;
             }
             retakeDialog.ShowDialog();
         }

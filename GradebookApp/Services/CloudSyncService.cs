@@ -82,7 +82,7 @@ namespace GradebookApp.Services
             var localWorks = db.WrittenWorks
                 .Include(w => w.Tasks)
                 .Include(w => w.SchoolClass)
-                .Where(w => !w.IsIndividual && w.WorkType.ToLower() != "aktywność")
+                .Where(w => !w.IsIndividual && (w.WorkType == null || w.WorkType.ToLower() != "aktywność"))
                 .ToList();
 
             // Pobieramy aktualny stan chmury
@@ -110,8 +110,13 @@ namespace GradebookApp.Services
             {
                 var cw = new CloudWork
                 {
-                    Id = lw.Id, Title = lw.Title, WorkType = lw.WorkType, ClassName = lw.SchoolClass.Name,
-                    MaxPoints = lw.MaxFinalPoints, HasGroups = lw.HasGroups, LastSync = DateTime.UtcNow
+                    Id = lw.Id, 
+                    Title = lw.Title ?? string.Empty, 
+                    WorkType = lw.WorkType ?? string.Empty, 
+                    ClassName = lw.SchoolClass != null ? lw.SchoolClass.Name : string.Empty,
+                    MaxPoints = lw.MaxFinalPoints, 
+                    HasGroups = lw.HasGroups, 
+                    LastSync = DateTime.UtcNow
                 };
                 cloudWorksToUpsert.Add(cw);
 

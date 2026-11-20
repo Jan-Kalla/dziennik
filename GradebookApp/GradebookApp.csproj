@@ -24,10 +24,14 @@
     <PackageReference Include="Supabase" Version="8.3.1" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Update="appsettings.json">
+  <ItemGroup Condition="Exists('appsettings.json')">
+    <None Remove="appsettings.json" />
+    <EmbeddedResource Include="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="appsettings.example.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

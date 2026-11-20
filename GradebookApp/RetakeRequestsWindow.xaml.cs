@@ -118,6 +118,7 @@ namespace GradebookApp
                             
                             db.SaveChanges();
                             LoadData();
+                            (Owner as MainWindow)?.MainLessonTabControl?.RefreshDailyView();
                         }
                     }
                 }

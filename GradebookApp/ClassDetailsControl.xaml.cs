@@ -136,7 +136,11 @@ namespace GradebookApp
             if (vm != null)
             {
                 if (!vm.IsRetake) { MessageBox.Show("Możesz edytować tylko zaplanowane poprawy.", "Zablokowane", MessageBoxButton.OK, MessageBoxImage.Information); return; }
-                if (new PlanRetakeDialog(_currentClass.Id, vm.EventId) { Owner = Window.GetWindow(this) }.ShowDialog() == true) RefreshCalendar();
+                if (new PlanRetakeDialog(_currentClass.Id, vm.EventId) { Owner = Window.GetWindow(this) }.ShowDialog() == true) 
+                {
+                    RefreshCalendar();
+                    (Window.GetWindow(this) as MainWindow)?.MainLessonTabControl?.RefreshDailyView();
+                }
             }
         }
 
@@ -148,7 +152,9 @@ namespace GradebookApp
                 if (!vm.IsRetake) { MessageBox.Show("Z tego poziomu można usunąć tylko zaplanowane poprawy.", "Zablokowane", MessageBoxButton.OK, MessageBoxImage.Information); return; }
                 if (MessageBox.Show($"Usunąć poprawę '{vm.Title}'?", "Potwierdzenie", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
                 {
-                    _dataService.DeletePlannedRetake(vm.EventId); RefreshCalendar();
+                    _dataService.DeletePlannedRetake(vm.EventId); 
+                    RefreshCalendar();
+                    (Window.GetWindow(this) as MainWindow)?.MainLessonTabControl?.RefreshDailyView();
                 }
             }
         }
@@ -157,7 +163,11 @@ namespace GradebookApp
 
         private void PlanRetake_Click(object sender, RoutedEventArgs e)
         {
-            if (new PlanRetakeDialog(_currentClass.Id) { Owner = Window.GetWindow(this) }.ShowDialog() == true) RefreshCalendar();
+            if (new PlanRetakeDialog(_currentClass.Id) { Owner = Window.GetWindow(this) }.ShowDialog() == true) 
+            {
+                RefreshCalendar();
+                (Window.GetWindow(this) as MainWindow)?.MainLessonTabControl?.RefreshDailyView();
+            }
         }
 
         private void SwapColumns_Click(object sender, RoutedEventArgs e)

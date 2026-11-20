@@ -183,6 +183,19 @@ namespace GradebookApp.Services
             try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"NonWorkingDayRules\" ADD COLUMN \"EndMonth\" INTEGER NULL;"); } catch { }
             try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"NonWorkingDayRules\" ADD COLUMN \"EndDay\" INTEGER NULL;"); } catch { }
 
+            // Usunięcie Wniebowzięcia NMP (15 sierpnia) z istniejących baz
+            try
+            {
+                var oldNmp = _dbContext.NonWorkingDayRules.FirstOrDefault(r => r.RuleType == NonWorkingDayType.RecurringYearly && r.Month == 8 && r.Day == 15);
+                if (oldNmp != null)
+                {
+                    _dbContext.NonWorkingDayRules.Remove(oldNmp);
+                    _dbContext.SaveChanges();
+                    SchoolCalendarService.InvalidateCache();
+                }
+            }
+            catch { }
+
             // AUTOMATYCZNA MIGRACJA: Przeniesienie Twoich starych plików PDF do nowego, lepszego systemu!
             var nodesToMigrate = _dbContext.CurriculumNodes.Where(n => n.TasksPdfPath != null || n.AnswersPdfPath != null || n.QuizzesPdfPath != null).ToList();
             foreach (var n in nodesToMigrate)
@@ -223,6 +236,16 @@ namespace GradebookApp.Services
         {
             var f = _dbContext.TopicFiles.Find(fileId);
             if (f != null) { _dbContext.TopicFiles.Remove(f); _dbContext.SaveChanges(); }
+        }
+
+        public void UpdateTopicFilePath(int fileId, string newPath)
+        {
+            var f = _dbContext.TopicFiles.Find(fileId);
+            if (f != null && f.FilePath != newPath)
+            {
+                f.FilePath = newPath;
+                _dbContext.SaveChanges();
+            }
         }
 
         // PRZYWRÓCONA METODA: Niezbędna do edycji nazw i godzin tematów
@@ -416,11 +439,12 @@ namespace GradebookApp.Services
             if (upcomingOnly) retakesQuery = retakesQuery.Where(r => r.Date >= today);
             
             foreach(var r in retakesQuery.ToList()) {
+                if (r.WrittenWork == null) continue;
                 events.Add(new CalendarEventViewModel {
                     EventId = r.Id, WorkId = r.WrittenWorkId, IsRetake = true, SortDate = r.Date,
                     DateDisplay = r.Date.ToString("dd.MM.yyyy"), TimeDisplay = string.IsNullOrEmpty(r.Time) ? "-" : r.Time,
-                    WorkType = r.WrittenWork.WorkType, Title = r.WrittenWork.Title, ClassName = r.WrittenWork.SchoolClass.Name,
-                    AttendeeIds = r.Attendees.Select(a => a.StudentId).ToList(), AttendeesCountDisplay = r.Attendees.Count.ToString()
+                    WorkType = r.WrittenWork.WorkType ?? "", Title = r.WrittenWork.Title ?? "", ClassName = r.WrittenWork.SchoolClass?.Name ?? "",
+                    AttendeeIds = r.Attendees?.Select(a => a.StudentId).ToList() ?? new List<int>(), AttendeesCountDisplay = (r.Attendees?.Count ?? 0).ToString()
                 });
             }
 
@@ -430,11 +454,12 @@ namespace GradebookApp.Services
                 if (upcomingOnly) worksQuery = worksQuery.Where(w => w.DateWritten >= today);
 
                 foreach(var w in worksQuery.ToList()) {
+                    if (w.SchoolClass == null) continue;
                     events.Add(new CalendarEventViewModel {
                         EventId = w.Id, WorkId = w.Id, IsRetake = false, SortDate = w.DateWritten ?? DateTime.MinValue,
                         DateDisplay = w.DateWritten?.ToString("dd.MM.yyyy") ?? "Brak", TimeDisplay = "-",
-                        WorkType = w.WorkType, Title = w.Title, ClassName = w.SchoolClass.Name, 
-                        AttendeesCountDisplay = w.SchoolClass.Students.Count.ToString() // <--- ZLICZA PRAWDZIWĄ ILOŚĆ
+                        WorkType = w.WorkType ?? "", Title = w.Title ?? "", ClassName = w.SchoolClass.Name ?? "", 
+                        AttendeesCountDisplay = (w.SchoolClass.Students?.Count ?? 0).ToString()
                     });
                 }
             }
@@ -444,6 +469,19 @@ namespace GradebookApp.Services
                 .ThenBy(e => string.IsNullOrEmpty(e.TimeDisplay) || e.TimeDisplay == "-")
                 .ThenBy(e => e.TimeDisplay)
                 .ThenBy(e => e.Title)
+                .ToList();
+        }
+
+        public List<PlannedRetake> GetPlannedRetakesForDate(DateTime date)
+        {
+            _dbContext.ChangeTracker.Clear();
+            var d = date.Date;
+            return _dbContext.PlannedRetakes
+                .Include(r => r.WrittenWork)
+                    .ThenInclude(w => w.SchoolClass)
+                .Include(r => r.Attendees)
+                    .ThenInclude(a => a.Student)
+                .Where(r => r.Date.Date == d)
                 .ToList();
         }
 
@@ -641,7 +679,7 @@ namespace GradebookApp.Services
                     string maxPointsFormatted = work.MaxFinalPoints.ToString("0.##");
                     int percentRounded = (int)Math.Round(avgPercentage, 0, MidpointRounding.AwayFromZero);
 
-                    string display = $"{pointsFormatted} / {maxPointsFormatted} pkt ({percentRounded}%)";
+                    string display = $"{percentRounded}%";
                     result[work.Id] = (display, avgPoints, avgPercentage, gradedCount);
                 }
             }
@@ -1008,6 +1046,12 @@ namespace GradebookApp.Services
 
         public int SeedStandardPolishHolidays()
         {
+            var oldHoliday = _dbContext.NonWorkingDayRules.FirstOrDefault(r => r.RuleType == NonWorkingDayType.RecurringYearly && r.Month == 8 && r.Day == 15);
+            if (oldHoliday != null)
+            {
+                _dbContext.NonWorkingDayRules.Remove(oldHoliday);
+            }
+
             var existingHolidays = _dbContext.NonWorkingDayRules.Where(r => r.RuleType == NonWorkingDayType.RecurringYearly).ToList();
             var stdHolidays = SchoolCalendarService.GetStandardPolishHolidays();
             int addedCount = 0;
@@ -1021,7 +1065,7 @@ namespace GradebookApp.Services
                 }
             }
 
-            if (addedCount > 0)
+            if (addedCount > 0 || oldHoliday != null)
             {
                 _dbContext.SaveChanges();
                 SchoolCalendarService.InvalidateCache();

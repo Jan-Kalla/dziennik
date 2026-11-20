@@ -37,7 +37,7 @@
                 </StackPanel>
                 <StackPanel>
                     <TextBlock Text="Godzina:" Margin="0,0,0,5" FontSize="14"/>
-                    <TextBox x:Name="TimeTextBox" Width="70" Height="28" FontSize="14" VerticalContentAlignment="Center" MaxLength="5"/>
+                    <ComboBox x:Name="TimeComboBox" Width="95" Height="28" FontSize="14" VerticalContentAlignment="Center"/>
                 </StackPanel>
             </StackPanel>
         </Grid>

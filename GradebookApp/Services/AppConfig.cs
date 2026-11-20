@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Linq;
+using System.Reflection;
 using System.Text.Json;
 
 namespace GradebookApp.Services
@@ -36,45 +38,146 @@ namespace GradebookApp.Services
             _settings = LoadSettings();
         }
 
-        private static AppSettings LoadSettings()
+        public static bool IsValid(AppSettings? settings)
+        {
+            if (settings?.Supabase == null) return false;
+            var url = settings.Supabase.Url;
+            var key = settings.Supabase.Key;
+            return !string.IsNullOrWhiteSpace(url)
+                && !string.IsNullOrWhiteSpace(key)
+                && !url.Contains("<")
+                && !key.Contains("<");
+        }
+
+        private static AppSettings? LoadFromFile(string filePath)
         {
             try
             {
-                // Sprawdzamy najpierw katalog BaseDirectory (tam gdzie leży skompilowany plik exe/dll)
-                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                string configPath = Path.Combine(baseDir, "appsettings.json");
-
-                // Jeśli nie ma w BaseDirectory, sprawdzamy katalog roboczy projektu
-                if (!File.Exists(configPath))
+                if (File.Exists(filePath))
                 {
-                    string fallbackPath = Path.Combine(Directory.GetCurrentDirectory(), "appsettings.json");
-                    if (File.Exists(fallbackPath))
-                    {
-                        configPath = fallbackPath;
-                    }
-                }
-
-                if (File.Exists(configPath))
-                {
-                    string json = File.ReadAllText(configPath);
+                    string json = File.ReadAllText(filePath);
                     var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                    var parsed = JsonSerializer.Deserialize<AppSettings>(json, options);
-                    if (parsed != null)
+                    return JsonSerializer.Deserialize<AppSettings>(json, options);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[AppConfig] Błąd wczytywania {filePath}: {ex.Message}");
+            }
+            return null;
+        }
+
+        private static AppSettings? LoadFromEmbeddedResource()
+        {
+            try
+            {
+                var assembly = Assembly.GetExecutingAssembly();
+                var resourceNames = assembly.GetManifestResourceNames();
+                var resourceName = resourceNames.FirstOrDefault(n => n.EndsWith("appsettings.json", StringComparison.OrdinalIgnoreCase));
+
+                if (!string.IsNullOrEmpty(resourceName))
+                {
+                    using var stream = assembly.GetManifestResourceStream(resourceName);
+                    if (stream != null)
                     {
-                        return parsed;
+                        using var reader = new StreamReader(stream);
+                        string json = reader.ReadToEnd();
+                        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                        return JsonSerializer.Deserialize<AppSettings>(json, options);
                     }
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[AppConfig] Błąd wczytywania appsettings.json: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[AppConfig] Błąd wczytywania zasobu osadzonego: {ex.Message}");
+            }
+            return null;
+        }
+
+        private static AppSettings LoadSettings()
+        {
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string baseConfigPath = Path.Combine(baseDir, "appsettings.json");
+
+            // 1. Sprawdzamy fizyczny plik w katalogu aplikacji (BaseDirectory - obok .exe)
+            var fileSettings = LoadFromFile(baseConfigPath);
+            if (IsValid(fileSettings))
+            {
+                return fileSettings!;
             }
 
-            // Fallback na zmienne środowiskowe, jeśli plik konfiguracyjny nie istnieje
-            var fallback = new AppSettings();
-            fallback.Supabase.Url = Environment.GetEnvironmentVariable("SUPABASE_URL") ?? string.Empty;
-            fallback.Supabase.Key = Environment.GetEnvironmentVariable("SUPABASE_KEY") ?? string.Empty;
-            return fallback;
+            // 2. Jeśli nie ma w BaseDirectory, sprawdzamy bieżący katalog roboczy (CurrentDirectory)
+            string currentDirPath = Path.Combine(Directory.GetCurrentDirectory(), "appsettings.json");
+            if (!string.Equals(baseConfigPath, currentDirPath, StringComparison.OrdinalIgnoreCase))
+            {
+                var currentDirSettings = LoadFromFile(currentDirPath);
+                if (IsValid(currentDirSettings))
+                {
+                    return currentDirSettings!;
+                }
+            }
+
+            // 3. Sprawdzamy zasób osadzony wewnątrz pliku .exe / .dll (EmbeddedResource)
+            var embeddedSettings = LoadFromEmbeddedResource();
+            if (IsValid(embeddedSettings))
+            {
+                // Automatycznie zapisujemy plik konfiguracyjny obok .exe, aby użytkownik widział konfigurację
+                try
+                {
+                    if (!File.Exists(baseConfigPath))
+                    {
+                        var json = JsonSerializer.Serialize(embeddedSettings, new JsonSerializerOptions { WriteIndented = true });
+                        File.WriteAllText(baseConfigPath, json);
+                    }
+                }
+                catch
+                {
+                    // Ignorujemy błędy braku uprawnień zapisu (np. uruchomienie z katalogu tylko do odczytu)
+                }
+
+                try
+                {
+                    if (!string.Equals(baseConfigPath, currentDirPath, StringComparison.OrdinalIgnoreCase) && !File.Exists(currentDirPath))
+                    {
+                        var json = JsonSerializer.Serialize(embeddedSettings, new JsonSerializerOptions { WriteIndented = true });
+                        File.WriteAllText(currentDirPath, json);
+                    }
+                }
+                catch
+                {
+                }
+
+                return embeddedSettings!;
+            }
+
+            // 4. Fallback na zmienne środowiskowe
+            string? envUrl = Environment.GetEnvironmentVariable("SUPABASE_URL");
+            string? envKey = Environment.GetEnvironmentVariable("SUPABASE_KEY");
+            if (!string.IsNullOrWhiteSpace(envUrl) && !string.IsNullOrWhiteSpace(envKey))
+            {
+                return new AppSettings
+                {
+                    Supabase = new SupabaseSettings { Url = envUrl, Key = envKey }
+                };
+            }
+
+            // 5. Zwracamy pusty obiekt (CloudSync zgłosi wtedy czytelny komunikat)
+            return new AppSettings();
+        }
+
+        public static void SaveSettings(AppSettings settings)
+        {
+            try
+            {
+                string baseConfigPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json");
+                var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(baseConfigPath, json);
+                _settings = settings;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[AppConfig] Błąd zapisu appsettings.json: {ex.Message}");
+            }
         }
     }
 }

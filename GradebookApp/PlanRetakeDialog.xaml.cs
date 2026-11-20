@@ -23,6 +23,34 @@ namespace GradebookApp
         public ObservableCollection<Student> AvailableStudents { get; set; } = new ObservableCollection<Student>();
         public ObservableCollection<Student> SelectedStudents { get; set; } = new ObservableCollection<Student>();
 
+        public string SelectedTime
+        {
+            get => TimeComboBox.SelectedItem as string ?? TimeComboBox.Text?.Trim() ?? "";
+            set
+            {
+                if (string.IsNullOrWhiteSpace(value)) return;
+                string normalized = SmartTimeParser.ExtractStartTime(value);
+
+                var items = TimeComboBox.ItemsSource as List<string>;
+                if (items != null)
+                {
+                    var match = items.FirstOrDefault(t => t == value || t == normalized);
+                    if (match != null)
+                    {
+                        TimeComboBox.SelectedItem = match;
+                    }
+                    else
+                    {
+                        items.Add(value);
+                        items = items.OrderBy(t => TimeSpan.TryParse(t, out var ts) ? ts : TimeSpan.Zero).ToList();
+                        TimeComboBox.ItemsSource = null;
+                        TimeComboBox.ItemsSource = items;
+                        TimeComboBox.SelectedItem = value;
+                    }
+                }
+            }
+        }
+
         // Konstruktor obsługujący wszystko (edycję, otwieranie z klasy oraz bezpośrednie zlecenia z oczekujących zgłoszeń)
         public PlanRetakeDialog(int? classId = null, int? editRetakeId = null, int? preselectedWorkId = null, List<int>? preselectedStudentIds = null)
         {
@@ -47,6 +75,8 @@ namespace GradebookApp
             var allClasses = _dbContext.Classes.OrderBy(c => c.Name).ToList();
             ClassComboBox.ItemsSource = allClasses;
 
+            LoadLessonTimes();
+
             if (_editRetakeId.HasValue)
             {
                 var existingRetake = _dbContext.PlannedRetakes
@@ -63,7 +93,7 @@ namespace GradebookApp
 
                     WorkComboBox.SelectedItem = (WorkComboBox.ItemsSource as List<WrittenWork>)?.FirstOrDefault(w => w.Id == existingRetake.WrittenWorkId);
                     DatePicker.SelectedDate = existingRetake.Date;
-                    TimeTextBox.Text = existingRetake.Time;
+                    SelectedTime = existingRetake.Time;
 
                     foreach (var attendee in existingRetake.Attendees)
                     {
@@ -86,6 +116,16 @@ namespace GradebookApp
             SelectedStudentsList.ItemsSource = SelectedStudents;
             
             _isInitializing = false;
+        }
+
+        private void LoadLessonTimes()
+        {
+            var times = SmartTimeParser.GetLessonStartTimes(_dbContext);
+            TimeComboBox.ItemsSource = times;
+            if (times.Any())
+            {
+                TimeComboBox.SelectedIndex = 0;
+            }
         }
 
         private void ClassComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -189,21 +229,15 @@ namespace GradebookApp
                 return;
             }
 
-            string timeStr = TimeTextBox.Text.Trim();
-            if (!string.IsNullOrEmpty(timeStr))
+            string timeStr = SelectedTime;
+            if (string.IsNullOrWhiteSpace(timeStr))
             {
-                timeStr = timeStr.Replace(" ", "");
-                if (timeStr.Length == 3 && timeStr.All(char.IsDigit)) timeStr = "0" + timeStr;
-                if (timeStr.Length == 4 && timeStr.All(char.IsDigit)) timeStr = timeStr.Insert(2, ":");
-                if (timeStr.Length == 4 && timeStr.IndexOf(':') == 1) timeStr = "0" + timeStr;
-
-                if (!Regex.IsMatch(timeStr, @"^([0-1][0-9]|2[0-3]):[0-5][0-9]$"))
-                {
-                    MessageBox.Show("Podaj poprawną godzinę (np. 14:30, 1515, 0930 lub 930).", 
-                                    "Ajajajaj! Nieprawidłowa godzina...", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
+                MessageBox.Show("Wybierz godzinę rozpoczęcia poprawy z listy.", 
+                                "Ajajajaj! Brak godziny...", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
             }
+
+            timeStr = SmartTimeParser.ExtractStartTime(timeStr);
 
             PlannedRetake retake;
 

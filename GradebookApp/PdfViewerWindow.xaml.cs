@@ -10,7 +10,7 @@ namespace GradebookApp
 {
     public partial class PdfViewerWindow : Window
     {
-        private readonly string _filePath;
+        private string _filePath;
         private readonly string _displayName;
         private bool _isFullscreen = false;
         private WindowState _previousWindowState = WindowState.Normal;
@@ -34,8 +34,17 @@ namespace GradebookApp
             {
                 if (!File.Exists(_filePath))
                 {
-                    ShowError("Plik nie został znaleziony na dysku komputera.");
-                    return;
+                    string? resolved = GradebookApp.Services.PdfFileResolver.ResolvePdfPath(_filePath, _displayName);
+                    if (!string.IsNullOrEmpty(resolved) && File.Exists(resolved))
+                    {
+                        _filePath = resolved;
+                        FilePathTextBlock.Text = _filePath;
+                    }
+                    else
+                    {
+                        ShowError("Plik nie został znaleziony na dysku komputera.");
+                        return;
+                    }
                 }
 
                 LoadingProgressBar.Visibility = Visibility.Visible;

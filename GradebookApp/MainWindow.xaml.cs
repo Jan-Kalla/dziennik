@@ -29,6 +29,12 @@ namespace GradebookApp
             ClassesDropdownList.ItemsSource = ClassesList; // TO JEST ZMIENIONE
             
             SharedClassControl.StudentDetailsRequested += SharedClassControl_StudentDetailsRequested;
+            Loaded += MainWindow_Loaded;
+        }
+
+        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            RefreshGlobalCalendar();
         }
 
         // =====================================================================
@@ -203,10 +209,18 @@ namespace GradebookApp
                 
                 _previousTabIndex = tabControl.SelectedIndex;
 
-                // Bezpieczne sprawdzenie nazwy zakładki dla Kalendarza
-                if (selectedTab.Header != null && selectedTab.Header.ToString() == "Kalendarz")
+                // Bezpieczne sprawdzenie nazwy zakładki dla Kalendarza i Lekcji
+                if (selectedTab.Header != null || selectedTab == TerminarzTab)
                 {
-                    RefreshGlobalCalendar();
+                    string headerStr = selectedTab.Header?.ToString() ?? "";
+                    if (selectedTab == TerminarzTab || headerStr == "Kalendarz" || headerStr == "Terminarz")
+                    {
+                        RefreshGlobalCalendar();
+                    }
+                    else if (headerStr == "Lekcja")
+                    {
+                        MainLessonTabControl?.RefreshDailyView();
+                    }
                 }
             }
         }
@@ -260,7 +274,17 @@ namespace GradebookApp
 
         private void RefreshGlobalCalendar_Click(object sender, RoutedEventArgs e) => RefreshGlobalCalendar();
 
-        private void RefreshGlobalCalendar()
+        private void GlobalCalendarDataGrid_Loaded(object sender, RoutedEventArgs e) => RefreshGlobalCalendar();
+
+        private void GlobalCalendarDataGrid_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (e.NewValue is bool isVis && isVis)
+            {
+                RefreshGlobalCalendar();
+            }
+        }
+
+        public void RefreshGlobalCalendar()
         {
             // Zabezpieczenie: Przerywamy, jeśli kluczowe kontrolki nie zostały jeszcze wyrenderowane
             if (_dataService == null || ShowUpcomingGlobalOnlyCheckBox == null || ShowAllGlobalWorksCheckBox == null || GlobalCalendarDataGrid == null) 
@@ -268,7 +292,9 @@ namespace GradebookApp
 
             bool upcomingOnly = ShowUpcomingGlobalOnlyCheckBox.IsChecked == true;
             bool includeAll = ShowAllGlobalWorksCheckBox.IsChecked == true;
-            GlobalCalendarDataGrid.ItemsSource = _dataService.GetGlobalCalendarEvents(upcomingOnly, includeAll);
+            var items = _dataService.GetGlobalCalendarEvents(upcomingOnly, includeAll);
+            GlobalCalendarDataGrid.ItemsSource = null;
+            GlobalCalendarDataGrid.ItemsSource = items;
         }
 
         private void ViewGlobalRetakeDetails_Click(object sender, RoutedEventArgs e)
@@ -289,7 +315,11 @@ namespace GradebookApp
             if (vm != null)
             {
                 if (!vm.IsRetake) { MessageBox.Show("Możesz edytować tylko poprawy.", "Zablokowane", MessageBoxButton.OK, MessageBoxImage.Information); return; }
-                if (new PlanRetakeDialog(null, vm.EventId) { Owner = this }.ShowDialog() == true) RefreshGlobalCalendar();
+                if (new PlanRetakeDialog(null, vm.EventId) { Owner = this }.ShowDialog() == true)
+                {
+                    RefreshGlobalCalendar();
+                    MainLessonTabControl?.RefreshDailyView();
+                }
             }
         }
 
@@ -301,14 +331,20 @@ namespace GradebookApp
                 if (!vm.IsRetake) { MessageBox.Show("Tylko poprawy mogą być stąd usuwane.", "Zablokowane", MessageBoxButton.OK, MessageBoxImage.Information); return; }
                 if (MessageBox.Show($"Usunąć poprawę '{vm.Title}'?", "Potwierdzenie", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
                 {
-                    _dataService.DeletePlannedRetake(vm.EventId); RefreshGlobalCalendar();
+                    _dataService.DeletePlannedRetake(vm.EventId); 
+                    RefreshGlobalCalendar();
+                    MainLessonTabControl?.RefreshDailyView();
                 }
             }
         }
 
         private void PlanGlobalRetake_Click(object sender, RoutedEventArgs e)
         {
-            if (new PlanRetakeDialog() { Owner = this }.ShowDialog() == true) RefreshGlobalCalendar();
+            if (new PlanRetakeDialog() { Owner = this }.ShowDialog() == true)
+            {
+                RefreshGlobalCalendar();
+                MainLessonTabControl?.RefreshDailyView();
+            }
         }
         
         private void ViewRetakeRequests_Click(object sender, RoutedEventArgs e)

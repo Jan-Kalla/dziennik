@@ -14,6 +14,10 @@
         <TextBlock Text="Analiza Skuteczności Popraw" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,25"/>
         
         <Grid Grid.Row="1" Margin="0,0,0,20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
@@ -21,85 +25,201 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             
-            <TextBlock Text="Klasa:" VerticalAlignment="Center" FontSize="16" Margin="0,0,10,0"/>
+            <TextBlock x:Name="ClassLabelText" Text="Klasa:" VerticalAlignment="Center" FontSize="16" Margin="0,0,10,0"/>
             <ComboBox x:Name="ClassComboBox" Grid.Column="1" Height="30" FontSize="16" SelectionChanged="ClassComboBox_SelectionChanged" DisplayMemberPath="Name" SelectedValuePath="Id"/>
             
             <TextBlock Text="Praca pisemna:" Grid.Column="2" VerticalAlignment="Center" FontSize="16" Margin="20,0,10,0"/>
             <ComboBox x:Name="WorkComboBox" Grid.Column="3" Height="30" FontSize="16" SelectionChanged="WorkComboBox_SelectionChanged" DisplayMemberPath="Title" SelectedValuePath="Id"/>
+
+            <CheckBox x:Name="CompareAllClassesCheckBox" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Content="Wszystkie klasy zestawione ze sobą" FontSize="14" Foreground="#4DB6AC" FontWeight="SemiBold" Margin="0,10,0,0" Checked="CompareAllClassesCheckBox_Changed" Unchecked="CompareAllClassesCheckBox_Changed"/>
         </Grid>
         
         <Border Grid.Row="2" Background="#2D2D30" CornerRadius="5" Padding="20">
-            <StackPanel>
-                <Grid Margin="0,0,0,15">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="160"/>
-                    </Grid.ColumnDefinitions>
-                    
-                    <TextBlock x:Name="TotalRetakesText" Text="Liczba poprawionych prac: -" FontSize="18" FontWeight="Bold" Margin="0,0,0,0" Foreground="#4CAF50" VerticalAlignment="Center"/>
-                    
-                    <TextBlock Grid.Column="2" Text="Widok tabeli:" FontSize="14" Foreground="#AAAAAA" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <ComboBox x:Name="DisplayModeComboBox" Grid.Column="3" Height="28" FontSize="14" SelectedIndex="2" SelectionChanged="DisplayModeComboBox_SelectionChanged">
-                        <ComboBoxItem Content="Tylko liczba"/>
-                        <ComboBoxItem Content="Tylko procent"/>
-                        <ComboBoxItem Content="Liczba i procent"/>
-                    </ComboBox>
-                </Grid>
-                
-                <!-- NOWOCZESNA TABELA ROZDZIELCZA -->
-                <Border Margin="0,15,0,25" BorderBrush="#434346" BorderThickness="1" CornerRadius="6" SnapsToDevicePixels="True">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <Grid Margin="0,0,0,15">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="220"/>
+                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="160"/>
                         </Grid.ColumnDefinitions>
-
-                        <!-- NAGŁÓWKI (Tło: #252526 - Lekko odcinające się od tła okna) -->
-                        <Border Grid.Row="0" Grid.Column="0" Background="#252526" BorderBrush="#434346" BorderThickness="0,0,1,1" CornerRadius="5,0,0,0"/>
-                        <Border Grid.Row="0" Grid.Column="1" Background="#252526" BorderBrush="#434346" BorderThickness="0,0,1,1" Padding="15,12"><TextBlock Text="Udane" FontSize="15" FontWeight="Bold" Foreground="#E0E0E0" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-                        <Border Grid.Row="0" Grid.Column="2" Background="#252526" BorderBrush="#434346" BorderThickness="0,0,1,1" Padding="15,12"><TextBlock Text="Nieudane" FontSize="15" FontWeight="Bold" Foreground="#E0E0E0" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-                        <Border Grid.Row="0" Grid.Column="3" Background="#252526" BorderBrush="#434346" BorderThickness="0,0,0,1" Padding="15,12" CornerRadius="0,5,0,0"><TextBlock Text="Łącznie" FontSize="15" FontWeight="Bold" Foreground="#E0E0E0" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
                         
-                        <!-- WIERSZ 1: Poprawy z jedynek (Tło: #1E1E1E - Najciemniejsze, "wklęsłe") -->
-                        <Border Grid.Row="1" Grid.Column="0" Background="#1E1E1E" BorderBrush="#434346" BorderThickness="0,0,1,1" Padding="15,12"><TextBlock Text="Z oceny niedostatecznej (1)" FontSize="15" Foreground="#CCCCCC" HorizontalAlignment="Right" VerticalAlignment="Center"/></Border>
-                        <Border Grid.Row="1" Grid.Column="1" Background="#1E1E1E" BorderBrush="#434346" BorderThickness="0,0,1,1" Padding="15,12"><TextBlock x:Name="SuccessFrom1Text" Text="- (-%)" FontSize="16" Foreground="#4CAF50" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-                        <Border Grid.Row="1" Grid.Column="2" Background="#1E1E1E" BorderBrush="#434346" BorderThickness="0,0,1,1" Padding="15,12"><TextBlock x:Name="FailFrom1Text" Text="- (-%)" FontSize="16" Foreground="#E53935" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-                        <Border Grid.Row="1" Grid.Column="3" Background="#1E1E1E" BorderBrush="#434346" BorderThickness="0,0,0,1" Padding="15,12"><TextBlock x:Name="TotalFrom1Text" Text="-" FontSize="16" Foreground="#E0E0E0" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                        <TextBlock x:Name="TotalRetakesText" Text="Liczba poprawionych prac: -" FontSize="18" FontWeight="Bold" Margin="0,0,0,0" Foreground="#4CAF50" VerticalAlignment="Center"/>
                         
-                        <!-- WIERSZ 2: Poprawy z 2+ -->
-                        <Border Grid.Row="2" Grid.Column="0" Background="#1E1E1E" BorderBrush="#434346" BorderThickness="0,0,1,1" Padding="15,12"><TextBlock Text="Z oceny dopuszczającej i wyższej (2+)" FontSize="15" Foreground="#CCCCCC" HorizontalAlignment="Right" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Right"/></Border>
-                        <Border Grid.Row="2" Grid.Column="1" Background="#1E1E1E" BorderBrush="#434346" BorderThickness="0,0,1,1" Padding="15,12"><TextBlock x:Name="SuccessFrom2Text" Text="- (-%)" FontSize="16" Foreground="#4CAF50" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-                        <Border Grid.Row="2" Grid.Column="2" Background="#1E1E1E" BorderBrush="#434346" BorderThickness="0,0,1,1" Padding="15,12"><TextBlock x:Name="FailFrom2Text" Text="- (-%)" FontSize="16" Foreground="#E53935" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-                        <Border Grid.Row="2" Grid.Column="3" Background="#1E1E1E" BorderBrush="#434346" BorderThickness="0,0,0,1" Padding="15,12"><TextBlock x:Name="TotalFrom2Text" Text="-" FontSize="16" Foreground="#E0E0E0" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-
-                        <!-- WIERSZ 3: PODSUMOWANIE (Tło: #252526 - Wizualna klamra) -->
-                        <Border Grid.Row="3" Grid.Column="0" Background="#252526" BorderBrush="#434346" BorderThickness="0,0,1,0" Padding="15,12" CornerRadius="0,0,0,5"><TextBlock Text="Łącznie" FontSize="15" FontWeight="Bold" Foreground="#E0E0E0" HorizontalAlignment="Right" VerticalAlignment="Center"/></Border>
-                        <Border Grid.Row="3" Grid.Column="1" Background="#252526" BorderBrush="#434346" BorderThickness="0,0,1,0" Padding="15,12"><TextBlock x:Name="TotalSuccessText" Text="- (-%)" FontSize="16" Foreground="#4CAF50" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-                        <Border Grid.Row="3" Grid.Column="2" Background="#252526" BorderBrush="#434346" BorderThickness="0,0,1,0" Padding="15,12"><TextBlock x:Name="TotalFailText" Text="- (-%)" FontSize="16" Foreground="#E53935" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-                        <Border Grid.Row="3" Grid.Column="3" Background="#252526" Padding="15,12" CornerRadius="0,0,5,0"><TextBlock x:Name="GrandTotalText" Text="-" FontSize="16" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                        <TextBlock Grid.Column="2" Text="Widok tabeli:" FontSize="14" Foreground="#AAAAAA" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <ComboBox x:Name="DisplayModeComboBox" Grid.Column="3" Height="28" FontSize="14" SelectedIndex="2" SelectionChanged="DisplayModeComboBox_SelectionChanged">
+                            <ComboBoxItem Content="Tylko liczba"/>
+                            <ComboBoxItem Content="Tylko procent"/>
+                            <ComboBoxItem Content="Liczba i procent"/>
+                        </ComboBox>
                     </Grid>
-                </Border>
-                
-                <Separator Background="#444444" Margin="0,0,0,15"/>
-                
-                <TextBlock Text="Faktyczne zmiany wyników:" FontSize="16" FontWeight="Bold" Margin="0,0,0,5"/>
-                <CheckBox x:Name="IncludeFailedCheckBox" Content="Uwzględniaj zera (wliczaj nieudane poprawy do średniej przyrostu)" Foreground="#AAAAAA" Margin="0,0,0,5" Checked="OptionsCheckBox_Changed" Unchecked="OptionsCheckBox_Changed"/>
-                <CheckBox x:Name="IncludeStillFailedCheckBox" Content="Uwzględniaj poprawy częściowo udane (wliczaj poprawy z 1 na 1 do średniej przyrostu)" Foreground="#AAAAAA" Margin="0,0,0,10" Checked="OptionsCheckBox_Changed" Unchecked="OptionsCheckBox_Changed"/>
-                
-                <TextBlock x:Name="AvgGainText" Text="Średni całkowity przyrost: - p.p." FontSize="18" Foreground="#007ACC" FontWeight="Bold" Margin="0,0,0,5"/>
-                <TextBlock x:Name="AvgGain1Text" Text="• w grupie ocen niedostatecznych (1): - p.p." FontSize="14" Foreground="#888888" Margin="10,0,0,2"/>
-                <TextBlock x:Name="AvgGain2Text" Text="• w grupie ocen pozytywnych (2+): - p.p." FontSize="14" Foreground="#888888" Margin="10,0,0,0"/>
-            </StackPanel>
+                    
+                    <!-- TABELA ROZDZIELCZA DLA POJEDYNCZEJ KLASY -->
+                    <Border x:Name="SingleClassBorder" Margin="0,15,0,20" BorderBrush="#434346" BorderThickness="1" CornerRadius="6" SnapsToDevicePixels="True">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="220"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- NAGŁÓWKI (Tło: #252526 - Lekko odcinające się od tła okna) -->
+                            <Border Grid.Row="0" Grid.Column="0" Background="#252526" BorderBrush="#434346" BorderThickness="0,0,1,1" CornerRadius="5,0,0,0"/>
+                            <Border Grid.Row="0" Grid.Column="1" Background="#252526" BorderBrush="#434346" BorderThickness="0,0,1,1" Padding="15,12"><TextBlock Text="Udane" FontSize="15" FontWeight="Bold" Foreground="#E0E0E0" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                            <Border Grid.Row="0" Grid.Column="2" Background="#252526" BorderBrush="#434346" BorderThickness="0,0,1,1" Padding="15,12"><TextBlock Text="Nieudane" FontSize="15" FontWeight="Bold" Foreground="#E0E0E0" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                            <Border Grid.Row="0" Grid.Column="3" Background="#252526" BorderBrush="#434346" BorderThickness="0,0,0,1" Padding="15,12" CornerRadius="0,5,0,0"><TextBlock Text="Łącznie" FontSize="15" FontWeight="Bold" Foreground="#E0E0E0" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                            
+                            <!-- WIERSZ 1: Poprawy z jedynek (Tło: #1E1E1E - Najciemniejsze, "wklęsłe") -->
+                            <Border Grid.Row="1" Grid.Column="0" Background="#1E1E1E" BorderBrush="#434346" BorderThickness="0,0,1,1" Padding="15,12"><TextBlock Text="Z oceny niedostatecznej (1)" FontSize="15" Foreground="#CCCCCC" HorizontalAlignment="Right" VerticalAlignment="Center"/></Border>
+                            <Border Grid.Row="1" Grid.Column="1" Background="#1E1E1E" BorderBrush="#434346" BorderThickness="0,0,1,1" Padding="15,12"><TextBlock x:Name="SuccessFrom1Text" Text="- (-%)" FontSize="16" Foreground="#4CAF50" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                            <Border Grid.Row="1" Grid.Column="2" Background="#1E1E1E" BorderBrush="#434346" BorderThickness="0,0,1,1" Padding="15,12"><TextBlock x:Name="FailFrom1Text" Text="- (-%)" FontSize="16" Foreground="#E53935" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                            <Border Grid.Row="1" Grid.Column="3" Background="#1E1E1E" BorderBrush="#434346" BorderThickness="0,0,0,1" Padding="15,12"><TextBlock x:Name="TotalFrom1Text" Text="-" FontSize="16" Foreground="#E0E0E0" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                            
+                            <!-- WIERSZ 2: Poprawy z 2+ -->
+                            <Border Grid.Row="2" Grid.Column="0" Background="#1E1E1E" BorderBrush="#434346" BorderThickness="0,0,1,1" Padding="15,12"><TextBlock Text="Z oceny dopuszczającej i wyższej (2+)" FontSize="15" Foreground="#CCCCCC" HorizontalAlignment="Right" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Right"/></Border>
+                            <Border Grid.Row="2" Grid.Column="1" Background="#1E1E1E" BorderBrush="#434346" BorderThickness="0,0,1,1" Padding="15,12"><TextBlock x:Name="SuccessFrom2Text" Text="- (-%)" FontSize="16" Foreground="#4CAF50" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                            <Border Grid.Row="2" Grid.Column="2" Background="#1E1E1E" BorderBrush="#434346" BorderThickness="0,0,1,1" Padding="15,12"><TextBlock x:Name="FailFrom2Text" Text="- (-%)" FontSize="16" Foreground="#E53935" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                            <Border Grid.Row="2" Grid.Column="3" Background="#1E1E1E" BorderBrush="#434346" BorderThickness="0,0,0,1" Padding="15,12"><TextBlock x:Name="TotalFrom2Text" Text="-" FontSize="16" Foreground="#E0E0E0" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+
+                            <!-- WIERSZ 3: PODSUMOWANIE (Tło: #252526 - Wizualna klamra) -->
+                            <Border Grid.Row="3" Grid.Column="0" Background="#252526" BorderBrush="#434346" BorderThickness="0,0,1,0" Padding="15,12" CornerRadius="0,0,0,5"><TextBlock Text="Łącznie" FontSize="15" FontWeight="Bold" Foreground="#E0E0E0" HorizontalAlignment="Right" VerticalAlignment="Center"/></Border>
+                            <Border Grid.Row="3" Grid.Column="1" Background="#252526" BorderBrush="#434346" BorderThickness="0,0,1,0" Padding="15,12"><TextBlock x:Name="TotalSuccessText" Text="- (-%)" FontSize="16" Foreground="#4CAF50" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                            <Border Grid.Row="3" Grid.Column="2" Background="#252526" BorderBrush="#434346" BorderThickness="0,0,1,0" Padding="15,12"><TextBlock x:Name="TotalFailText" Text="- (-%)" FontSize="16" Foreground="#E53935" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                            <Border Grid.Row="3" Grid.Column="3" Background="#252526" Padding="15,12" CornerRadius="0,0,5,0"><TextBlock x:Name="GrandTotalText" Text="-" FontSize="16" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                        </Grid>
+                    </Border>
+
+                    <!-- TABELA ROZDZIELCZA DLA WSZYSTKICH KLAS -->
+                    <Border x:Name="AllClassesBorder" Visibility="Collapsed" Margin="0,15,0,20" BorderBrush="#434346" BorderThickness="1" CornerRadius="6" SnapsToDevicePixels="True">
+                        <DataGrid x:Name="AllClassesDataGrid" FontSize="15" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" IsReadOnly="True" HeadersVisibility="Column" Background="#1E1E1E" RowBackground="#1E1E1E" AlternatingRowBackground="#252526" Foreground="#E0E0E0" BorderThickness="0" GridLinesVisibility="All" HorizontalGridLinesBrush="#434346" VerticalGridLinesBrush="#434346" SelectionMode="Single" SelectionUnit="FullRow">
+                            <DataGrid.ColumnHeaderStyle>
+                                <Style TargetType="DataGridColumnHeader">
+                                    <Setter Property="Background" Value="#252526"/>
+                                    <Setter Property="Foreground" Value="#E0E0E0"/>
+                                    <Setter Property="Padding" Value="10,8"/>
+                                    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                    <Setter Property="BorderBrush" Value="#434346"/>
+                                    <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                                </Style>
+                            </DataGrid.ColumnHeaderStyle>
+                            <DataGrid.RowStyle>
+                                <Style TargetType="DataGridRow">
+                                    <Setter Property="Background" Value="#1E1E1E"/>
+                                    <Setter Property="Foreground" Value="#E0E0E0"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsSummary}" Value="True">
+                                            <Setter Property="Background" Value="#252526"/>
+                                            <Setter Property="FontWeight" Value="Bold"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGrid.RowStyle>
+                            <DataGrid.Columns>
+                                <!-- Kolumna: Klasa -->
+                                <DataGridTextColumn Header="Klasa" Binding="{Binding ClassName}" Width="150">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="VerticalAlignment" Value="Center"/>
+                                            <Setter Property="HorizontalAlignment" Value="Left"/>
+                                            <Setter Property="Margin" Value="15,8"/>
+                                            <Setter Property="FontWeight" Value="Bold"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+
+                                <!-- Poprawa z 1: Udane -->
+                                <DataGridTemplateColumn Width="*">
+                                    <DataGridTemplateColumn.Header>
+                                        <TextBlock TextAlignment="Center" LineHeight="18">
+                                            <Run Text="Poprawa z 1" FontWeight="Bold"/><LineBreak/><Run Text="Udane" Foreground="#4CAF50" FontWeight="SemiBold"/>
+                                        </TextBlock>
+                                    </DataGridTemplateColumn.Header>
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding SuccessFrom1}" Foreground="#4CAF50" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="5,8"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+
+                                <!-- Poprawa z 1: Nieudane -->
+                                <DataGridTemplateColumn Width="*">
+                                    <DataGridTemplateColumn.Header>
+                                        <TextBlock TextAlignment="Center" LineHeight="18">
+                                            <Run Text="Poprawa z 1" FontWeight="Bold"/><LineBreak/><Run Text="Nieudane" Foreground="#E53935" FontWeight="SemiBold"/>
+                                        </TextBlock>
+                                    </DataGridTemplateColumn.Header>
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding FailFrom1}" Foreground="#E53935" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="5,8"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+
+                                <!-- Poprawa z 2+: Udane -->
+                                <DataGridTemplateColumn Width="*">
+                                    <DataGridTemplateColumn.Header>
+                                        <TextBlock TextAlignment="Center" LineHeight="18">
+                                            <Run Text="Poprawa z 2+" FontWeight="Bold"/><LineBreak/><Run Text="Udane" Foreground="#4CAF50" FontWeight="SemiBold"/>
+                                        </TextBlock>
+                                    </DataGridTemplateColumn.Header>
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding SuccessFrom2}" Foreground="#4CAF50" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="5,8"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+
+                                <!-- Poprawa z 2+: Nieudane -->
+                                <DataGridTemplateColumn Width="*">
+                                    <DataGridTemplateColumn.Header>
+                                        <TextBlock TextAlignment="Center" LineHeight="18">
+                                            <Run Text="Poprawa z 2+" FontWeight="Bold"/><LineBreak/><Run Text="Nieudane" Foreground="#E53935" FontWeight="SemiBold"/>
+                                        </TextBlock>
+                                    </DataGridTemplateColumn.Header>
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding FailFrom2}" Foreground="#E53935" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="5,8"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+
+                                <!-- Łącznie -->
+                                <DataGridTemplateColumn Width="*">
+                                    <DataGridTemplateColumn.Header>
+                                        <TextBlock Text="Łącznie" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </DataGridTemplateColumn.Header>
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Total}" Foreground="#FFFFFF" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="5,8"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
+                    
+                    <!-- OSOBNA INFORMACJA O POPRAWACH Z 1 NA 1 (< 40%) -->
+                    <TextBlock x:Name="StillFailedFrom1Text" Text="Poprawy z oceny 1 z wyższym wynikiem, lecz nadal na ocenę 1 (&lt; 40%): -" FontSize="15" Foreground="#FFB74D" FontWeight="SemiBold" Margin="0,0,0,15"/>
+                    
+                    <Separator Background="#444444" Margin="0,0,0,15"/>
+                    
+                    <TextBlock Text="Faktyczne zmiany wyników:" FontSize="16" FontWeight="Bold" Margin="0,0,0,5"/>
+                    <CheckBox x:Name="IncludeFailedCheckBox" Content="Uwzględniaj zera (wliczaj nieudane poprawy do średniej przyrostu)" Foreground="#AAAAAA" Margin="0,0,0,5" Checked="OptionsCheckBox_Changed" Unchecked="OptionsCheckBox_Changed"/>
+                    <CheckBox x:Name="IncludeStillFailedCheckBox" Content="Uwzględniaj poprawy częściowo udane (wliczaj poprawy z 1 na 1 do średniej przyrostu)" Foreground="#AAAAAA" Margin="0,0,0,10" Checked="OptionsCheckBox_Changed" Unchecked="OptionsCheckBox_Changed"/>
+                    
+                    <TextBlock x:Name="AvgGainText" Text="Średni całkowity przyrost: - p.p." FontSize="18" Foreground="#007ACC" FontWeight="Bold" Margin="0,0,0,5"/>
+                    <TextBlock x:Name="AvgGain1Text" Text="• w grupie ocen niedostatecznych (1): - p.p." FontSize="14" Foreground="#888888" Margin="10,0,0,2"/>
+                    <TextBlock x:Name="AvgGain2Text" Text="• w grupie ocen pozytywnych (2+): - p.p." FontSize="14" Foreground="#888888" Margin="10,0,0,0"/>
+                </StackPanel>
+            </ScrollViewer>
         </Border>
     </Grid>
 </Window>
