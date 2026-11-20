@@ -171,17 +171,67 @@ namespace GradebookApp
                 retakeWrappers.Add(new DailyRowWrapper(retake, lessonNum));
             }
 
-            var allCombined = new List<DailyRowWrapper>();
-            allCombined.AddRange(regularDailyRows);
-            allCombined.AddRange(retakeWrappers);
+            // Zachowujemy kolejność z planu tygodniowego (_scheduleRows), aby dyżury nie spadały na dół!
+            var finalDailyRows = new List<DailyRowWrapper>(regularDailyRows);
 
-            var sortedRows = allCombined.OrderBy(r => 
+            // Dołączamy zaplanowane poprawki w odpowiednich miejscach
+            var sortedRetakes = retakeWrappers
+                .OrderBy(rw => TimeSpan.TryParse(SmartTimeParser.ExtractStartTime(rw.TimeSlot), out var ts) ? ts : TimeSpan.MaxValue)
+                .ToList();
+
+            foreach (var retakeWrapper in sortedRetakes)
             {
-                string start = SmartTimeParser.ExtractStartTime(r.TimeSlot);
-                return TimeSpan.TryParse(start, out var ts) ? ts : TimeSpan.MaxValue;
-            }).ThenBy(r => r.IsRetake ? 1 : 0).ToList();
+                string retakeStart = SmartTimeParser.ExtractStartTime(retakeWrapper.TimeSlot);
+                TimeSpan.TryParse(retakeStart, out var retakeTime);
 
-            foreach (var r in sortedRows)
+                // 1. Sprawdzamy, czy wiersz poprawki odpowiada konkretnej lekcji z planu tygodniowego
+                var matchingScheduleRow = _scheduleRows.FirstOrDefault(r => 
+                    !string.IsNullOrWhiteSpace(r.TimeSlot) && 
+                    (SmartTimeParser.ExtractStartTime(r.TimeSlot) == retakeStart || r.TimeSlot.Contains(retakeWrapper.TimeSlot)));
+
+                if (matchingScheduleRow != null)
+                {
+                    // Szukamy tego wiersza w widoku dziennym
+                    int targetIdx = finalDailyRows.FindLastIndex(w => w.Row == matchingScheduleRow || (w.IsRetake && w.TimeSlot == retakeWrapper.TimeSlot));
+                    if (targetIdx >= 0)
+                    {
+                        finalDailyRows.Insert(targetIdx + 1, retakeWrapper);
+                        continue;
+                    }
+                    else
+                    {
+                        // Lekcja nie jest widoczna dzisiaj, wstawiamy wg pozycji w szablonie tygodniowym
+                        int schedIdx = _scheduleRows.IndexOf(matchingScheduleRow);
+                        int insertIdx = finalDailyRows.FindIndex(w => w.Row != null && _scheduleRows.IndexOf(w.Row) > schedIdx);
+                        if (insertIdx >= 0)
+                        {
+                            finalDailyRows.Insert(insertIdx, retakeWrapper);
+                            continue;
+                        }
+                    }
+                }
+
+                // 2. Jeśli nie dopasowano do wiersza planu, wstawiamy chronologicznie wg czasu
+                if (retakeTime > TimeSpan.Zero)
+                {
+                    int timeInsertIdx = finalDailyRows.FindIndex(w =>
+                    {
+                        string s = SmartTimeParser.ExtractStartTime(w.TimeSlot);
+                        return TimeSpan.TryParse(s, out var slotTs) && slotTs > retakeTime;
+                    });
+
+                    if (timeInsertIdx >= 0)
+                    {
+                        finalDailyRows.Insert(timeInsertIdx, retakeWrapper);
+                        continue;
+                    }
+                }
+
+                // 3. W ostateczności na sam koniec
+                finalDailyRows.Add(retakeWrapper);
+            }
+
+            foreach (var r in finalDailyRows)
             {
                 _dailyRows.Add(r);
             }

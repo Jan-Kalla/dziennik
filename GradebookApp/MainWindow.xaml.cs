@@ -377,6 +377,12 @@ namespace GradebookApp
             }
         }
 
+        private void OpenStudentActivationCodes_Click(object sender, RoutedEventArgs e)
+        {
+            var win = new StudentActivationCodesWindow { Owner = this };
+            win.ShowDialog();
+        }
+
         // --- SYNCHRONIZACJA Z CHMURĄ ---
         private async void SyncCloud_Click(object sender, RoutedEventArgs e)
         {

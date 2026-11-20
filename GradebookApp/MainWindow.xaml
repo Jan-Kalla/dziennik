@@ -186,6 +186,7 @@
                             <Button Content="Zaplanuj poprawę" Width="150" Height="35" Margin="0,0,20,0" Click="PlanGlobalRetake_Click"/>
                             <Button Background="#2E4A2E" BorderThickness="0" Click="ViewRetakeRequests_Click" Content="Wyświetl chętnych" Cursor="Hand" Foreground="White" Height="35" Margin="0,0,20,0" ToolTip="Pokazuje listę uczniów ze wszystkich klas zgłoszonych do poprawek" Width="150"/>
                             <Button Background="#00838F" BorderThickness="0" Click="SyncRetakes_Click" Content="Pobierz zapisy na poprawy (z chmury)" Cursor="Hand" Foreground="White" Height="35" Padding="20,0" ToolTip="Pobiera z chmury uczniów, którzy zapisali się na poprawę przez kalkulator"/>
+                            <Button Background="#00695C" BorderThickness="0" Click="OpenStudentActivationCodes_Click" Content="📱 Kody MatApp" Cursor="Hand" Foreground="White" Height="35" Margin="20,0,0,0" Padding="15,0" ToolTip="Generowanie i zarządzanie kodami aktywacyjnymi uczniów w aplikacji MatApp"/>
                         </StackPanel>
                     </Grid>
                 </TabItem>
@@ -203,6 +204,7 @@
                             <MenuItem Header="Statystyki popraw" Click="OpenStatisticsWindow_Click"/>
                             <MenuItem Header="Menadżer szablonów" Click="OpenTemplateManager_Click"/>
                             <Separator/>
+                            <MenuItem Header="📱 Kody aktywacyjne MatApp" Click="OpenStudentActivationCodes_Click" FontWeight="Bold" Foreground="#00B0FF"/>
                             <MenuItem Header="☁ Synchronizuj z chmurą" Click="SyncCloud_Click"/>
                         </ContextMenu>
                     </TabItem.ContextMenu>
