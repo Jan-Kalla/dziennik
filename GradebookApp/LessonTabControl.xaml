@@ -112,6 +112,12 @@
             <MenuItem Header="Usuń ten wiersz" Click="DeleteRow_Click" Foreground="#E53935" FontWeight="Bold"/>
         </ContextMenu>
 
+        <ContextMenu x:Key="RetakeItemMenu">
+            <MenuItem Header="Szczegóły poprawy" Click="ViewRetakeItemDetails_Click" FontWeight="Bold"/>
+            <MenuItem Header="Edytuj poprawę" Click="EditRetakeItem_Click"/>
+            <MenuItem Header="Usuń ten wiersz" Click="DeleteRetakeItem_Click" Foreground="#E53935" FontWeight="Bold"/>
+        </ContextMenu>
+
         <Style x:Key="RowStyleWithMenu" TargetType="DataGridRow">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="ClipToBounds" Value="False"/>
@@ -125,6 +131,26 @@
                     <Setter Property="Panel.ZIndex" Value="9999"/>
                 </Trigger>
             </Style.Triggers>
+        </Style>
+
+        <Style x:Key="DailyRowStyleWithMenu" TargetType="DataGridRow">
+            <Setter Property="Background" Value="{Binding RowBackgroundBrush}"/>
+            <Setter Property="ClipToBounds" Value="False"/>
+            <Setter Property="ContextMenu" Value="{StaticResource RowMenu}"/>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="BorderBrush" Value="Transparent"/>
+                </Trigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#333337"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style TargetType="MenuItem">
+            <EventSetter Event="PreviewMouseRightButtonDown" Handler="MenuItem_BlockRightClick"/>
+            <EventSetter Event="PreviewMouseRightButtonUp" Handler="MenuItem_BlockRightClick"/>
         </Style>
     </UserControl.Resources>
 
@@ -150,6 +176,12 @@
             <StackPanel x:Name="WeeklyHeaderPanel" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
                 <TextBlock x:Name="WeeklyTitleText" Text="Rozkład tygodniowy" FontSize="20" FontWeight="Bold" Foreground="#E0E0E0" VerticalAlignment="Center" HorizontalAlignment="Left"/>
                 <CheckBox x:Name="HideDutiesCheckBox" Content="Ukryj dyżury" Margin="25,0,0,0" VerticalAlignment="Center" Foreground="#E0E0E0" FontSize="14" IsChecked="False" Click="HideDutiesCheckBox_Click" Focusable="False"/>
+                <Border Margin="30,0,0,0" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Padding="8,2">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Sala na poprawy:" Foreground="#AAAAAA" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox x:Name="DefaultRoomTextBox" Width="100" Height="26" VerticalContentAlignment="Center" Background="#1E1E1E" Foreground="#E0E0E0" BorderBrush="#555555" Padding="4,1" FontSize="14" LostFocus="DefaultRoomTextBox_LostFocus" ToolTip="Sala lub gabinet na poprawy (np. Sala 102). Będzie widoczna dla uczniów w aplikacji MatApp."/>
+                    </StackPanel>
+                </Border>
             </StackPanel>
             
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
@@ -159,7 +191,7 @@
         </Grid>
 
         <!-- WIDOK DZIENNY -->
-        <DataGrid x:Name="DailyScheduleGrid" Grid.Row="1" FontSize="16" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" EnableRowVirtualization="False" HeadersVisibility="Column" Background="#1E1E1E" RowBackground="#252526" AlternatingRowBackground="#2D2D30" Foreground="#E0E0E0" BorderBrush="#3E3E42" GridLinesVisibility="All" RowStyle="{StaticResource RowStyleWithMenu}" PreviewKeyDown="TasksDataGrid_PreviewKeyDown">
+        <DataGrid x:Name="DailyScheduleGrid" Grid.Row="1" FontSize="16" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" EnableRowVirtualization="False" HeadersVisibility="Column" Background="#1E1E1E" Foreground="#E0E0E0" BorderBrush="#3E3E42" GridLinesVisibility="All" RowStyle="{StaticResource DailyRowStyleWithMenu}" PreviewKeyDown="TasksDataGrid_PreviewKeyDown">
             <DataGrid.Columns>
                 <!-- Zintegrowana kolumna "Nr" połączona z przyciskami "+" do dodawania wierszy -->
                 <DataGridTemplateColumn Width="45" CellStyle="{StaticResource NoClipCellStyle}">
@@ -204,13 +236,24 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <!-- KOLUMNA GODZINA (ZABLOKOWANA) -->
-                <DataGridTemplateColumn CellStyle="{StaticResource NoClipCellStyle}" Header="Godz." Width="120">
+                <!-- KOLUMNA GODZINA (ZABLOKOWANA) Z WYŚRODKOWANIEM -->
+                <DataGridTemplateColumn CellStyle="{StaticResource NoClipCellStyle}" Width="120">
+                    <DataGridTemplateColumn.HeaderStyle>
+                        <Style TargetType="DataGridColumnHeader">
+                            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="Foreground" Value="#E0E0E0"/>
+                        </Style>
+                    </DataGridTemplateColumn.HeaderStyle>
+                    <DataGridTemplateColumn.HeaderTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="Godz." HorizontalAlignment="Center" FontWeight="Bold" Foreground="#E0E0E0"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.HeaderTemplate>
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <Grid Background="Transparent">
-                                <!-- Zamiast TextBoxa używamy TextBlocka (tylko do odczytu) -->
-                                <TextBlock Foreground="#E0E0E0" Margin="10,5" Text="{Binding TimeSlot}" VerticalAlignment="Center"/>
+                            <Grid Background="Transparent" MinHeight="35">
+                                <TextBlock Foreground="#E0E0E0" Margin="0,5" Text="{Binding TimeSlot}" HorizontalAlignment="Center" TextAlignment="Center" VerticalAlignment="Center"/>
                             </Grid>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
@@ -220,9 +263,43 @@
                 <DataGridTemplateColumn CellStyle="{StaticResource NoClipCellStyle}" Header="Klasa (dyżur)" Width="150">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <Grid Background="Transparent">
-                                <!-- Zamiast ComboBoxa używamy TextBlocka -->
-                                <TextBlock Foreground="#E0E0E0" Margin="10,5" Text="{Binding ClassName}" VerticalAlignment="Center"/>
+                            <Grid Background="Transparent" MinHeight="35">
+                                <TextBlock Text="{Binding ClassName}" Foreground="#E0E0E0" Margin="10,5" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowMultipleClasses}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <ItemsControl ItemsSource="{Binding RetakeItems}">
+                                    <ItemsControl.Style>
+                                        <Style TargetType="ItemsControl">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowMultipleClasses}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ItemsControl.Style>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid MinHeight="36">
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="*"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <TextBlock Grid.Row="0" Text="{Binding ClassName}" Foreground="#E0E0E0" Margin="10,5" VerticalAlignment="Center"/>
+                                                <Border Grid.Row="1" Height="1" Background="#3E3E42" Visibility="{Binding SeparatorVisibility}"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </Grid>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
@@ -233,52 +310,78 @@
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <Grid Background="Transparent">
-                                <!-- ZNAK WODNY Z HISTORIĄ -->
-                                <TextBlock FontStyle="Italic" Foreground="#666666" IsHitTestVisible="False" Margin="5,0" Text="{Binding MaterialWatermark}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
+                                <!-- Panel zwykłej lekcji -->
+                                <Grid>
+                                    <Grid.Style>
+                                        <Style TargetType="Grid">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsRetake}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Grid.Style>
+                                    <!-- ZNAK WODNY Z HISTORIĄ -->
+                                    <TextBlock FontStyle="Italic" Foreground="#666666" IsHitTestVisible="False" Margin="5,0" Text="{Binding MaterialWatermark}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Material}" Value="">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Material}" Value="{x:Null}">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    
+                                    <!-- WŁAŚCIWE POLE EDYCJI -->
+                                    <TextBox Text="{Binding Material, UpdateSourceTrigger=LostFocus}">
+                                        <TextBox.Style>
+                                            <Style BasedOn="{StaticResource CellTextBoxStyle}" TargetType="TextBox">
+                                                <Setter Property="IsEnabled" Value="True"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding LessonNumber}" Value="">
+                                                        <Setter Property="IsEnabled" Value="False"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding LessonNumber}" Value="{x:Null}">
+                                                        <Setter Property="IsEnabled" Value="False"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBox.Style>
+                                    </TextBox>
+                                </Grid>
+
+                                <!-- Panel poprawki/poprawek -->
+                                <ItemsControl ItemsSource="{Binding RetakeItems}">
+                                    <ItemsControl.Style>
+                                        <Style TargetType="ItemsControl">
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                             <Style.Triggers>
-                                                <!-- Value="{x:Static sys:String.Empty}" (puste pole) -->
-                                                <DataTrigger Binding="{Binding Material}" Value="">
-                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Material}" Value="{x:Null}">
-                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                                
-                                <!-- WŁAŚCIWE POLE EDYCJI -->
-                                <!-- Usunięto deklarację z atrybutu Style i przeniesiono do wnętrza znacznika -->
-                                <TextBox Text="{Binding Material, UpdateSourceTrigger=LostFocus}" ToolTip="{Binding RetakeTooltip}">
-                                    <TextBox.Style>
-                                        <!-- Dziedziczy z CellTextBoxStyle -->
-                                        <Style BasedOn="{StaticResource CellTextBoxStyle}" TargetType="TextBox">
-                                            <!-- Domyślnie edycja jest włączona -->
-                                            <Setter Property="IsEnabled" Value="True"/>
-                                            <Style.Triggers>
-                                                <!-- Ale jeśli to dyżur (puste ID lekcji), blokujemy -->
-                                                <DataTrigger Binding="{Binding LessonNumber}" Value="">
-                                                    <Setter Property="IsEnabled" Value="False"/>
-                                                </DataTrigger>
-                                                <!-- Oraz jeśli to null, profilaktycznie też blokujemy -->
-                                                <DataTrigger Binding="{Binding LessonNumber}" Value="{x:Null}">
-                                                    <Setter Property="IsEnabled" Value="False"/>
-                                                </DataTrigger>
-                                                <!-- Dla poprawki pole jest włączone, ale tylko do odczytu, z kolorem akcentu -->
                                                 <DataTrigger Binding="{Binding IsRetake}" Value="True">
-                                                    <Setter Property="IsEnabled" Value="True"/>
-                                                    <Setter Property="IsReadOnly" Value="True"/>
-                                                    <Setter Property="Foreground" Value="#4DB6AC"/>
-                                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                                    <Setter Property="Visibility" Value="Visible"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
-                                    </TextBox.Style>
-                                </TextBox>
+                                    </ItemsControl.Style>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid MinHeight="36" Background="Transparent" ToolTip="{Binding Tooltip}" ContextMenu="{StaticResource RetakeItemMenu}">
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="*"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <TextBlock Grid.Row="0" Text="{Binding Material}" Foreground="#4DB6AC" FontWeight="SemiBold" VerticalAlignment="Center" Margin="5,0"/>
+                                                <Border Grid.Row="1" Height="1" Background="#3E3E42" Visibility="{Binding SeparatorVisibility}"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </Grid>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
@@ -289,14 +392,13 @@
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <Grid Background="Transparent">
-                                <!-- Usunięto Background i Foreground z właściwości przycisku - przeniesiono do Stylu -->
+                                <!-- Standardowa lekcja -->
                                 <Button Click="GoToLessonInfo_Click" Content="→" Cursor="Hand" Focusable="False" FontSize="18" FontWeight="Bold" Margin="2" ToolTip="Przejdź do okna informacji">
                                     <Button.Style>
                                         <Style TargetType="Button">
                                             <Setter Property="Background" Value="#007ACC"/>
                                             <Setter Property="Foreground" Value="White"/>
                                             <Setter Property="Visibility" Value="Visible"/>
-                                            <!-- Całkowicie nowy szablon rysowania przycisku omijający systemowe animacje -->
                                             <Setter Property="Template">
                                                 <Setter.Value>
                                                     <ControlTemplate TargetType="Button">
@@ -307,26 +409,69 @@
                                                 </Setter.Value>
                                             </Setter>
                                             <Style.Triggers>
-                                                <!-- Własny, ciemniejszy kolor po najechaniu myszką -->
                                                 <Trigger Property="IsMouseOver" Value="True">
                                                     <Setter Property="Background" Value="#005A9E"/>
                                                 </Trigger>
-                                                <!-- Logika ukrywania dla dyżurów -->
                                                 <DataTrigger Binding="{Binding LessonNumber}" Value="">
                                                     <Setter Property="Visibility" Value="Hidden"/>
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding LessonNumber}" Value="{x:Null}">
                                                     <Setter Property="Visibility" Value="Hidden"/>
                                                 </DataTrigger>
-                                                <!-- Dla poprawki przycisk zawsze widoczny z dedykowanym tooltipem -->
                                                 <DataTrigger Binding="{Binding IsRetake}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                    <Setter Property="ToolTip" Value="Szczegóły poprawy"/>
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Button.Style>
                                 </Button>
+
+                                <!-- Poprawki -->
+                                <ItemsControl ItemsSource="{Binding RetakeItems}">
+                                    <ItemsControl.Style>
+                                        <Style TargetType="ItemsControl">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsRetake}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ItemsControl.Style>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid MinHeight="36">
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="*"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <Button Grid.Row="0" Click="RetakeItemArrow_Click" Content="→" Cursor="Hand" Focusable="False" FontSize="18" FontWeight="Bold" Margin="2" ToolTip="Szczegóły poprawy">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button">
+                                                            <Setter Property="Background" Value="#007ACC"/>
+                                                            <Setter Property="Foreground" Value="White"/>
+                                                            <Setter Property="Template">
+                                                                <Setter.Value>
+                                                                    <ControlTemplate TargetType="Button">
+                                                                        <Border Background="{TemplateBinding Background}" CornerRadius="3">
+                                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                        </Border>
+                                                                    </ControlTemplate>
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                            <Style.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter Property="Background" Value="#005A9E"/>
+                                                                </Trigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                                <Border Grid.Row="1" Height="1" Background="#3E3E42" Visibility="{Binding SeparatorVisibility}"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </Grid>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
@@ -380,11 +525,23 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTemplateColumn Header="Godz." Width="120" CellStyle="{StaticResource NoClipCellStyle}">
+                <DataGridTemplateColumn Width="120" CellStyle="{StaticResource NoClipCellStyle}">
+                    <DataGridTemplateColumn.HeaderStyle>
+                        <Style TargetType="DataGridColumnHeader">
+                            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="Foreground" Value="#E0E0E0"/>
+                        </Style>
+                    </DataGridTemplateColumn.HeaderStyle>
+                    <DataGridTemplateColumn.HeaderTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="Godz." HorizontalAlignment="Center" FontWeight="Bold" Foreground="#E0E0E0"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.HeaderTemplate>
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <Grid Background="Transparent">
-                                <TextBox Text="{Binding TimeSlot, UpdateSourceTrigger=Explicit}" Style="{StaticResource CellTextBoxStyle}" Margin="0,5" LostFocus="TimeSlotTextBox_LostFocus"/>
+                                <TextBox Text="{Binding TimeSlot, UpdateSourceTrigger=Explicit}" Style="{StaticResource CellTextBoxStyle}" Margin="0,5" LostFocus="TimeSlotTextBox_LostFocus" HorizontalContentAlignment="Center" TextAlignment="Center"/>
                             </Grid>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
@@ -392,9 +549,20 @@
                 <DataGridTemplateColumn Header="Pon." Width="*" CellStyle="{StaticResource NoClipCellStyle}">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <Grid Background="Transparent">
-                                <ComboBox IsEditable="True" Text="{Binding MonClass, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding DataContext.ClassNames, RelativeSource={RelativeSource AncestorType=UserControl}}" IsTextSearchEnabled="False" StaysOpenOnEdit="True" KeyUp="ClassComboBox_KeyUp" Background="Transparent" Foreground="#E0E0E0" BorderThickness="0" Padding="5">
-                                    <ComboBox.Resources><Style TargetType="ToggleButton"><Setter Property="Visibility" Value="Collapsed"/></Style></ComboBox.Resources>
+                            <Grid Background="Transparent" PreviewMouseRightButtonUp="Cell_PreviewMouseRightButtonUp">
+                                <ComboBox IsEditable="True" Text="{Binding MonClass, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding DataContext.ClassNames, RelativeSource={RelativeSource AncestorType=UserControl}}" IsTextSearchEnabled="False" StaysOpenOnEdit="True" KeyUp="ClassComboBox_KeyUp" Background="Transparent" Foreground="#E0E0E0" BorderThickness="0" Padding="5" ContextMenuOpening="CellContextMenu_ContextMenuOpening">
+                                    <ComboBox.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="🎯 Oznacz tę godzinę jako termin na poprawy" Tag="Mon" Click="ToggleRetakeSlot_Click" FontWeight="Bold" Foreground="#4DB6AC"/>
+                                            <Separator/>
+                                            <MenuItem Header="Wyczyść to pole" Tag="MonClear" Click="ToggleRetakeSlot_Click" Foreground="#AAAAAA"/>
+                                            <MenuItem Header="Usuń ten wiersz z planu" Click="DeleteRow_Click" Foreground="#E53935"/>
+                                        </ContextMenu>
+                                    </ComboBox.ContextMenu>
+                                    <ComboBox.Resources>
+                                        <Style TargetType="ToggleButton"><Setter Property="Visibility" Value="Collapsed"/></Style>
+                                        <Style TargetType="TextBox"><Setter Property="ContextMenu" Value="{x:Null}"/></Style>
+                                    </ComboBox.Resources>
                                 </ComboBox>
                             </Grid>
                         </DataTemplate>
@@ -403,9 +571,20 @@
                 <DataGridTemplateColumn Header="Wt." Width="*" CellStyle="{StaticResource NoClipCellStyle}">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <Grid Background="Transparent">
-                                <ComboBox IsEditable="True" Text="{Binding TueClass, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding DataContext.ClassNames, RelativeSource={RelativeSource AncestorType=UserControl}}" IsTextSearchEnabled="False" StaysOpenOnEdit="True" KeyUp="ClassComboBox_KeyUp" Background="Transparent" Foreground="#E0E0E0" BorderThickness="0" Padding="5">
-                                    <ComboBox.Resources><Style TargetType="ToggleButton"><Setter Property="Visibility" Value="Collapsed"/></Style></ComboBox.Resources>
+                            <Grid Background="Transparent" PreviewMouseRightButtonUp="Cell_PreviewMouseRightButtonUp">
+                                <ComboBox IsEditable="True" Text="{Binding TueClass, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding DataContext.ClassNames, RelativeSource={RelativeSource AncestorType=UserControl}}" IsTextSearchEnabled="False" StaysOpenOnEdit="True" KeyUp="ClassComboBox_KeyUp" Background="Transparent" Foreground="#E0E0E0" BorderThickness="0" Padding="5" ContextMenuOpening="CellContextMenu_ContextMenuOpening">
+                                    <ComboBox.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="🎯 Oznacz tę godzinę jako termin na poprawy" Tag="Tue" Click="ToggleRetakeSlot_Click" FontWeight="Bold" Foreground="#4DB6AC"/>
+                                            <Separator/>
+                                            <MenuItem Header="Wyczyść to pole" Tag="TueClear" Click="ToggleRetakeSlot_Click" Foreground="#AAAAAA"/>
+                                            <MenuItem Header="Usuń ten wiersz z planu" Click="DeleteRow_Click" Foreground="#E53935"/>
+                                        </ContextMenu>
+                                    </ComboBox.ContextMenu>
+                                    <ComboBox.Resources>
+                                        <Style TargetType="ToggleButton"><Setter Property="Visibility" Value="Collapsed"/></Style>
+                                        <Style TargetType="TextBox"><Setter Property="ContextMenu" Value="{x:Null}"/></Style>
+                                    </ComboBox.Resources>
                                 </ComboBox>
                             </Grid>
                         </DataTemplate>
@@ -414,9 +593,20 @@
                 <DataGridTemplateColumn Header="Śr." Width="*" CellStyle="{StaticResource NoClipCellStyle}">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <Grid Background="Transparent">
-                                <ComboBox IsEditable="True" Text="{Binding WedClass, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding DataContext.ClassNames, RelativeSource={RelativeSource AncestorType=UserControl}}" IsTextSearchEnabled="False" StaysOpenOnEdit="True" KeyUp="ClassComboBox_KeyUp" Background="Transparent" Foreground="#E0E0E0" BorderThickness="0" Padding="5">
-                                    <ComboBox.Resources><Style TargetType="ToggleButton"><Setter Property="Visibility" Value="Collapsed"/></Style></ComboBox.Resources>
+                            <Grid Background="Transparent" PreviewMouseRightButtonUp="Cell_PreviewMouseRightButtonUp">
+                                <ComboBox IsEditable="True" Text="{Binding WedClass, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding DataContext.ClassNames, RelativeSource={RelativeSource AncestorType=UserControl}}" IsTextSearchEnabled="False" StaysOpenOnEdit="True" KeyUp="ClassComboBox_KeyUp" Background="Transparent" Foreground="#E0E0E0" BorderThickness="0" Padding="5" ContextMenuOpening="CellContextMenu_ContextMenuOpening">
+                                    <ComboBox.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="🎯 Oznacz tę godzinę jako termin na poprawy" Tag="Wed" Click="ToggleRetakeSlot_Click" FontWeight="Bold" Foreground="#4DB6AC"/>
+                                            <Separator/>
+                                            <MenuItem Header="Wyczyść to pole" Tag="WedClear" Click="ToggleRetakeSlot_Click" Foreground="#AAAAAA"/>
+                                            <MenuItem Header="Usuń ten wiersz z planu" Click="DeleteRow_Click" Foreground="#E53935"/>
+                                        </ContextMenu>
+                                    </ComboBox.ContextMenu>
+                                    <ComboBox.Resources>
+                                        <Style TargetType="ToggleButton"><Setter Property="Visibility" Value="Collapsed"/></Style>
+                                        <Style TargetType="TextBox"><Setter Property="ContextMenu" Value="{x:Null}"/></Style>
+                                    </ComboBox.Resources>
                                 </ComboBox>
                             </Grid>
                         </DataTemplate>
@@ -425,9 +615,20 @@
                 <DataGridTemplateColumn Header="Czw." Width="*" CellStyle="{StaticResource NoClipCellStyle}">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <Grid Background="Transparent">
-                                <ComboBox IsEditable="True" Text="{Binding ThuClass, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding DataContext.ClassNames, RelativeSource={RelativeSource AncestorType=UserControl}}" IsTextSearchEnabled="False" StaysOpenOnEdit="True" KeyUp="ClassComboBox_KeyUp" Background="Transparent" Foreground="#E0E0E0" BorderThickness="0" Padding="5">
-                                    <ComboBox.Resources><Style TargetType="ToggleButton"><Setter Property="Visibility" Value="Collapsed"/></Style></ComboBox.Resources>
+                            <Grid Background="Transparent" PreviewMouseRightButtonUp="Cell_PreviewMouseRightButtonUp">
+                                <ComboBox IsEditable="True" Text="{Binding ThuClass, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding DataContext.ClassNames, RelativeSource={RelativeSource AncestorType=UserControl}}" IsTextSearchEnabled="False" StaysOpenOnEdit="True" KeyUp="ClassComboBox_KeyUp" Background="Transparent" Foreground="#E0E0E0" BorderThickness="0" Padding="5" ContextMenuOpening="CellContextMenu_ContextMenuOpening">
+                                    <ComboBox.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="🎯 Oznacz tę godzinę jako termin na poprawy" Tag="Thu" Click="ToggleRetakeSlot_Click" FontWeight="Bold" Foreground="#4DB6AC"/>
+                                            <Separator/>
+                                            <MenuItem Header="Wyczyść to pole" Tag="ThuClear" Click="ToggleRetakeSlot_Click" Foreground="#AAAAAA"/>
+                                            <MenuItem Header="Usuń ten wiersz z planu" Click="DeleteRow_Click" Foreground="#E53935"/>
+                                        </ContextMenu>
+                                    </ComboBox.ContextMenu>
+                                    <ComboBox.Resources>
+                                        <Style TargetType="ToggleButton"><Setter Property="Visibility" Value="Collapsed"/></Style>
+                                        <Style TargetType="TextBox"><Setter Property="ContextMenu" Value="{x:Null}"/></Style>
+                                    </ComboBox.Resources>
                                 </ComboBox>
                             </Grid>
                         </DataTemplate>
@@ -436,9 +637,20 @@
                 <DataGridTemplateColumn Header="Pt." Width="*" CellStyle="{StaticResource NoClipCellStyle}">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <Grid Background="Transparent">
-                                <ComboBox IsEditable="True" Text="{Binding FriClass, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding DataContext.ClassNames, RelativeSource={RelativeSource AncestorType=UserControl}}" IsTextSearchEnabled="False" StaysOpenOnEdit="True" KeyUp="ClassComboBox_KeyUp" Background="Transparent" Foreground="#E0E0E0" BorderThickness="0" Padding="5">
-                                    <ComboBox.Resources><Style TargetType="ToggleButton"><Setter Property="Visibility" Value="Collapsed"/></Style></ComboBox.Resources>
+                            <Grid Background="Transparent" PreviewMouseRightButtonUp="Cell_PreviewMouseRightButtonUp">
+                                <ComboBox IsEditable="True" Text="{Binding FriClass, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding DataContext.ClassNames, RelativeSource={RelativeSource AncestorType=UserControl}}" IsTextSearchEnabled="False" StaysOpenOnEdit="True" KeyUp="ClassComboBox_KeyUp" Background="Transparent" Foreground="#E0E0E0" BorderThickness="0" Padding="5" ContextMenuOpening="CellContextMenu_ContextMenuOpening">
+                                    <ComboBox.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="🎯 Oznacz tę godzinę jako termin na poprawy" Tag="Fri" Click="ToggleRetakeSlot_Click" FontWeight="Bold" Foreground="#4DB6AC"/>
+                                            <Separator/>
+                                            <MenuItem Header="Wyczyść to pole" Tag="FriClear" Click="ToggleRetakeSlot_Click" Foreground="#AAAAAA"/>
+                                            <MenuItem Header="Usuń ten wiersz z planu" Click="DeleteRow_Click" Foreground="#E53935"/>
+                                        </ContextMenu>
+                                    </ComboBox.ContextMenu>
+                                    <ComboBox.Resources>
+                                        <Style TargetType="ToggleButton"><Setter Property="Visibility" Value="Collapsed"/></Style>
+                                        <Style TargetType="TextBox"><Setter Property="ContextMenu" Value="{x:Null}"/></Style>
+                                    </ComboBox.Resources>
                                 </ComboBox>
                             </Grid>
                         </DataTemplate>

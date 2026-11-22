@@ -32,10 +32,15 @@ namespace GradebookApp
             
             LoadClassNames();
             SetupData();
+            DefaultRoomTextBox.Text = Services.AppConfig.Settings.DefaultRoom ?? "";
         }
 
         private void LoadClassNames()
         {
+            ClassNames.Clear();
+            ClassNames.Add("Poprawy");
+            ClassNames.Add("Konsultacje / Poprawy");
+
             var classes = _dataService.GetAllClasses();
             foreach (var c in classes.OrderBy(c => c.Name))
             {
@@ -127,6 +132,17 @@ namespace GradebookApp
             
             _dataService.SaveLessonTemplates(templates);
             _dataService.SaveScheduleMaterials(materials);
+
+            // Automatyczna synchronizacja godzin na poprawy do chmury po zapisie planu
+            _ = System.Threading.Tasks.Task.Run(async () =>
+            {
+                try
+                {
+                    var sync = new Services.CloudSyncService();
+                    if (sync.IsConfigured) await sync.SyncTeacherScheduleToCloudAsync();
+                }
+                catch { }
+            });
         }
 
         public void RefreshDailyView()
@@ -156,30 +172,33 @@ namespace GradebookApp
             }
 
             var retakes = _dataService.GetPlannedRetakesForDate(_currentDate.Date);
+
+            // Grupujemy poprawki na tę samą godzinę w jeden wiersz
+            var retakesByTime = retakes
+                .GroupBy(r => SmartTimeParser.ExtractStartTime(r.Time))
+                .OrderBy(g => TimeSpan.TryParse(g.Key, out var ts) ? ts : TimeSpan.MaxValue)
+                .ToList();
+
             var retakeWrappers = new List<DailyRowWrapper>();
-            foreach (var retake in retakes)
+            foreach (var group in retakesByTime)
             {
-                string retakeStart = SmartTimeParser.ExtractStartTime(retake.Time);
+                string retakeStart = group.Key;
                 var matchingRow = _scheduleRows.FirstOrDefault(r => SmartTimeParser.ExtractStartTime(r.TimeSlot) == retakeStart);
                 string lessonNum = matchingRow?.LessonNumber ?? "";
                 if (string.IsNullOrEmpty(lessonNum))
                 {
-                    matchingRow = _scheduleRows.FirstOrDefault(r => !string.IsNullOrEmpty(r.TimeSlot) && r.TimeSlot.Contains(retake.Time));
+                    matchingRow = _scheduleRows.FirstOrDefault(r => !string.IsNullOrEmpty(r.TimeSlot) && r.TimeSlot.Contains(retakeStart));
                     lessonNum = matchingRow?.LessonNumber ?? "";
                 }
 
-                retakeWrappers.Add(new DailyRowWrapper(retake, lessonNum));
+                retakeWrappers.Add(new DailyRowWrapper(group.ToList(), lessonNum, retakeStart));
             }
 
             // Zachowujemy kolejność z planu tygodniowego (_scheduleRows), aby dyżury nie spadały na dół!
             var finalDailyRows = new List<DailyRowWrapper>(regularDailyRows);
 
             // Dołączamy zaplanowane poprawki w odpowiednich miejscach
-            var sortedRetakes = retakeWrappers
-                .OrderBy(rw => TimeSpan.TryParse(SmartTimeParser.ExtractStartTime(rw.TimeSlot), out var ts) ? ts : TimeSpan.MaxValue)
-                .ToList();
-
-            foreach (var retakeWrapper in sortedRetakes)
+            foreach (var retakeWrapper in retakeWrappers)
             {
                 string retakeStart = SmartTimeParser.ExtractStartTime(retakeWrapper.TimeSlot);
                 TimeSpan.TryParse(retakeStart, out var retakeTime);
@@ -192,7 +211,7 @@ namespace GradebookApp
                 if (matchingScheduleRow != null)
                 {
                     // Szukamy tego wiersza w widoku dziennym
-                    int targetIdx = finalDailyRows.FindLastIndex(w => w.Row == matchingScheduleRow || (w.IsRetake && w.TimeSlot == retakeWrapper.TimeSlot));
+                    int targetIdx = finalDailyRows.FindLastIndex(w => w.Row == matchingScheduleRow);
                     if (targetIdx >= 0)
                     {
                         finalDailyRows.Insert(targetIdx + 1, retakeWrapper);
@@ -231,9 +250,16 @@ namespace GradebookApp
                 finalDailyRows.Add(retakeWrapper);
             }
 
-            foreach (var r in finalDailyRows)
+            // Ustalamy naprzemienne tła wierszy dla widoku dziennego
+            var brushA = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#252526"));
+            var brushB = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2D2D30"));
+            brushA.Freeze();
+            brushB.Freeze();
+
+            for (int i = 0; i < finalDailyRows.Count; i++)
             {
-                _dailyRows.Add(r);
+                finalDailyRows[i].RowBackgroundBrush = (i % 2 == 1) ? brushB : brushA;
+                _dailyRows.Add(finalDailyRows[i]);
             }
         }
 
@@ -450,11 +476,13 @@ namespace GradebookApp
 
         private void AddRowAtTop_Click(object sender, RoutedEventArgs e)
         {
+            if (Mouse.RightButton == MouseButtonState.Pressed) return;
             InsertNewRow(0);
         }
 
         private void AddRowBelow_Click(object sender, RoutedEventArgs e)
         {
+            if (Mouse.RightButton == MouseButtonState.Pressed) return;
             if (sender is Button btn)
             {
                 int index = GetRowIndex(btn);
@@ -484,21 +512,164 @@ namespace GradebookApp
             SaveToDatabase();
         }
 
+        // Zdarzenie blokujące uruchamianie opcji w ContextMenu prawym przyciskiem myszy (tylko LPM powinien klikać menu)
+        private void MenuItem_BlockRightClick(object sender, MouseButtonEventArgs e)
+        {
+            e.Handled = true;
+        }
+
+        private void DefaultRoomTextBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            var newRoom = DefaultRoomTextBox.Text.Trim();
+            if (Services.AppConfig.Settings.DefaultRoom != newRoom)
+            {
+                Services.AppConfig.Settings.DefaultRoom = newRoom;
+                Services.AppConfig.SaveSettings(Services.AppConfig.Settings);
+                _ = System.Threading.Tasks.Task.Run(async () =>
+                {
+                    try
+                    {
+                        var sync = new Services.CloudSyncService();
+                        if (sync.IsConfigured) await sync.SyncTeacherScheduleToCloudAsync();
+                    }
+                    catch { }
+                });
+            }
+        }
+
+        // Bezkompromisowa obsługa PPM na komórce planu lekcji w widoku tygodniowym
+        private void Cell_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            ComboBox? cb = sender as ComboBox;
+            if (cb == null && sender is DependencyObject dep)
+            {
+                cb = GetVisualChild<ComboBox>(dep);
+            }
+
+            if (cb?.ContextMenu != null)
+            {
+                UpdateRetakeMenuItem(cb);
+                cb.ContextMenu.PlacementTarget = cb;
+                cb.ContextMenu.IsOpen = true;
+                e.Handled = true; // Zawsze i bezwzględnie otwieramy menu popraw, blokując menu schowka
+            }
+        }
+
+        private void CellContextMenu_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+        {
+            if (sender is ComboBox cb)
+            {
+                UpdateRetakeMenuItem(cb);
+            }
+        }
+
+        private void UpdateRetakeMenuItem(ComboBox cb)
+        {
+            if (cb.ContextMenu != null && cb.DataContext is ScheduleRow row)
+            {
+                var retakeItem = cb.ContextMenu.Items.OfType<MenuItem>().FirstOrDefault(m => m.Tag != null && !m.Tag.ToString()!.EndsWith("Clear"));
+                if (retakeItem != null)
+                {
+                    string dayTag = retakeItem.Tag.ToString()!;
+                    string currentVal = dayTag switch
+                    {
+                        "Mon" => row.MonClass,
+                        "Tue" => row.TueClass,
+                        "Wed" => row.WedClass,
+                        "Thu" => row.ThuClass,
+                        "Fri" => row.FriClass,
+                        _ => ""
+                    };
+
+                    bool isRetake = !string.IsNullOrWhiteSpace(currentVal) && currentVal.Contains("popraw", StringComparison.OrdinalIgnoreCase);
+                    if (isRetake)
+                    {
+                        retakeItem.Header = "✕ Usuń oznaczenie terminu popraw";
+                        retakeItem.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 138, 128)); // Jasnoczerwony
+                    }
+                    else
+                    {
+                        retakeItem.Header = "🎯 Oznacz tę godzinę jako termin na poprawy";
+                        retakeItem.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(77, 182, 172)); // Turkus
+                    }
+                }
+            }
+        }
+
+        private void ToggleRetakeSlot_Click(object sender, RoutedEventArgs e)
+        {
+            if (Mouse.RightButton == MouseButtonState.Pressed) return;
+
+            if (sender is MenuItem menuItem && menuItem.Tag != null && menuItem.DataContext is ScheduleRow row)
+            {
+                string tag = menuItem.Tag.ToString()!;
+                bool isClear = tag.EndsWith("Clear");
+                string day = isClear ? tag.Replace("Clear", "") : tag;
+
+                Action<string> setVal = day switch
+                {
+                    "Mon" => val => row.MonClass = val,
+                    "Tue" => val => row.TueClass = val,
+                    "Wed" => val => row.WedClass = val,
+                    "Thu" => val => row.ThuClass = val,
+                    "Fri" => val => row.FriClass = val,
+                    _ => _ => { }
+                };
+
+                Func<string> getVal = day switch
+                {
+                    "Mon" => () => row.MonClass,
+                    "Tue" => () => row.TueClass,
+                    "Wed" => () => row.WedClass,
+                    "Thu" => () => row.ThuClass,
+                    "Fri" => () => row.FriClass,
+                    _ => () => ""
+                };
+
+                if (isClear)
+                {
+                    setVal("");
+                }
+                else
+                {
+                    string current = getVal();
+                    if (!string.IsNullOrWhiteSpace(current) && current.Contains("popraw", StringComparison.OrdinalIgnoreCase))
+                    {
+                        setVal("");
+                    }
+                    else
+                    {
+                        setVal("Poprawy");
+                    }
+                }
+
+                SaveToDatabase();
+                RefreshDailyView();
+            }
+        }
+
         private void DeleteRow_Click(object sender, RoutedEventArgs e)
         {
+            // Bezpieczeństwo: usunięcie wiersza może nastąpić WYŁĄCZNIE lewym przyciskiem myszy (LPM)
+            if (Mouse.RightButton == MouseButtonState.Pressed) return;
+
             if (sender is MenuItem menu)
             {
                 if (menu.DataContext is DailyRowWrapper daily)
                 {
-                    if (daily.IsRetake && daily.RetakeId.HasValue)
+                    if (daily.IsRetake)
                     {
-                        var confirm = MessageBox.Show(
-                            $"Czy na pewno chcesz usunąć zaplanowaną poprawę '{daily.Material}'?",
-                            "Potwierdzenie usunięcia", MessageBoxButton.YesNo, MessageBoxImage.Question);
-                        if (confirm == MessageBoxResult.Yes)
+                        var sub = daily.RetakeItems.FirstOrDefault();
+                        if (sub != null)
                         {
-                            _dataService.DeletePlannedRetake(daily.RetakeId.Value);
-                            RefreshDailyView();
+                            var confirm = MessageBox.Show(
+                                $"Czy na pewno chcesz usunąć zaplanowaną poprawę '{sub.Material}'?",
+                                "Potwierdzenie usunięcia", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                            if (confirm == MessageBoxResult.Yes)
+                            {
+                                _dataService.DeletePlannedRetake(sub.RetakeId);
+                                RefreshDailyView();
+                            }
                         }
                         return;
                     }
@@ -518,25 +689,80 @@ namespace GradebookApp
 
         private void ViewRetakeDetails_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is MenuItem menu && menu.DataContext is DailyRowWrapper daily && daily.IsRetake && daily.RetakeId.HasValue)
+            if (Mouse.RightButton == MouseButtonState.Pressed) return;
+            if (sender is MenuItem menu && menu.DataContext is DailyRowWrapper daily && daily.IsRetake)
             {
-                new RetakeDetailsDialog(daily.RetakeId.Value, daily.WorkId ?? 0, daily.Material, daily.AttendeeIds ?? new List<int>())
-                {
-                    Owner = Window.GetWindow(this)
-                }.ShowDialog();
-                RefreshDailyView();
+                var sub = daily.RetakeItems.FirstOrDefault();
+                if (sub != null) OpenRetakeDetails(sub);
             }
         }
 
         private void EditRetake_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is MenuItem menu && menu.DataContext is DailyRowWrapper daily && daily.IsRetake && daily.RetakeId.HasValue)
+            if (Mouse.RightButton == MouseButtonState.Pressed) return;
+            if (sender is MenuItem menu && menu.DataContext is DailyRowWrapper daily && daily.IsRetake)
             {
-                if (new PlanRetakeDialog(null, daily.RetakeId.Value) { Owner = Window.GetWindow(this) }.ShowDialog() == true)
+                var sub = daily.RetakeItems.FirstOrDefault();
+                if (sub != null && new PlanRetakeDialog(null, sub.RetakeId) { Owner = Window.GetWindow(this) }.ShowDialog() == true)
                 {
                     RefreshDailyView();
                 }
             }
+        }
+
+        private void RetakeItemArrow_Click(object sender, RoutedEventArgs e)
+        {
+            if (Mouse.RightButton == MouseButtonState.Pressed) return;
+            if (sender is Button btn && btn.DataContext is RetakeSubItem sub)
+            {
+                OpenRetakeDetails(sub);
+            }
+        }
+
+        private void ViewRetakeItemDetails_Click(object sender, RoutedEventArgs e)
+        {
+            if (Mouse.RightButton == MouseButtonState.Pressed) return;
+            if (sender is MenuItem menu && menu.DataContext is RetakeSubItem sub)
+            {
+                OpenRetakeDetails(sub);
+            }
+        }
+
+        private void EditRetakeItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (Mouse.RightButton == MouseButtonState.Pressed) return;
+            if (sender is MenuItem menu && menu.DataContext is RetakeSubItem sub)
+            {
+                if (new PlanRetakeDialog(null, sub.RetakeId) { Owner = Window.GetWindow(this) }.ShowDialog() == true)
+                {
+                    RefreshDailyView();
+                }
+            }
+        }
+
+        private void DeleteRetakeItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (Mouse.RightButton == MouseButtonState.Pressed) return;
+            if (sender is MenuItem menu && menu.DataContext is RetakeSubItem sub)
+            {
+                var confirm = MessageBox.Show(
+                    $"Czy na pewno chcesz usunąć zaplanowaną poprawę '{sub.Material}'?",
+                    "Potwierdzenie usunięcia", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (confirm == MessageBoxResult.Yes)
+                {
+                    _dataService.DeletePlannedRetake(sub.RetakeId);
+                    RefreshDailyView();
+                }
+            }
+        }
+
+        private void OpenRetakeDetails(RetakeSubItem sub)
+        {
+            new RetakeDetailsDialog(sub.RetakeId, sub.WorkId, sub.Material, sub.AttendeeIds)
+            {
+                Owner = Window.GetWindow(this)
+            }.ShowDialog();
+            RefreshDailyView();
         }
 
         private void WeeklyViewBtn_Click(object sender, RoutedEventArgs e)
@@ -568,6 +794,7 @@ namespace GradebookApp
 
         private void GoToLessonInfo_Click(object sender, RoutedEventArgs e)
         {
+            if (Mouse.RightButton == MouseButtonState.Pressed) return;
             if (sender is Button btn && btn.DataContext is DailyRowWrapper row)
             {
                 if (row.IsRetake && row.RetakeId.HasValue)
@@ -968,6 +1195,17 @@ namespace GradebookApp
         public int? WorkId { get; set; }
         public List<int>? AttendeeIds { get; set; }
 
+        public ObservableCollection<RetakeSubItem> RetakeItems { get; set; } = new ObservableCollection<RetakeSubItem>();
+
+        public bool ShowMultipleClasses => IsRetake && RetakeItems.Select(r => r.ClassName).Distinct().Count() > 1;
+
+        private Brush _rowBackgroundBrush = Brushes.Transparent;
+        public Brush RowBackgroundBrush 
+        { 
+            get => _rowBackgroundBrush; 
+            set { _rowBackgroundBrush = value; OnPropertyChanged(); } 
+        }
+
         private string _retakeLessonNumber = "";
         private string _retakeTimeSlot = "";
         private string _retakeClassName = "";
@@ -990,35 +1228,63 @@ namespace GradebookApp
             };
         }
 
-        public DailyRowWrapper(PlannedRetake retake, string lessonNumber)
+        public DailyRowWrapper(List<PlannedRetake> retakes, string lessonNumber, string timeSlot)
         {
             IsRetake = true;
             Row = null;
-            Day = retake.Date.DayOfWeek;
-            RetakeId = retake.Id;
-            WorkId = retake.WrittenWorkId;
-            AttendeeIds = retake.Attendees?.Select(a => a.StudentId).ToList() ?? new List<int>();
-
+            Day = retakes.FirstOrDefault()?.Date.DayOfWeek ?? DayOfWeek.Monday;
             _retakeLessonNumber = lessonNumber;
-            _retakeTimeSlot = retake.Time;
-            _retakeClassName = retake.WrittenWork?.SchoolClass?.Name ?? "";
-            _retakeMaterial = $"Poprawa: {retake.WrittenWork?.Title ?? ""}";
+            _retakeTimeSlot = timeSlot;
 
-            var studentNames = retake.Attendees?
-                .Select(a => a.Student?.FullName)
-                .Where(n => !string.IsNullOrEmpty(n))
-                .Select(n => n!)
-                .ToList() ?? new List<string>();
-
-            _retakeNotes = studentNames.Any() 
-                ? $"Uczniowie ({studentNames.Count}): {string.Join(", ", studentNames)}"
-                : "";
-
-            _retakeTooltip = $"Poprawa: {retake.WrittenWork?.Title ?? ""}\nKlasa: {_retakeClassName}\nGodzina: {_retakeTimeSlot}";
-            if (studentNames.Any())
+            for (int i = 0; i < retakes.Count; i++)
             {
-                _retakeTooltip += $"\n\nUczniowie ({studentNames.Count}):\n" + string.Join("\n", studentNames.Select(n => $"• {n}"));
+                var retake = retakes[i];
+                var subItem = new RetakeSubItem
+                {
+                    RetakeId = retake.Id,
+                    WorkId = retake.WrittenWorkId,
+                    AttendeeIds = retake.Attendees?.Select(a => a.StudentId).ToList() ?? new List<int>(),
+                    ClassName = retake.WrittenWork?.SchoolClass?.Name ?? "",
+                    Material = $"Poprawa: {retake.WrittenWork?.Title ?? ""}",
+                    ShowBottomSeparator = (i < retakes.Count - 1)
+                };
+
+                var studentNames = retake.Attendees?
+                    .Select(a => a.Student?.FullName)
+                    .Where(n => !string.IsNullOrEmpty(n))
+                    .Select(n => n!)
+                    .ToList() ?? new List<string>();
+
+                subItem.Notes = studentNames.Any() 
+                    ? $"Uczniowie ({studentNames.Count}): {string.Join(", ", studentNames)}"
+                    : "";
+
+                string tt = $"Poprawa: {retake.WrittenWork?.Title ?? ""}\nKlasa: {subItem.ClassName}\nGodzina: {timeSlot}";
+                if (studentNames.Any())
+                {
+                    tt += $"\n\nUczniowie ({studentNames.Count}):\n" + string.Join("\n", studentNames.Select(n => $"• {n}"));
+                }
+                subItem.Tooltip = tt;
+
+                RetakeItems.Add(subItem);
             }
+
+            var first = RetakeItems.FirstOrDefault();
+            if (first != null)
+            {
+                RetakeId = first.RetakeId;
+                WorkId = first.WorkId;
+                AttendeeIds = first.AttendeeIds;
+                _retakeClassName = first.ClassName;
+                _retakeMaterial = first.Material;
+                _retakeNotes = first.Notes;
+                _retakeTooltip = first.Tooltip;
+            }
+        }
+
+        public DailyRowWrapper(PlannedRetake retake, string lessonNumber)
+            : this(new List<PlannedRetake> { retake }, lessonNumber, retake.Time)
+        {
         }
 
         public string LessonNumber => IsRetake ? _retakeLessonNumber : (Row?.LessonNumber ?? "");
@@ -1067,5 +1333,28 @@ namespace GradebookApp
                 else if (Row != null) { switch (Day) { case DayOfWeek.Monday: Row.MonNotes = value; break; case DayOfWeek.Tuesday: Row.TueNotes = value; break; case DayOfWeek.Wednesday: Row.WedNotes = value; break; case DayOfWeek.Thursday: Row.ThuNotes = value; break; case DayOfWeek.Friday: Row.FriNotes = value; break; } OnPropertyChanged(); }
             }
         }
+    }
+
+    public class RetakeSubItem : INotifyPropertyChanged
+    {
+        public event PropertyChangedEventHandler? PropertyChanged;
+        protected void OnPropertyChanged([CallerMemberName] string name = null!) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+
+        public int RetakeId { get; set; }
+        public int WorkId { get; set; }
+        public List<int> AttendeeIds { get; set; } = new List<int>();
+        public string ClassName { get; set; } = "";
+        public string Material { get; set; } = "";
+        public string Notes { get; set; } = "";
+        public string Tooltip { get; set; } = "";
+        
+        private bool _showBottomSeparator = false;
+        public bool ShowBottomSeparator
+        {
+            get => _showBottomSeparator;
+            set { _showBottomSeparator = value; OnPropertyChanged(); OnPropertyChanged(nameof(SeparatorVisibility)); }
+        }
+
+        public Visibility SeparatorVisibility => _showBottomSeparator ? Visibility.Visible : Visibility.Collapsed;
     }
 }

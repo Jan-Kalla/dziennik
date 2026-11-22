@@ -17,6 +17,8 @@ namespace GradebookApp
         private int? _editRetakeId;
         private int? _preselectedWorkId;
         private List<int>? _preselectedStudentIds;
+        private DateTime? _preselectedDate;
+        private string? _preselectedTime;
         private List<Student> _allClassStudents = new List<Student>();
         private bool _isInitializing = true;
 
@@ -52,7 +54,7 @@ namespace GradebookApp
         }
 
         // Konstruktor obsługujący wszystko (edycję, otwieranie z klasy oraz bezpośrednie zlecenia z oczekujących zgłoszeń)
-        public PlanRetakeDialog(int? classId = null, int? editRetakeId = null, int? preselectedWorkId = null, List<int>? preselectedStudentIds = null)
+        public PlanRetakeDialog(int? classId = null, int? editRetakeId = null, int? preselectedWorkId = null, List<int>? preselectedStudentIds = null, DateTime? preselectedDate = null, string? preselectedTime = null)
         {
             InitializeComponent();
             _dbContext = new AppDbContext();
@@ -60,6 +62,8 @@ namespace GradebookApp
             _editRetakeId = editRetakeId;
             _preselectedWorkId = preselectedWorkId;
             _preselectedStudentIds = preselectedStudentIds;
+            _preselectedDate = preselectedDate;
+            _preselectedTime = preselectedTime;
 
             if (_editRetakeId.HasValue || _classId.HasValue)
             {
@@ -110,6 +114,15 @@ namespace GradebookApp
             {
                 ClassComboBox.SelectedItem = allClasses.FirstOrDefault(c => c.Id == _classId);
                 LoadClassData();
+            }
+
+            if (_preselectedDate.HasValue)
+            {
+                DatePicker.SelectedDate = _preselectedDate.Value;
+            }
+            if (!string.IsNullOrWhiteSpace(_preselectedTime))
+            {
+                SelectedTime = _preselectedTime;
             }
 
             AvailableStudentsList.ItemsSource = AvailableStudents;
@@ -266,6 +279,26 @@ namespace GradebookApp
             }
 
             _dbContext.SaveChanges();
+
+            // Automatyczna synchronizacja zatwierdzenia poprawy do chmury (powiadomienie dla ucznia)
+            try
+            {
+                var syncService = new Services.CloudSyncService();
+                if (syncService.IsConfigured && selectedWork.SchoolClass != null)
+                {
+                    var jNums = SelectedStudents.Select(s => s.JournalNumber).ToList();
+                    string confirmedDate = retake.Date.ToString("yyyy-MM-dd");
+                    _ = System.Threading.Tasks.Task.Run(() => syncService.ConfirmRetakeForStudentsAsync(
+                        retake.WrittenWorkId,
+                        selectedWork.SchoolClass.Name,
+                        jNums,
+                        confirmedDate,
+                        retake.Time
+                    ));
+                }
+            }
+            catch { }
+
             DialogResult = true;
         }
 

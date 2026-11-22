@@ -9,19 +9,69 @@
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="#E0E0E0"/>
         </Style>
-        <Style TargetType="ComboBox">
-            <Setter Property="Background" Value="#333337"/>
-            <Setter Property="Foreground" Value="Black"/>
-            <Setter Property="BorderBrush" Value="#555555"/>
-            <Setter Property="Padding" Value="5"/>
-            <Setter Property="Height" Value="32"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-        </Style>
         <Style TargetType="TextBox">
             <Setter Property="Background" Value="#333337"/>
             <Setter Property="Foreground" Value="#E0E0E0"/>
+            <Setter Property="CaretBrush" Value="#E0E0E0"/>
             <Setter Property="BorderBrush" Value="#555555"/>
             <Setter Property="Padding" Value="5"/>
+        </Style>
+        <Style x:Key="DropDownButtonStyle" TargetType="ToggleButton">
+            <Setter Property="Background" Value="#2D2D30"/>
+            <Setter Property="BorderThickness" Value="1,0,0,0"/>
+            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="BtnBorder" Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}" 
+                                CornerRadius="0,2,2,0">
+                            <Path x:Name="Arrow" Data="M 0 0 L 3.5 3.5 L 7 0" Stroke="#AAAAAA" StrokeThickness="1.5" 
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="BtnBorder" Property="Background" Value="#3E3E42"/>
+                                <Setter TargetName="BtnBorder" Property="BorderBrush" Value="#007ACC"/>
+                                <Setter TargetName="Arrow" Property="Stroke" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="BtnBorder" Property="Background" Value="#007ACC"/>
+                                <Setter TargetName="BtnBorder" Property="BorderBrush" Value="#007ACC"/>
+                                <Setter TargetName="Arrow" Property="Stroke" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="SuggestionItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="#E0E0E0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3E3E42"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#007ACC"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 
@@ -38,12 +88,108 @@
 
         <StackPanel Grid.Row="1" Margin="0,0,0,15">
             <TextBlock Text="Temat:" FontSize="14" Foreground="#AAAAAA" Margin="0,0,0,5" />
-            <ComboBox x:Name="TopicComboBox" IsEditable="True" ToolTip="Wybierz z rozkładu materiału lub wpisz własny temat" IsTextSearchEnabled="False" StaysOpenOnEdit="True" KeyUp="TopicComboBox_KeyUp"/>
+            <Grid Height="32">
+                <TextBox x:Name="TopicTextBox" 
+                         Background="#333337" 
+                         Foreground="#E0E0E0" 
+                         CaretBrush="#E0E0E0"
+                         BorderBrush="#555555" 
+                         BorderThickness="1" 
+                         Padding="8,0,28,0" 
+                         VerticalContentAlignment="Center" 
+                         FontSize="13" 
+                         ToolTip="Wybierz z rozkładu materiału lub wpisz własny temat"
+                         TextChanged="TopicTextBox_TextChanged"
+                         PreviewKeyDown="TopicTextBox_PreviewKeyDown"/>
+
+                <ToggleButton x:Name="TopicDropDownButton" 
+                              Width="24" 
+                              HorizontalAlignment="Right" 
+                              VerticalAlignment="Stretch" 
+                              Margin="0,1,1,1" 
+                              Focusable="False" 
+                              Style="{StaticResource DropDownButtonStyle}"
+                              IsChecked="{Binding IsOpen, ElementName=TopicPopup, Mode=TwoWay}"
+                              Click="TopicDropDownButton_Click"/>
+
+                <Popup x:Name="TopicPopup" 
+                       PlacementTarget="{Binding ElementName=TopicTextBox}" 
+                       Placement="Bottom" 
+                       StaysOpen="False" 
+                       AllowsTransparency="True" 
+                       Focusable="False" 
+                       PopupAnimation="Fade">
+                    <Border Background="#252526" BorderBrush="#555555" BorderThickness="1" 
+                            Width="{Binding ActualWidth, ElementName=TopicTextBox}" 
+                            MaxHeight="220" Margin="0,2,0,0" CornerRadius="2" SnapsToDevicePixels="True">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="8" ShadowDepth="3" Opacity="0.5" Direction="270" Color="Black"/>
+                        </Border.Effect>
+                        <ListBox x:Name="TopicListBox" 
+                                 Background="Transparent" 
+                                 BorderThickness="0" 
+                                 Foreground="#E0E0E0" 
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled" 
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 ItemContainerStyle="{StaticResource SuggestionItemStyle}"
+                                 SelectionChanged="TopicListBox_SelectionChanged"
+                                 PreviewKeyDown="TopicListBox_PreviewKeyDown"/>
+                    </Border>
+                </Popup>
+            </Grid>
         </StackPanel>
 
         <StackPanel Grid.Row="2" Margin="0,0,0,15">
             <TextBlock Text="Realizowany materiał:" FontSize="14" Foreground="#AAAAAA" Margin="0,0,0,5" />
-            <ComboBox x:Name="MaterialComboBox" IsEditable="True" ToolTip="Wybierz z rozkładu materiału lub wpisz własny" IsTextSearchEnabled="False" StaysOpenOnEdit="True" KeyUp="MaterialComboBox_KeyUp"/>
+            <Grid Height="32">
+                <TextBox x:Name="MaterialTextBox" 
+                         Background="#333337" 
+                         Foreground="#E0E0E0" 
+                         CaretBrush="#E0E0E0"
+                         BorderBrush="#555555" 
+                         BorderThickness="1" 
+                         Padding="8,0,28,0" 
+                         VerticalContentAlignment="Center" 
+                         FontSize="13" 
+                         ToolTip="Wybierz z rozkładu materiału lub wpisz własny"
+                         TextChanged="MaterialTextBox_TextChanged"
+                         PreviewKeyDown="MaterialTextBox_PreviewKeyDown"/>
+
+                <ToggleButton x:Name="MaterialDropDownButton" 
+                              Width="24" 
+                              HorizontalAlignment="Right" 
+                              VerticalAlignment="Stretch" 
+                              Margin="0,1,1,1" 
+                              Focusable="False" 
+                              Style="{StaticResource DropDownButtonStyle}"
+                              IsChecked="{Binding IsOpen, ElementName=MaterialPopup, Mode=TwoWay}"
+                              Click="MaterialDropDownButton_Click"/>
+
+                <Popup x:Name="MaterialPopup" 
+                       PlacementTarget="{Binding ElementName=MaterialTextBox}" 
+                       Placement="Bottom" 
+                       StaysOpen="False" 
+                       AllowsTransparency="True" 
+                       Focusable="False" 
+                       PopupAnimation="Fade">
+                    <Border Background="#252526" BorderBrush="#555555" BorderThickness="1" 
+                            Width="{Binding ActualWidth, ElementName=MaterialTextBox}" 
+                            MaxHeight="220" Margin="0,2,0,0" CornerRadius="2" SnapsToDevicePixels="True">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="8" ShadowDepth="3" Opacity="0.5" Direction="270" Color="Black"/>
+                        </Border.Effect>
+                        <ListBox x:Name="MaterialListBox" 
+                                 Background="Transparent" 
+                                 BorderThickness="0" 
+                                 Foreground="#E0E0E0" 
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled" 
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 ItemContainerStyle="{StaticResource SuggestionItemStyle}"
+                                 SelectionChanged="MaterialListBox_SelectionChanged"
+                                 PreviewKeyDown="MaterialListBox_PreviewKeyDown"/>
+                    </Border>
+                </Popup>
+            </Grid>
         </StackPanel>
 
         <StackPanel Grid.Row="3" Margin="0,0,0,15">

@@ -15,6 +15,7 @@ namespace GradebookApp.Services
     public class AppSettings
     {
         public SupabaseSettings Supabase { get; set; } = new SupabaseSettings();
+        public string DefaultRoom { get; set; } = string.Empty;
     }
 
     public static class AppConfig

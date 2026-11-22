@@ -41,6 +41,11 @@ namespace GradebookApp.Services
         [Column("work_id")] public long WorkId { get; set; }
         [Column("class_name")] public string ClassName { get; set; } = string.Empty;
         [Column("journal_number")] public int JournalNumber { get; set; }
+        [Column("slot_date")] public string? SlotDate { get; set; }
+        [Column("slot_time")] public string? SlotTime { get; set; }
+        [Column("status")] public string Status { get; set; } = "pending";
+        [Column("student_note")] public string? StudentNote { get; set; }
+        [Column("created_at")] public DateTime? CreatedAt { get; set; }
     }
 
     [Table("student_activations")]
@@ -66,7 +71,7 @@ namespace GradebookApp.Services
         [Column("day_name")] public string DayName { get; set; } = string.Empty;
         [Column("time_slot")] public string TimeSlot { get; set; } = string.Empty;
         [Column("class_name")] public string ClassName { get; set; } = string.Empty;
-        [Column("room")] public string Room { get; set; } = "Sala 214";
+        [Column("room")] public string Room { get; set; } = string.Empty;
         [Column("is_available")] public bool IsAvailable { get; set; } = true;
     }
 
@@ -218,7 +223,9 @@ namespace GradebookApp.Services
                 .ToList();
 
             var distinctSlots = new List<CloudTeacherSlot>();
+            var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             long slotIdCounter = 1;
+            string configuredRoom = AppConfig.Settings.DefaultRoom?.Trim() ?? string.Empty;
 
             var dayNameMap = new Dictionary<DayOfWeek, (int num, string name)>
             {
@@ -236,30 +243,53 @@ namespace GradebookApp.Services
 
                 if (dayNameMap.TryGetValue(t.DayOfWeek, out var dayInfo))
                 {
-                    distinctSlots.Add(new CloudTeacherSlot
+                    // Uznajemy godzinę za dostępną dla ucznia na poprawę TYLKO wtedy, gdy oznaczono ją jako 'Poprawy' lub 'Konsultacje'
+                    bool isRetakeSlot = !string.IsNullOrWhiteSpace(t.ClassName) &&
+                        (t.ClassName.Trim().Equals("Poprawy", StringComparison.OrdinalIgnoreCase) ||
+                         t.ClassName.Trim().Equals("Poprawa", StringComparison.OrdinalIgnoreCase) ||
+                         t.ClassName.IndexOf("popraw", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                         t.ClassName.IndexOf("konsultacj", StringComparison.OrdinalIgnoreCase) >= 0);
+
+                    if (isRetakeSlot)
                     {
-                        Id = slotIdCounter++,
-                        DayOfWeek = dayInfo.num,
-                        DayName = dayInfo.name,
-                        TimeSlot = cleanSlot,
-                        ClassName = t.ClassName ?? string.Empty,
-                        Room = "Sala 214",
-                        IsAvailable = true
-                    });
+                        string key = $"{dayInfo.num}_{cleanSlot}";
+                        if (seenKeys.Add(key))
+                        {
+                            distinctSlots.Add(new CloudTeacherSlot
+                            {
+                                Id = slotIdCounter++,
+                                DayOfWeek = dayInfo.num,
+                                DayName = dayInfo.name,
+                                TimeSlot = cleanSlot,
+                                ClassName = t.ClassName ?? "Poprawy",
+                                Room = configuredRoom,
+                                IsAvailable = true
+                            });
+                        }
+                    }
                 }
             }
 
-            if (distinctSlots.Any())
+            // Czyścimy poprzednie sloty w chmurze i wstawiamy wyłącznie godziny zdefiniowane na poprawy
+            try
             {
-                // Czyścimy stare sloty lub robimy Upsert
-                try
+                var existing = await _client.From<CloudTeacherSlot>().Get();
+                if (existing.Models != null && existing.Models.Any())
                 {
-                    await _client.From<CloudTeacherSlot>().Upsert(distinctSlots);
+                    foreach (var oldSlot in existing.Models)
+                    {
+                        await _client.From<CloudTeacherSlot>().Delete(oldSlot);
+                    }
                 }
-                catch (Exception ex)
+
+                if (distinctSlots.Any())
                 {
-                    System.Diagnostics.Debug.WriteLine($"[CloudSync] Upsert cloud_teacher_slots error: {ex.Message}");
+                    await _client.From<CloudTeacherSlot>().Insert(distinctSlots);
                 }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CloudSync] Sync cloud_teacher_slots error: {ex.Message}");
             }
 
             return distinctSlots.Count;
@@ -298,18 +328,43 @@ namespace GradebookApp.Services
                 .OrderBy(s => s.JournalNumber)
                 .ToList();
 
+            // Zabezpieczenie przed ewentualnymi zduplikowanymi numerami w dzienniku
+            var distinctStudents = students
+                .GroupBy(s => s.JournalNumber)
+                .Select(g => g.First())
+                .ToList();
+
             var existingCodes = await GetStudentActivationsAsync(className);
             var resultList = new List<CloudStudentActivation>();
 
-            foreach (var student in students)
+            foreach (var student in distinctStudents)
             {
                 var existing = existingCodes.FirstOrDefault(c => c.JournalNumber == student.JournalNumber);
                 if (existing != null && !string.IsNullOrWhiteSpace(existing.ActivationCode))
                 {
+                    // Uczeń ma już wygenerowany kod w chmurze - zachowujemy bez zmian
+                    resultList.Add(existing);
+                }
+                else if (existing != null)
+                {
+                    // Uczeń istnieje w chmurze, ale nie ma jeszcze kodu - aktualizujemy jego rekord o znanym Id
+                    existing.ActivationCode = GenerateUniqueCode(className, student.JournalNumber);
+                    existing.StudentName = student.FullName;
+                    existing.Status = "active";
+                    try
+                    {
+                        await _client.From<CloudStudentActivation>().Upsert(existing);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[CloudSync] Upsert existing activation error: {ex.Message}");
+                    }
                     resultList.Add(existing);
                 }
                 else
                 {
+                    // Nowy uczeń bez rekordu w chmurze - wstawiamy przez Insert, aby baza nadała Id z sekwencji BIGSERIAL
+                    // Zapobiega to błędowi PostgreSQL 21000 (ON CONFLICT DO UPDATE duplicate constrained values z id: 0)
                     var newRecord = new CloudStudentActivation
                     {
                         ClassName = className,
@@ -319,13 +374,24 @@ namespace GradebookApp.Services
                         Status = "active",
                         CreatedAt = DateTime.UtcNow
                     };
-                    resultList.Add(newRecord);
-                }
-            }
 
-            if (resultList.Any())
-            {
-                await _client.From<CloudStudentActivation>().Upsert(resultList);
+                    try
+                    {
+                        var inserted = await _client.From<CloudStudentActivation>().Insert(newRecord);
+                        if (inserted.Models != null && inserted.Models.Any())
+                        {
+                            resultList.Add(inserted.Models.First());
+                        }
+                        else
+                        {
+                            resultList.Add(newRecord);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[CloudSync] Insert new activation error #{student.JournalNumber}: {ex.Message}");
+                    }
+                }
             }
 
             return resultList;
@@ -336,21 +402,38 @@ namespace GradebookApp.Services
             EnsureConfigured();
             await _client!.InitializeAsync();
 
-            var newRecord = new CloudStudentActivation
-            {
-                ClassName = className,
-                JournalNumber = journalNumber,
-                StudentName = studentName,
-                ActivationCode = GenerateUniqueCode(className, journalNumber),
-                DeviceId = null,
-                DeviceHash = null,
-                ActivatedAt = null,
-                Status = "active", // Nowy kod unieważnia poprzednie powiązanie z telefonem!
-                CreatedAt = DateTime.UtcNow
-            };
+            var existingCodes = await GetStudentActivationsAsync(className);
+            var existing = existingCodes.FirstOrDefault(c => c.JournalNumber == journalNumber);
 
-            await _client.From<CloudStudentActivation>().Upsert(newRecord);
-            return newRecord;
+            if (existing != null)
+            {
+                existing.ActivationCode = GenerateUniqueCode(className, journalNumber);
+                existing.StudentName = studentName;
+                existing.DeviceId = null;
+                existing.DeviceHash = null;
+                existing.ActivatedAt = null;
+                existing.Status = "active"; // Nowy kod unieważnia poprzednie powiązanie z telefonem!
+                await _client.From<CloudStudentActivation>().Upsert(existing);
+                return existing;
+            }
+            else
+            {
+                var newRecord = new CloudStudentActivation
+                {
+                    ClassName = className,
+                    JournalNumber = journalNumber,
+                    StudentName = studentName,
+                    ActivationCode = GenerateUniqueCode(className, journalNumber),
+                    DeviceId = null,
+                    DeviceHash = null,
+                    ActivatedAt = null,
+                    Status = "active",
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                var inserted = await _client.From<CloudStudentActivation>().Insert(newRecord);
+                return inserted.Models?.FirstOrDefault() ?? newRecord;
+            }
         }
 
         public async Task<(int addedCount, string message)> FetchAndApplyRetakeSignupsAsync()
@@ -358,12 +441,14 @@ namespace GradebookApp.Services
             EnsureConfigured();
             await _client!.InitializeAsync();
 
-            var response = await _client.From<CloudRetakeSignup>().Get();
+            var response = await _client.From<CloudRetakeSignup>()
+                .Where(s => s.Status == "pending")
+                .Get();
             var signups = response.Models;
 
             if (signups == null || !signups.Any())
             {
-                return (0, "Skrzynka podawcza w chmurze jest pusta. Żaden uczeń nie zapisał się na poprawę od czasu ostatniej synchronizacji.");
+                return (0, "Skrzynka podawcza w chmurze jest pusta. Żaden uczeń nie oczekuje obecnie na potwierdzenie poprawy.");
             }
 
             int addedCount = 0;
@@ -389,12 +474,23 @@ namespace GradebookApp.Services
                             var record = db.StudentWorkRecords.FirstOrDefault(r => r.StudentId == student.Id && r.WrittenWorkId == work.Id);
                             if (record == null)
                             {
-                                record = new StudentWorkRecord { StudentId = student.Id, WrittenWorkId = work.Id, WantsToRetake = true };
+                                record = new StudentWorkRecord
+                                {
+                                    StudentId = student.Id,
+                                    WrittenWorkId = work.Id,
+                                    WantsToRetake = true,
+                                    RequestedSlotDate = signup.SlotDate,
+                                    RequestedSlotTime = signup.SlotTime,
+                                    RequestedStudentNote = signup.StudentNote
+                                };
                                 db.StudentWorkRecords.Add(record);
                             }
                             else
                             {
                                 record.WantsToRetake = true;
+                                record.RequestedSlotDate = signup.SlotDate;
+                                record.RequestedSlotTime = signup.SlotTime;
+                                record.RequestedStudentNote = signup.StudentNote;
                             }
                             addedCount++;
                         }
@@ -403,13 +499,76 @@ namespace GradebookApp.Services
                 db.SaveChanges();
             }
 
-            // Usuwamy przetworzone zgłoszenia z chmury
-            foreach (var signup in signups)
-            {
-                await _client.From<CloudRetakeSignup>().Delete(signup);
-            }
-
+            // Nie usuwamy zgłoszeń! Pozostają w chmurze, a po zatwierdzeniu przez nauczyciela
+            // ich status zostanie zmieniony na 'confirmed', co wywoła powiadomienie u ucznia.
             return (addedCount, $"Pomyślnie pobrano zgłoszenia. Zaktualizowano listę chętnych o {addedCount} uczniów.");
+        }
+
+        // =========================================================================
+        // POTWIERDZENIE POPRAWY W CHMURZE (WYZWALA POWIADOMIENIE DLA UCZNIA)
+        // =========================================================================
+        public async Task ConfirmRetakeForStudentsAsync(long workId, string className, List<int> journalNumbers, string slotDate, string slotTime)
+        {
+            EnsureConfigured();
+            await _client!.InitializeAsync();
+
+            try
+            {
+                var response = await _client.From<CloudRetakeSignup>()
+                    .Where(s => s.WorkId == workId && s.ClassName == className)
+                    .Get();
+
+                var existingSignups = response.Models ?? new List<CloudRetakeSignup>();
+                var toUpsert = new List<CloudRetakeSignup>();
+
+                foreach (var jNum in journalNumbers)
+                {
+                    var existing = existingSignups.FirstOrDefault(s => s.JournalNumber == jNum);
+                    if (existing != null)
+                    {
+                        existing.Status = "confirmed";
+                        existing.SlotDate = slotDate;
+                        existing.SlotTime = slotTime;
+                        toUpsert.Add(existing);
+                    }
+                    else
+                    {
+                        toUpsert.Add(new CloudRetakeSignup
+                        {
+                            WorkId = workId,
+                            ClassName = className,
+                            JournalNumber = jNum,
+                            SlotDate = slotDate,
+                            SlotTime = slotTime,
+                            Status = "confirmed",
+                            StudentNote = "Zatwierdzono przez nauczyciela"
+                        });
+                    }
+                }
+
+                foreach (var item in toUpsert)
+                {
+                    try
+                    {
+                        if (item.Id > 0)
+                        {
+                            await _client.From<CloudRetakeSignup>().Update(item);
+                        }
+                        else
+                        {
+                            await _client.From<CloudRetakeSignup>().Insert(item);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[CloudSync] Error saving signup #{item.JournalNumber}: {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CloudSync] Błąd zatwierdzania zgłoszenia w chmurze: {ex.Message}");
+            }
         }
     }
 }

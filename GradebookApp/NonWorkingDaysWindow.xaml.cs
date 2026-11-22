@@ -65,18 +65,6 @@ namespace GradebookApp
                 _currentDisplayYear = _currentDisplayMonth >= 9 ? _schoolYearStart : _schoolYearStart + 1;
             }
 
-            // Inicjalizacja miesięcy w ComboBox dla reguł corocznych
-            for (int m = 1; m <= 12; m++)
-            {
-                RecurringMonthComboBox.Items.Add(new ComboBoxItem 
-                { 
-                    Content = $"{m:00} - {SchoolCalendarService.GetPolishMonthName(m)}", 
-                    Tag = m 
-                });
-            }
-            RecurringMonthComboBox.SelectedIndex = today.Month - 1;
-            RecurringDayTextBox.Text = today.Day.ToString();
-
             _isUpdatingDatePickers = true;
             SingleDatePicker.SelectedDate = today;
             RangeStartDatePicker.SelectedDate = null;
@@ -420,26 +408,6 @@ namespace GradebookApp
 
                 RefreshCalendarView();
             }
-            else if (RecurringRadio.IsChecked == true)
-            {
-                RecurringDayTextBox.Text = d.Day.ToString();
-                RecurringMonthComboBox.SelectedIndex = d.Month - 1;
-
-                _rangeStartDate = null;
-                _rangeEndDate = null;
-
-                string? reason = SchoolCalendarService.GetNonWorkingDayReason(d);
-                if (!string.IsNullOrEmpty(reason) && reason != "Sobota (weekend)" && reason != "Niedziela (weekend)")
-                {
-                    RuleNameTextBox.Text = reason;
-                }
-                else if (string.IsNullOrWhiteSpace(RuleNameTextBox.Text))
-                {
-                    RuleNameTextBox.Text = "Święto";
-                }
-
-                RefreshCalendarView();
-            }
         }
 
         private void SingleDatePicker_SelectedDateChanged(object sender, SelectionChangedEventArgs e)
@@ -483,8 +451,6 @@ namespace GradebookApp
                     workingDays++;
                 }
             }
-
-            StatsSummaryText.Text = $"Dni nauki (Wrz - Cze): Robocze: {workingDays} | Wolne: {totalFreeDays} (w tym weekendy: {weekendDays})";
         }
 
         // --- NAWIGACJA ROKU I MIESIĄCA ---
@@ -557,11 +523,10 @@ namespace GradebookApp
 
         private void RuleType_Changed(object sender, RoutedEventArgs e)
         {
-            if (SingleDayPanel == null || DateRangePanel == null || RecurringPanel == null) return;
+            if (SingleDayPanel == null || DateRangePanel == null) return;
 
             SingleDayPanel.Visibility = SingleDayRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
             DateRangePanel.Visibility = DateRangeRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
-            RecurringPanel.Visibility = RecurringRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
 
             if (DateRangeRadio.IsChecked == true)
             {
@@ -597,15 +562,6 @@ namespace GradebookApp
                 }
             }
             else if (SingleDayRadio.IsChecked == true)
-            {
-                _rangeStartDate = null;
-                _rangeEndDate = null;
-                _isUpdatingDatePickers = true;
-                RangeStartDatePicker.SelectedDate = null;
-                RangeEndDatePicker.SelectedDate = null;
-                _isUpdatingDatePickers = false;
-            }
-            else if (RecurringRadio.IsChecked == true)
             {
                 _rangeStartDate = null;
                 _rangeEndDate = null;
@@ -663,8 +619,19 @@ namespace GradebookApp
                     MessageBox.Show("Wybierz datę z kalendarza.", "Brak daty", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
-                rule.RuleType = NonWorkingDayType.SingleDay;
-                rule.StartDate = SingleDatePicker.SelectedDate.Value.Date;
+                var selectedDate = SingleDatePicker.SelectedDate.Value.Date;
+                if (RepeatYearlyCheckBox.IsChecked == true)
+                {
+                    rule.RuleType = NonWorkingDayType.RecurringYearly;
+                    rule.Day = selectedDate.Day;
+                    rule.Month = selectedDate.Month;
+                    rule.StartDate = selectedDate;
+                }
+                else
+                {
+                    rule.RuleType = NonWorkingDayType.SingleDay;
+                    rule.StartDate = selectedDate;
+                }
             }
             else if (DateRangeRadio.IsChecked == true)
             {
@@ -682,7 +649,7 @@ namespace GradebookApp
                 var start = RangeStartDatePicker.SelectedDate.Value.Date;
                 var end = RangeEndDatePicker.SelectedDate.Value.Date;
 
-                if (RangeRecurringCheckBox.IsChecked == true)
+                if (RepeatYearlyCheckBox.IsChecked == true)
                 {
                     // Okres powtarzający się co roku (np. Boże Narodzenie 23.12 - 01.01)
                     rule.RuleType = NonWorkingDayType.RecurringDateRange;
@@ -700,19 +667,6 @@ namespace GradebookApp
                     rule.StartDate = start;
                     rule.EndDate = end;
                 }
-            }
-            else if (RecurringRadio.IsChecked == true)
-            {
-                if (!int.TryParse(RecurringDayTextBox.Text.Trim(), out int day) || day < 1 || day > 31)
-                {
-                    MessageBox.Show("Wpisz poprawny dzień miesiąca (1 - 31).", "Błąd dnia", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    RecurringDayTextBox.Focus();
-                    return;
-                }
-                int month = RecurringMonthComboBox.SelectedIndex + 1;
-                rule.RuleType = NonWorkingDayType.RecurringYearly;
-                rule.Day = day;
-                rule.Month = month;
             }
 
             _dataService.AddCalendarRule(rule);
@@ -762,6 +716,12 @@ namespace GradebookApp
             {
                 MessageBox.Show("Wszystkie standardowe święta państwowe znajdują się już w Twoim kalendarzu.", "Informacja", MessageBoxButton.OK, MessageBoxImage.Information);
             }
+        }
+
+        private void ShowClassHoursSummary_Click(object sender, RoutedEventArgs e)
+        {
+            var summaryWin = new ClassHoursSummaryWindow(_schoolYearStart) { Owner = this };
+            summaryWin.ShowDialog();
         }
 
         private void Close_Click(object sender, RoutedEventArgs e)

@@ -96,6 +96,9 @@ namespace GradebookApp
         public DateTime? RetakeDateWritten { get; set; }
         public DateTime? RetakeDateEntered { get; set; }
         public bool WantsToRetake { get; set; }
+        public string? RequestedSlotDate { get; set; }
+        public string? RequestedSlotTime { get; set; }
+        public string? RequestedStudentNote { get; set; }
     }
 
     public class StudentTaskScore
@@ -185,6 +188,7 @@ namespace GradebookApp
         public int Level { get; set; } // 0 = Dział, 1 = Rozdział, 2 = Temat
         public int? ParentId { get; set; }
         public int OrderIndex { get; set; }
+        public bool IsExpanded { get; set; } = true;
         
         // NOWE: Ścieżki do plików PDF (Mogą być puste, stąd znak zapytania)
         public string? TasksPdfPath { get; set; }

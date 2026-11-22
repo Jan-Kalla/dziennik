@@ -43,7 +43,6 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -55,11 +54,10 @@
                             Background="#333337" Foreground="#E0E0E0" BorderThickness="0" Padding="10,6" Cursor="Hand" Margin="10,0,0,0"/>
                 </StackPanel>
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="15,0">
-                    <TextBlock x:Name="StatsSummaryText" Text="Dni nauki (Wrz - Cze): Robocze: 0 | Wolne: 0" FontSize="13" FontWeight="SemiBold" Foreground="#B0BEC5"/>
-                </StackPanel>
-
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button Content="📊 Zestawienie godzin klas" Click="ShowClassHoursSummary_Click" 
+                            Background="#007ACC" Foreground="#FFFFFF" BorderThickness="0" Padding="12,6" Cursor="Hand" FontWeight="SemiBold" Margin="0,0,10,0"
+                            ToolTip="Wyświetla obliczoną liczbę godzin lekcyjnych dla poszczególnych klas w roku szkolnym na podstawie planu lekcji"/>
                     <Button Content="🇵🇱 Wstaw polskie święta państwowe" Click="SeedHolidays_Click" 
                             Background="#2E4A2E" Foreground="#E0E0E0" BorderThickness="0" Padding="14,6" Cursor="Hand" FontWeight="SemiBold"
                             ToolTip="Dodaje coroczne polskie święta (Nowy Rok, Trzech Króli, 1 i 3 Maja, 15 Sierpnia, 1 i 11 Listopada, Boże Narodzenie)"/>
@@ -172,9 +170,8 @@
 
                         <!-- Wybór typu reguły -->
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                            <RadioButton x:Name="SingleDayRadio" Content="Pojedynczy dzień" IsChecked="True" GroupName="RuleTypeGroup" Checked="RuleType_Changed" Margin="0,0,12,0" Foreground="#E0E0E0"/>
-                            <RadioButton x:Name="DateRangeRadio" Content="Okres (Od - Do)" GroupName="RuleTypeGroup" Checked="RuleType_Changed" Margin="0,0,12,0" Foreground="#E0E0E0"/>
-                            <RadioButton x:Name="RecurringRadio" Content="Dzień co roku" GroupName="RuleTypeGroup" Checked="RuleType_Changed" Foreground="#E0E0E0"/>
+                            <RadioButton x:Name="SingleDayRadio" Content="Pojedynczy dzień" IsChecked="True" GroupName="RuleTypeGroup" Checked="RuleType_Changed" Margin="0,0,15,0" Foreground="#E0E0E0"/>
+                            <RadioButton x:Name="DateRangeRadio" Content="Okres (Od - Do)" GroupName="RuleTypeGroup" Checked="RuleType_Changed" Foreground="#E0E0E0"/>
                         </StackPanel>
 
                         <!-- Nazwa reguły -->
@@ -187,7 +184,7 @@
                             <DatePicker x:Name="SingleDatePicker" SelectedDateFormat="Short" SelectedDateChanged="SingleDatePicker_SelectedDateChanged" CalendarStyle="{StaticResource DarkCalendarStyle}"/>
                         </StackPanel>
 
-                        <!-- Panel 2: Okres od-do (z opcją powtarzalności co roku!) -->
+                        <!-- Panel 2: Okres od-do -->
                         <StackPanel x:Name="DateRangePanel" Visibility="Collapsed" Margin="0,0,0,8">
                             <DockPanel Margin="0,0,0,6">
                                 <TextBlock Text="💡 Kliknij dzień rozpoczęcia (Od), a następnie dzień zakończenia (Do) na kalendarzu." 
@@ -209,27 +206,11 @@
                                     <DatePicker x:Name="RangeEndDatePicker" SelectedDateChanged="RangeDatePicker_SelectedDateChanged" CalendarStyle="{StaticResource DarkCalendarStyle}"/>
                                 </StackPanel>
                             </Grid>
-                            
-                            <!-- NOWOŚĆ: Powtarzanie okresu co roku -->
-                            <CheckBox x:Name="RangeRecurringCheckBox" Content="Powtarzaj ten okres co roku (np. Boże Narodzenie 23.12 - 01.01)" Margin="0,8,0,2" Foreground="#FFD54F" FontWeight="SemiBold"/>
-                            <TextBlock Text="Gdy zaznaczone, ten zakres dat będzie obowiązywał we wszystkich kolejnych latach szkolnych." FontSize="11" Foreground="#9E9E9E" TextWrapping="Wrap"/>
                         </StackPanel>
 
-                        <!-- Panel 3: Powtarzalny pojedynczy dzień co roku -->
-                        <Grid x:Name="RecurringPanel" Visibility="Collapsed" Margin="0,0,0,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                <TextBlock Text="Dzień (1-31):" FontSize="12" Foreground="#B0BEC5" Margin="0,0,0,2"/>
-                                <TextBox x:Name="RecurringDayTextBox" Width="60" Height="30" Background="#252526" Foreground="White" BorderBrush="#434346" TextAlignment="Center" VerticalContentAlignment="Center"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="1">
-                                <TextBlock Text="Miesiąc:" FontSize="12" Foreground="#B0BEC5" Margin="0,0,0,2"/>
-                                <ComboBox x:Name="RecurringMonthComboBox" Height="30" Background="#252526" Foreground="White"/>
-                            </StackPanel>
-                        </Grid>
+                        <!-- Wspólny Checkbox dla obu opcji: jednorazowo lub powtarzaj co roku -->
+                        <CheckBox x:Name="RepeatYearlyCheckBox" Content="Powtarzaj ten okres / dzień co roku (np. Boże Narodzenie lub święto)" Margin="0,4,0,2" Foreground="#FFD54F" FontWeight="SemiBold"/>
+                        <TextBlock Text="Gdy zaznaczone, ten dzień lub okres będzie obowiązywał we wszystkich kolejnych latach szkolnych." FontSize="11" Foreground="#9E9E9E" TextWrapping="Wrap" Margin="0,0,0,6"/>
 
                         <!-- Przycisk dodawania -->
                         <Button Content="+ Dodaj regułę do kalendarza" Click="AddRule_Click" Height="34" Background="#2E7D32" Foreground="White" FontWeight="SemiBold" BorderThickness="0" Cursor="Hand" Margin="0,6,0,0"/>

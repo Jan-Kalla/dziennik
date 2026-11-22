@@ -114,12 +114,85 @@ namespace GradebookApp.Services
 
             return result;
         }
-        // Zaktualizowana metoda ApplyMigrations (tworzy tabelę w locie)
+        // Zaktualizowana metoda ApplyMigrations (tworzy tabelę w locie i uzupełnia brakujące kolumny)
         public void ApplyMigrations() 
         {
-            _dbContext.Database.Migrate();
+            try 
+            { 
+                _dbContext.Database.Migrate(); 
+            } 
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ApplyMigrations] Database.Migrate warning: {ex.Message}");
+            }
 
-            // Pozostawiamy bez zmian dla rozkładu materiału
+            // 1. Aktualizacja tabeli StudentWorkRecords (pola próśb o poprawę, terminów i chęci poprawy)
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"StudentWorkRecords\" ADD COLUMN \"RequestedSlotDate\" TEXT NULL;"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"StudentWorkRecords\" ADD COLUMN \"RequestedSlotTime\" TEXT NULL;"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"StudentWorkRecords\" ADD COLUMN \"RequestedStudentNote\" TEXT NULL;"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"StudentWorkRecords\" ADD COLUMN \"WantsToRetake\" INTEGER NOT NULL DEFAULT 0;"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"StudentWorkRecords\" ADD COLUMN \"IsAbsent\" INTEGER NOT NULL DEFAULT 0;"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"StudentWorkRecords\" ADD COLUMN \"Group\" TEXT NULL;"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"StudentWorkRecords\" ADD COLUMN \"CustomDateWritten\" TEXT NULL;"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"StudentWorkRecords\" ADD COLUMN \"CustomDateEntered\" TEXT NULL;"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"StudentWorkRecords\" ADD COLUMN \"IsRetakeActive\" INTEGER NOT NULL DEFAULT 0;"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"StudentWorkRecords\" ADD COLUMN \"RetakeGroup\" TEXT NULL;"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"StudentWorkRecords\" ADD COLUMN \"RetakeDeadline\" TEXT NULL;"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"StudentWorkRecords\" ADD COLUMN \"RetakeDateWritten\" TEXT NULL;"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"StudentWorkRecords\" ADD COLUMN \"RetakeDateEntered\" TEXT NULL;"); } catch { }
+
+            // 2. Aktualizacja tabeli WrittenWorks oraz WrittenWorkTasks (prace indywidualne i grupy)
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"WrittenWorks\" ADD COLUMN \"IsIndividual\" INTEGER NOT NULL DEFAULT 0;"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"WrittenWorks\" ADD COLUMN \"IndividualStudentId\" INTEGER NULL;"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"WrittenWorks\" ADD COLUMN \"HasGroups\" INTEGER NOT NULL DEFAULT 0;"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"WrittenWorks\" ADD COLUMN \"DateWritten\" TEXT NULL;"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"WrittenWorks\" ADD COLUMN \"DateEntered\" TEXT NULL;"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"WrittenWorkTasks\" ADD COLUMN \"GroupName\" TEXT NULL;"); } catch { }
+
+            // 3. Tabele zaplanowanych popraw
+            _dbContext.Database.ExecuteSqlRaw(@"
+                CREATE TABLE IF NOT EXISTS ""PlannedRetakes"" (
+                    ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_PlannedRetakes"" PRIMARY KEY AUTOINCREMENT,
+                    ""WrittenWorkId"" INTEGER NOT NULL,
+                    ""Date"" TEXT NOT NULL,
+                    ""Time"" TEXT NOT NULL,
+                    CONSTRAINT ""FK_PlannedRetakes_WrittenWorks_WrittenWorkId"" FOREIGN KEY (""WrittenWorkId"") REFERENCES ""WrittenWorks"" (""Id"") ON DELETE CASCADE
+                );
+            ");
+            _dbContext.Database.ExecuteSqlRaw(@"
+                CREATE TABLE IF NOT EXISTS ""PlannedRetakeStudents"" (
+                    ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_PlannedRetakeStudents"" PRIMARY KEY AUTOINCREMENT,
+                    ""PlannedRetakeId"" INTEGER NOT NULL,
+                    ""StudentId"" INTEGER NOT NULL,
+                    CONSTRAINT ""FK_PlannedRetakeStudents_PlannedRetakes_PlannedRetakeId"" FOREIGN KEY (""PlannedRetakeId"") REFERENCES ""PlannedRetakes"" (""Id"") ON DELETE CASCADE,
+                    CONSTRAINT ""FK_PlannedRetakeStudents_Students_StudentId"" FOREIGN KEY (""StudentId"") REFERENCES ""Students"" (""Id"") ON DELETE CASCADE
+                );
+            ");
+
+            // 4. Tabele szablonów prac pisemnych
+            _dbContext.Database.ExecuteSqlRaw(@"
+                CREATE TABLE IF NOT EXISTS ""WorkTemplates"" (
+                    ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_WorkTemplates"" PRIMARY KEY AUTOINCREMENT,
+                    ""Title"" TEXT NOT NULL,
+                    ""WorkType"" TEXT NOT NULL,
+                    ""MaxFinalPoints"" REAL NOT NULL,
+                    ""HasGroups"" INTEGER NOT NULL DEFAULT 0
+                );
+            ");
+            _dbContext.Database.ExecuteSqlRaw(@"
+                CREATE TABLE IF NOT EXISTS ""WorkTemplateTasks"" (
+                    ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_WorkTemplateTasks"" PRIMARY KEY AUTOINCREMENT,
+                    ""TaskNumber"" INTEGER NOT NULL,
+                    ""MaxPointsLevel1"" REAL NULL,
+                    ""MaxPointsLevel2"" REAL NULL,
+                    ""MaxPointsLevel3"" REAL NULL,
+                    ""GroupName"" TEXT NULL,
+                    ""WorkTemplateId"" INTEGER NOT NULL,
+                    CONSTRAINT ""FK_WorkTemplateTasks_WorkTemplates_WorkTemplateId"" FOREIGN KEY (""WorkTemplateId"") REFERENCES ""WorkTemplates"" (""Id"") ON DELETE CASCADE
+                );
+            ");
+
+            // 5. Rozkład materiału
             _dbContext.Database.ExecuteSqlRaw(@"
                 CREATE TABLE IF NOT EXISTS ""CurriculumNodes"" (
                     ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_CurriculumNodes"" PRIMARY KEY AUTOINCREMENT,
@@ -134,8 +207,9 @@ namespace GradebookApp.Services
             try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"CurriculumNodes\" ADD COLUMN \"AnswersPdfPath\" TEXT NULL;"); } catch { }
             try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"CurriculumNodes\" ADD COLUMN \"QuizzesPdfPath\" TEXT NULL;"); } catch { }
             try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"CurriculumNodes\" ADD COLUMN \"OrderIndex\" INTEGER NOT NULL DEFAULT 0;"); } catch { }
+            try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"CurriculumNodes\" ADD COLUMN \"IsExpanded\" INTEGER NOT NULL DEFAULT 1;"); } catch { }
 
-            // Tworzenie tabeli szablonów planu lekcji
+            // 6. Szablony planu lekcji
             _dbContext.Database.ExecuteSqlRaw(@"
                 CREATE TABLE IF NOT EXISTS ""LessonTemplateItems"" (
                     ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_LessonTemplateItems"" PRIMARY KEY AUTOINCREMENT,
@@ -145,15 +219,22 @@ namespace GradebookApp.Services
                 );
             ");
 
-            // Aktualizacja tabeli zrealizowanych materiałów - Dodano kolumnę Notes
+            // 7. Zrealizowane materiały planu lekcji
+            _dbContext.Database.ExecuteSqlRaw(@"
+                CREATE TABLE IF NOT EXISTS ""LessonScheduleItems"" (
+                    ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_LessonScheduleItems"" PRIMARY KEY AUTOINCREMENT,
+                    ""TimeSlot"" TEXT NOT NULL,
+                    ""Date"" TEXT NOT NULL DEFAULT '0001-01-01 00:00:00',
+                    ""Material"" TEXT NOT NULL DEFAULT '',
+                    ""Notes"" TEXT NULL
+                );
+            ");
             try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"LessonScheduleItems\" ADD COLUMN \"Date\" TEXT NOT NULL DEFAULT '0001-01-01 00:00:00';"); } catch { }
             try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"LessonScheduleItems\" DROP COLUMN \"ClassName\";"); } catch { }
             try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"LessonScheduleItems\" DROP COLUMN \"DayOfWeek\";"); } catch { }
             try { _dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"LessonScheduleItems\" ADD COLUMN \"Notes\" TEXT NULL;"); } catch { }
 
-            // ==========================================================
-            // TUTEJ BRAKOWAŁO TEGO KODU! Tworzenie nowej tabeli na pliki PDF
-            // ==========================================================
+            // 8. Tabela plików PDF
             _dbContext.Database.ExecuteSqlRaw(@"
                 CREATE TABLE IF NOT EXISTS ""TopicFiles"" (
                     ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_TopicFiles"" PRIMARY KEY AUTOINCREMENT,
@@ -165,7 +246,7 @@ namespace GradebookApp.Services
                 );
             ");
 
-            // Tworzenie tabeli dni wolnych i reguł kalendarza szkolnego
+            // 9. Dni wolne i reguły kalendarza szkolnego
             _dbContext.Database.ExecuteSqlRaw(@"
                 CREATE TABLE IF NOT EXISTS ""NonWorkingDayRules"" (
                     ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_NonWorkingDayRules"" PRIMARY KEY AUTOINCREMENT,
@@ -197,23 +278,27 @@ namespace GradebookApp.Services
             catch { }
 
             // AUTOMATYCZNA MIGRACJA: Przeniesienie Twoich starych plików PDF do nowego, lepszego systemu!
-            var nodesToMigrate = _dbContext.CurriculumNodes.Where(n => n.TasksPdfPath != null || n.AnswersPdfPath != null || n.QuizzesPdfPath != null).ToList();
-            foreach (var n in nodesToMigrate)
+            try
             {
-                if (!string.IsNullOrEmpty(n.TasksPdfPath)) {
-                    _dbContext.TopicFiles.Add(new TopicFile { CurriculumNodeId = n.Id, FileType = "Task", FileName = "Zadania.pdf", FilePath = n.TasksPdfPath });
-                    n.TasksPdfPath = null;
+                var nodesToMigrate = _dbContext.CurriculumNodes.Where(n => n.TasksPdfPath != null || n.AnswersPdfPath != null || n.QuizzesPdfPath != null).ToList();
+                foreach (var n in nodesToMigrate)
+                {
+                    if (!string.IsNullOrEmpty(n.TasksPdfPath)) {
+                        _dbContext.TopicFiles.Add(new TopicFile { CurriculumNodeId = n.Id, FileType = "Task", FileName = "Zadania.pdf", FilePath = n.TasksPdfPath });
+                        n.TasksPdfPath = null;
+                    }
+                    if (!string.IsNullOrEmpty(n.AnswersPdfPath)) {
+                        _dbContext.TopicFiles.Add(new TopicFile { CurriculumNodeId = n.Id, FileType = "Answer", FileName = "Odpowiedzi.pdf", FilePath = n.AnswersPdfPath });
+                        n.AnswersPdfPath = null;
+                    }
+                    if (!string.IsNullOrEmpty(n.QuizzesPdfPath)) {
+                        _dbContext.TopicFiles.Add(new TopicFile { CurriculumNodeId = n.Id, FileType = "Quiz", FileName = "Kartkówka.pdf", FilePath = n.QuizzesPdfPath });
+                        n.QuizzesPdfPath = null;
+                    }
                 }
-                if (!string.IsNullOrEmpty(n.AnswersPdfPath)) {
-                    _dbContext.TopicFiles.Add(new TopicFile { CurriculumNodeId = n.Id, FileType = "Answer", FileName = "Odpowiedzi.pdf", FilePath = n.AnswersPdfPath });
-                    n.AnswersPdfPath = null;
-                }
-                if (!string.IsNullOrEmpty(n.QuizzesPdfPath)) {
-                    _dbContext.TopicFiles.Add(new TopicFile { CurriculumNodeId = n.Id, FileType = "Quiz", FileName = "Kartkówka.pdf", FilePath = n.QuizzesPdfPath });
-                    n.QuizzesPdfPath = null;
-                }
+                if (nodesToMigrate.Any()) _dbContext.SaveChanges();
             }
-            if (nodesToMigrate.Any()) _dbContext.SaveChanges();
+            catch { }
         }
 
         // --- ZAKTUALIZOWANA LOGIKA ROZKŁADU MATERIAŁU ---
@@ -362,6 +447,93 @@ namespace GradebookApp.Services
             var node = _dbContext.CurriculumNodes.Find(id);
             if (node != null) _dbContext.CurriculumNodes.Remove(node);
         }
+
+        public void UpdateCurriculumNodeExpanded(int id, bool isExpanded)
+        {
+            try
+            {
+                _dbContext.Database.ExecuteSqlRaw(
+                    "UPDATE \"CurriculumNodes\" SET \"IsExpanded\" = {0} WHERE \"Id\" = {1}",
+                    isExpanded ? 1 : 0, id);
+            }
+            catch { }
+        }
+
+        public List<string> GetOrderedCurriculumTopics()
+        {
+            var allNodes = GetAllCurriculumNodes();
+            var roots = allNodes.Where(n => n.ParentId == null).OrderBy(n => n.OrderIndex).ThenBy(n => n.Id).ToList();
+            var result = new List<string>();
+
+            void Traverse(CurriculumNode node)
+            {
+                var children = allNodes.Where(n => n.ParentId == node.Id).OrderBy(n => n.OrderIndex).ThenBy(n => n.Id).ToList();
+                bool hasChildren = children.Any();
+                bool isLeaf = !hasChildren && (node.Level == 2 || node.Hours.HasValue);
+
+                if (isLeaf && node.Hours.HasValue && node.Hours.Value > 0)
+                {
+                    result.Add(node.Name);
+                }
+
+                foreach (var child in children)
+                {
+                    Traverse(child);
+                }
+            }
+
+            foreach (var root in roots)
+            {
+                Traverse(root);
+            }
+
+            return result;
+        }
+
+        public string? GetLastRealizedTopicForClass(string className, DateTime currentDate, string currentTimeSlot)
+        {
+            if (string.IsNullOrWhiteSpace(className)) return null;
+
+            var allTopics = GetOrderedCurriculumTopics();
+            if (!allTopics.Any()) return null;
+
+            var classTemplates = GetLessonTemplates()
+                .Where(t => t.ClassName.Equals(className.Trim(), StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            var allHist = GetAllScheduleMaterials()
+                .OrderByDescending(h => h.Date)
+                .ToList();
+
+            foreach (var item in allHist)
+            {
+                // Must be in the past or earlier on the same day
+                if (item.Date > currentDate) continue;
+                if (item.Date == currentDate && !string.IsNullOrWhiteSpace(currentTimeSlot) && item.TimeSlot == currentTimeSlot) continue;
+
+                // Verify that this schedule item was for this class
+                bool isForClass = classTemplates.Any(t => t.DayOfWeek == item.Date.DayOfWeek && t.TimeSlot == item.TimeSlot);
+                if (!isForClass) continue;
+
+                if (string.IsNullOrWhiteSpace(item.Material)) continue;
+
+                string mat = item.Material.Trim();
+                string topicCandidate = mat;
+                if (mat.Contains(":"))
+                {
+                    topicCandidate = mat.Substring(0, mat.IndexOf(':')).Trim();
+                }
+
+                var matchingTopic = allTopics.FirstOrDefault(t => t.Equals(topicCandidate, StringComparison.OrdinalIgnoreCase));
+                if (matchingTopic != null)
+                {
+                    return matchingTopic;
+                }
+            }
+
+            return null;
+        }
+
         public void Dispose() => _dbContext.Dispose();
 
         // --- NOWOŚĆ: LOGIKA PLANU ZAJĘĆ (WIDOK DZIENNY/TYGODNIOWY) ---

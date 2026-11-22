@@ -40,7 +40,7 @@ namespace GradebookApp.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("LessonScheduleItems");
+                    b.ToTable("LessonScheduleItems", (string)null);
                 });
 
             modelBuilder.Entity("GradebookApp.PlannedRetake", b =>
@@ -63,7 +63,7 @@ namespace GradebookApp.Migrations
 
                     b.HasIndex("WrittenWorkId");
 
-                    b.ToTable("PlannedRetakes");
+                    b.ToTable("PlannedRetakes", (string)null);
                 });
 
             modelBuilder.Entity("GradebookApp.PlannedRetakeStudent", b =>
@@ -84,7 +84,7 @@ namespace GradebookApp.Migrations
 
                     b.HasIndex("StudentId");
 
-                    b.ToTable("PlannedRetakeStudents");
+                    b.ToTable("PlannedRetakeStudents", (string)null);
                 });
 
             modelBuilder.Entity("GradebookApp.SchoolClass", b =>
@@ -99,7 +99,7 @@ namespace GradebookApp.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Classes");
+                    b.ToTable("Classes", (string)null);
                 });
 
             modelBuilder.Entity("GradebookApp.Student", b =>
@@ -129,7 +129,7 @@ namespace GradebookApp.Migrations
 
                     b.HasIndex("SchoolClassId");
 
-                    b.ToTable("Students");
+                    b.ToTable("Students", (string)null);
                 });
 
             modelBuilder.Entity("GradebookApp.StudentTaskScore", b =>
@@ -168,7 +168,7 @@ namespace GradebookApp.Migrations
 
                     b.HasIndex("WrittenWorkTaskId");
 
-                    b.ToTable("StudentTaskScores");
+                    b.ToTable("StudentTaskScores", (string)null);
                 });
 
             modelBuilder.Entity("GradebookApp.StudentWorkRecord", b =>
@@ -219,7 +219,7 @@ namespace GradebookApp.Migrations
 
                     b.HasIndex("WrittenWorkId");
 
-                    b.ToTable("StudentWorkRecords");
+                    b.ToTable("StudentWorkRecords", (string)null);
                 });
 
             modelBuilder.Entity("GradebookApp.WorkTemplate", b =>
@@ -244,7 +244,7 @@ namespace GradebookApp.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("WorkTemplates");
+                    b.ToTable("WorkTemplates", (string)null);
                 });
 
             modelBuilder.Entity("GradebookApp.WorkTemplateTask", b =>
@@ -275,7 +275,7 @@ namespace GradebookApp.Migrations
 
                     b.HasIndex("WorkTemplateId");
 
-                    b.ToTable("WorkTemplateTasks");
+                    b.ToTable("WorkTemplateTasks", (string)null);
                 });
 
             modelBuilder.Entity("GradebookApp.WrittenWork", b =>
@@ -317,7 +317,7 @@ namespace GradebookApp.Migrations
 
                     b.HasIndex("SchoolClassId");
 
-                    b.ToTable("WrittenWorks");
+                    b.ToTable("WrittenWorks", (string)null);
                 });
 
             modelBuilder.Entity("GradebookApp.WrittenWorkTask", b =>
@@ -348,7 +348,7 @@ namespace GradebookApp.Migrations
 
                     b.HasIndex("WrittenWorkId");
 
-                    b.ToTable("WrittenWorkTasks");
+                    b.ToTable("WrittenWorkTasks", (string)null);
                 });
 
             modelBuilder.Entity("StudentWrittenWork", b =>
@@ -363,7 +363,7 @@ namespace GradebookApp.Migrations
 
                     b.HasIndex("WrittenWorksId");
 
-                    b.ToTable("StudentWrittenWork");
+                    b.ToTable("StudentWrittenWork", (string)null);
                 });
 
             modelBuilder.Entity("GradebookApp.PlannedRetake", b =>

@@ -21,14 +21,16 @@ namespace GradebookApp
         {
             InitializeComponent();
             _dataService = new GradebookDataService();
+            _dataService.ApplyMigrations();
             PdfFileResolver.EnsurePdfsConsolidated();
             CurriculumTreeView.ItemsSource = CurriculumItems;
             
             LoadFromDatabase();
         }
 
-        private void LoadFromDatabase()
+        private void LoadFromDatabase(int? selectedIdToRestore = null, bool scrollToBottom = false)
         {
+            int? idToRestore = selectedIdToRestore ?? _selectedItem?.Id;
             CurriculumItems.Clear();
             var allNodes = _dataService.GetAllCurriculumNodes();
 
@@ -36,6 +38,68 @@ namespace GradebookApp
             foreach (var root in roots)
             {
                 CurriculumItems.Add(BuildTree(root, allNodes));
+            }
+
+            if (idToRestore.HasValue)
+            {
+                var found = FindItemById(CurriculumItems, idToRestore.Value);
+                if (found != null)
+                {
+                    found.IsSelected = true;
+                    _selectedItem = found;
+                    UpdateEditPanelForSelection(found);
+                }
+            }
+
+            if (scrollToBottom)
+            {
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    var sv = FindVisualChild<ScrollViewer>(CurriculumTreeView);
+                    sv?.ScrollToBottom();
+                }), System.Windows.Threading.DispatcherPriority.Loaded);
+            }
+        }
+
+        private CurriculumItem? FindItemById(IEnumerable<CurriculumItem> items, int id)
+        {
+            foreach (var item in items)
+            {
+                if (item.Id == id) return item;
+                var found = FindItemById(item.Children, id);
+                if (found != null) return found;
+            }
+            return null;
+        }
+
+        private static T? FindVisualChild<T>(DependencyObject? parent) where T : DependencyObject
+        {
+            if (parent == null) return null;
+            for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+                if (child is T t) return t;
+                var childOfChild = FindVisualChild<T>(child);
+                if (childOfChild != null) return childOfChild;
+            }
+            return null;
+        }
+
+        private void CurriculumTreeView_Expanded(object sender, RoutedEventArgs e)
+        {
+            if (e.OriginalSource is TreeViewItem tvi && tvi.DataContext is CurriculumItem item)
+            {
+                item.IsExpanded = true;
+                _dataService.UpdateCurriculumNodeExpanded(item.Id, true);
+            }
+        }
+
+        private void CurriculumTreeView_Collapsed(object sender, RoutedEventArgs e)
+        {
+            if (e.OriginalSource is TreeViewItem tvi && tvi.DataContext is CurriculumItem item)
+            {
+                item.IsExpanded = false;
+                _dataService.UpdateCurriculumNodeExpanded(item.Id, false);
             }
         }
 
@@ -55,7 +119,8 @@ namespace GradebookApp
                 ParentId = node.ParentId,
                 IsTopic = node.Level == 2,
                 IsLeaf = isLeaf,
-                IsEditMode = _isEditMode
+                IsEditMode = _isEditMode,
+                IsExpanded = node.IsExpanded
             };
 
             if (node.Files != null)
@@ -141,13 +206,17 @@ namespace GradebookApp
         private void CurriculumTreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
         {
             _selectedItem = e.NewValue as CurriculumItem;
-            
-            if (_selectedItem != null)
+            UpdateEditPanelForSelection(_selectedItem);
+        }
+
+        private void UpdateEditPanelForSelection(CurriculumItem? item)
+        {
+            if (item != null)
             {
-                EditNameTextBox.Text = _selectedItem.Name;
+                EditNameTextBox.Text = item.Name;
                 
                 // Odblokowujemy edycję godzin dla KAŻDEGO węzła, który nie ma jeszcze podtematów
-                bool hasChildren = _selectedItem.Children.Any();
+                bool hasChildren = item.Children.Any();
                 if (hasChildren)
                 {
                     EditHoursTextBox.Text = "";
@@ -156,16 +225,16 @@ namespace GradebookApp
                 }
                 else
                 {
-                    EditHoursTextBox.Text = _selectedItem.Hours?.ToString() ?? "";
+                    EditHoursTextBox.Text = item.Hours?.ToString() ?? "";
                     EditHoursTextBox.IsEnabled = true;
                     EditHoursTextBox.ToolTip = "Wpisz godziny, aby zamienić węzeł w temat/sprawdzian (liść) i dodać pliki";
                 }
                 
-                AddChildBtn.IsEnabled = _selectedItem.Level < 2; 
+                AddChildBtn.IsEnabled = item.Level < 2; 
                 AddSiblingBtn.IsEnabled = true;
                 DeleteNodeBtn.IsEnabled = true;
-                MoveUpBtn.IsEnabled = true;     // <-- NOWE
-                MoveDownBtn.IsEnabled = true;   // <-- NOWE
+                MoveUpBtn.IsEnabled = true;
+                MoveDownBtn.IsEnabled = true;
             }
             else
             {
@@ -175,27 +244,48 @@ namespace GradebookApp
                 AddChildBtn.IsEnabled = false;
                 AddSiblingBtn.IsEnabled = false;
                 DeleteNodeBtn.IsEnabled = false;
-                MoveUpBtn.IsEnabled = false;    // <-- NOWE
-                MoveDownBtn.IsEnabled = false;  // <-- NOWE
+                MoveUpBtn.IsEnabled = false;
+                MoveDownBtn.IsEnabled = false;
             }
         }
 
         private void SaveNodeEdit_Click(object sender, RoutedEventArgs e)
         {
             if (_selectedItem == null) return;
+            int id = _selectedItem.Id;
             string newName = string.IsNullOrWhiteSpace(EditNameTextBox.Text) ? "Nowy element" : EditNameTextBox.Text;
             
             // Zapisujemy ręczne godziny tylko, jeśli pole jest aktywne (węzeł nie ma dzieci)
             bool hasChildren = _selectedItem.Children.Any();
             int? newHours = !hasChildren ? (int.TryParse(EditHoursTextBox.Text, out int h) ? h : null) : _selectedItem.Hours;
 
-            _dataService.UpdateCurriculumNode(_selectedItem.Id, newName, newHours);
-            LoadFromDatabase(); 
+            _dataService.UpdateCurriculumNode(id, newName, newHours);
+            LoadFromDatabase(id); 
         }
 
-        private void AddRoot_Click(object sender, RoutedEventArgs e) { _dataService.AddCurriculumNode("Nowy Dział", null, 0, null); LoadFromDatabase(); }
-        private void AddChild_Click(object sender, RoutedEventArgs e) { if (_selectedItem == null || _selectedItem.Level >= 2) return; string prefix = _selectedItem.Level == 0 ? "Rozdział/Sprawdzian" : "Temat"; _dataService.AddCurriculumNode($"Nowy {prefix}", null, _selectedItem.Level + 1, _selectedItem.Id); LoadFromDatabase(); }
-        private void AddSibling_Click(object sender, RoutedEventArgs e) { if (_selectedItem == null) return; string prefix = _selectedItem.Level == 0 ? "Dział" : (_selectedItem.Level == 1 ? "Rozdział" : "Temat"); _dataService.AddCurriculumNode($"Nowy {prefix}", null, _selectedItem.Level, _selectedItem.ParentId); LoadFromDatabase(); }
+        private void AddRoot_Click(object sender, RoutedEventArgs e) 
+        { 
+            var node = _dataService.AddCurriculumNode("Nowy Dział", null, 0, null); 
+            LoadFromDatabase(node.Id, scrollToBottom: true); 
+        }
+
+        private void AddChild_Click(object sender, RoutedEventArgs e) 
+        { 
+            if (_selectedItem == null || _selectedItem.Level >= 2) return; 
+            _selectedItem.IsExpanded = true;
+            _dataService.UpdateCurriculumNodeExpanded(_selectedItem.Id, true);
+            string prefix = _selectedItem.Level == 0 ? "Rozdział/Sprawdzian" : "Temat"; 
+            var node = _dataService.AddCurriculumNode($"Nowy {prefix}", null, _selectedItem.Level + 1, _selectedItem.Id); 
+            LoadFromDatabase(node.Id, scrollToBottom: true); 
+        }
+
+        private void AddSibling_Click(object sender, RoutedEventArgs e) 
+        { 
+            if (_selectedItem == null) return; 
+            string prefix = _selectedItem.Level == 0 ? "Dział" : (_selectedItem.Level == 1 ? "Rozdział" : "Temat"); 
+            var node = _dataService.AddCurriculumNode($"Nowy {prefix}", null, _selectedItem.Level, _selectedItem.ParentId); 
+            LoadFromDatabase(node.Id, scrollToBottom: true); 
+        }
 
         private void DeleteNode_Click(object sender, RoutedEventArgs e)
         {
@@ -209,15 +299,17 @@ namespace GradebookApp
         private void MoveUp_Click(object sender, RoutedEventArgs e)
         {
             if (_selectedItem == null) return;
-            _dataService.MoveCurriculumNode(_selectedItem.Id, true);
-            LoadFromDatabase();
+            int id = _selectedItem.Id;
+            _dataService.MoveCurriculumNode(id, true);
+            LoadFromDatabase(id);
         }
 
         private void MoveDown_Click(object sender, RoutedEventArgs e)
         {
             if (_selectedItem == null) return;
-            _dataService.MoveCurriculumNode(_selectedItem.Id, false);
-            LoadFromDatabase();
+            int id = _selectedItem.Id;
+            _dataService.MoveCurriculumNode(id, false);
+            LoadFromDatabase(id);
         }
 
         private void TopicTextBlock_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -335,6 +427,34 @@ namespace GradebookApp
         public bool IsLeaf { get; set; } 
         public int Level { get; set; } 
         public int? ParentId { get; set; }
+
+        private bool _isExpanded = true;
+        public bool IsExpanded
+        {
+            get => _isExpanded;
+            set
+            {
+                if (_isExpanded != value)
+                {
+                    _isExpanded = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _isSelected;
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set
+            {
+                if (_isSelected != value)
+                {
+                    _isSelected = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         private bool _isEditMode;
         public bool IsEditMode 

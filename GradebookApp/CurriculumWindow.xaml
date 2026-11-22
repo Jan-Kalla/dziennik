@@ -94,10 +94,13 @@
         <TextBlock Grid.Row="0" Text="Rozkład materiału" FontSize="20" FontWeight="Bold" Foreground="#4DB6AC" Margin="0,0,0,15"/>
 
         <Border Grid.Row="1" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" Padding="10">
-            <TreeView x:Name="CurriculumTreeView" Background="Transparent" BorderThickness="0" ItemTemplate="{StaticResource CurriculumTemplate}" SelectedItemChanged="CurriculumTreeView_SelectedItemChanged">
+            <TreeView x:Name="CurriculumTreeView" Background="Transparent" BorderThickness="0" ItemTemplate="{StaticResource CurriculumTemplate}" SelectedItemChanged="CurriculumTreeView_SelectedItemChanged"
+                      TreeViewItem.Expanded="CurriculumTreeView_Expanded"
+                      TreeViewItem.Collapsed="CurriculumTreeView_Collapsed">
                 <TreeView.ItemContainerStyle>
                     <Style TargetType="TreeViewItem">
-                        <Setter Property="IsExpanded" Value="True"/>
+                        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                        <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
                         <Setter Property="Padding" Value="5,2"/>
                         <Setter Property="Margin" Value="0,2"/>
                     </Style>
